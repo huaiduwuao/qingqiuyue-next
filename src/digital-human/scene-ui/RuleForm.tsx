@@ -14,7 +14,7 @@ import { Box, Button, ButtonBase, CircularProgress, TextField, Typography } from
 import { composeWorld, type ComposeDraft, type ComposeTarget, type WorldRule } from '@/apis/world';
 
 type Effect = Record<string, unknown>;
-export type RuleScope = 'kind' | 'entity' | 'space';
+export type RuleScope = 'kind' | 'entity' | 'space' | 'material';
 
 const mono = { fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 11.5 } as const;
 const inputSx = { '& .MuiInputBase-root': { color: '#fff', fontSize: 12, py: 0 }, '& .MuiInputBase-input': { py: 0.6, px: 0.9 }, '& fieldset': { borderColor: 'rgba(255,255,255,0.18)' } } as const;
@@ -26,6 +26,8 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'enter', label: '有人走进范围', scopes: ['kind', 'entity'], hint: '要有属性 zone(范围)' },
   { v: 'leave', label: '有人走出范围', scopes: ['kind', 'entity'], hint: '要有属性 zone(范围)' },
   { v: 'touch', label: '碰到', scopes: ['kind', 'entity'], hint: '要有属性 zone(范围)' },
+  { v: 'touch', label: '有人踩上去 / 走进去', scopes: ['material'] },
+  { v: 'leave', label: '有人离开这种积木', scopes: ['material'] },
   { v: 'say', label: '有人说话', scopes: ['kind', 'entity', 'space'], hint: '那句话在 text 里' },
   { v: 'changed', label: '自己的状态变了', scopes: ['kind', 'entity'], hint: 'key / old / new' },
   { v: 'spawn', label: '被生成出来', scopes: ['kind', 'entity'] },

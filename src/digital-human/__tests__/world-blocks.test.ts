@@ -3,14 +3,14 @@ import * as THREE from 'three';
 import { act, renderHook } from '@testing-library/react';
 import { BLOCK_SIZE, BlockGrid, decodeBlocks, fillOps, rampDir, slowAt, topAt, type BlockData } from '../vrm/world/blocks';
 import { createBlockLayer } from '../vrm/world/blockLayer';
-import { matColor, matPhysics, materialsVersion, setMaterials, type BlockMaterial } from '../vrm/world/materials';
+import { matColor, matPhysics, materialsVersion, pickableMaterials, setMaterials, setRoomMaterials, type BlockMaterial } from '../vrm/world/materials';
 
 // 和服务端 materials_seed.json 同样的几种
 const MATERIALS: BlockMaterial[] = [
   { id: 0, key: 'plaster', name: '灰墙', color: '#e8e2d6', look: { pattern: 'speckle' }, props: { solid: true, walkable: true } },
   { id: 1, key: 'wood', name: '木', color: '#a0703c', look: { pattern: 'wood' }, props: { solid: true, walkable: true } },
   { id: 4, key: 'glass', name: '玻璃', color: '#bfe6ff', look: { opacity: 0.35 }, props: { solid: true, walkable: true } },
-  { id: 10, key: 'water', name: '水', color: '#3a8fd0', look: { opacity: 0.55 }, props: { solid: false, walkable: false, liquid: { slow: 0.5 } } },
+  { id: 10, key: 'water', name: '水', color: '#3a8fd0', look: { opacity: 0.55 }, props: { solid: false, walkable: false, liquid: { slow: 0.5, float: true } } },
   { id: 20, key: 'hedge', name: '树篱', color: '#2e7d5b', props: { solid: true, walkable: false } },
 ];
 
@@ -42,8 +42,8 @@ describe('materials', () => {
   it('turns material data into walking rules', () => {
     setMaterials(MATERIALS);
     expect(matColor(1)).toBe(0xa0703c);
-    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5 });
-    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0 }); // 不认识的当普通方块
+    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5, float: true });
+    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0, float: false }); // 不认识的当普通方块
     const g = new BlockGrid();
     // 一格水铺在地上:穿得过、站不上去、在里面走得慢
     g.set({ x: 0, y: 0, z: 0, s: 0, m: 10, c: 0, r: 0 });
@@ -55,6 +55,41 @@ describe('materials', () => {
     g.set({ x: 2, y: 0, z: 0, s: 0, m: 20, c: 0, r: 0 });
     expect(g.surfaceAt(1.25, 0.25, 0)).toBe(0);
     expect(g.obstaclesNear(1.25, 0.25, 0)).toHaveLength(1);
+  });
+});
+
+describe('liquids and room materials', () => {
+  it('floats in deep water, wades in shallow water, and climbs out at the edge', () => {
+    setMaterials(MATERIALS);
+    const g = new BlockGrid();
+    // 一个 4 格深(2 米)的水池:x 0..1,池底 y = 0..3 全是水;池边 x = 2 是 4 格高的石头(顶 2 米)
+    for (let y = 0; y < 4; y++) { g.set({ x: 0, y, z: 0, s: 0, m: 10, c: 0, r: 0 }); g.set({ x: 1, y, z: 0, s: 0, m: 10, c: 0, r: 0 }); g.set({ x: 2, y, z: 0, s: 0, m: 0, c: 0, r: 0 }); }
+    // 深水:浮在液面(2 米)下 1 米
+    expect(g.surfaceAt(0.25, 0.25, 0)).toBeCloseTo(1.0);
+    expect(g.inLiquid(0.25, 0.25, 1)).toBe(true);
+    // 浮在 1 米时,岸边 2 米高也爬得上去(泡在水里一步能迈 1.15 米)
+    expect(g.obstaclesNear(0.75, 0.25, 1.0, 1)).toHaveLength(0);
+    expect(g.surfaceAt(1.25, 0.25, 1.0)).toBeCloseTo(2.0);
+    // 不在水里时,同样 1 米的高差迈不上去
+    const dry = new BlockGrid();
+    for (let y = 0; y < 4; y++) dry.set({ x: 2, y, z: 0, s: 0, m: 0, c: 0, r: 0 });
+    dry.set({ x: 1, y: 0, z: 0, s: 0, m: 0, c: 0, r: 0 }); dry.set({ x: 1, y: 1, z: 0, s: 0, m: 0, c: 0, r: 0 });
+    expect(dry.obstaclesNear(0.75, 0.25, 1.0, 1).length).toBeGreaterThan(0);
+    // 浅水(一格,0.5 米):踩着池底走
+    const shallow = new BlockGrid();
+    shallow.set({ x: 0, y: 0, z: 0, s: 0, m: 10, c: 0, r: 0 });
+    expect(shallow.surfaceAt(0.25, 0.25, 0)).toBe(0);
+  });
+
+  it('overlays the room\'s own materials (200–255) on the platform ones', () => {
+    setMaterials(MATERIALS);
+    setRoomMaterials([{ id: 200, key: 'lava', name: '熔岩', color: '#ff5a1f', look: { unlit: true }, props: { solid: false, walkable: false } }, { id: 12, key: 'sneaky', name: '冒充平台', color: '#000000' }]);
+    expect(matColor(200)).toBe(0xff5a1f);
+    expect(matPhysics(200).solid).toBe(false);
+    expect(matColor(12)).toBe(0xffffff); // 房间不能占平台的 id
+    expect(pickableMaterials().map((m) => m.key)).toContain('lava');
+    setRoomMaterials([]);
+    expect(pickableMaterials().map((m) => m.key)).not.toContain('lava');
   });
 });
 

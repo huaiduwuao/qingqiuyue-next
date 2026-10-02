@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { Box, Button, ButtonBase, Chip, CircularProgress, Switch, TextField, Typography } from '@mui/material';
-import { deleteKind, getSpaceRules, listKinds, saveKind, saveSpaceRules, type ComposeDraft, type WorldKind, type WorldPlacement, type WorldRule } from '@/apis/world';
+import { deleteKind, getSpaceRules, listKinds, resetRoomPlayers, saveKind, saveSpaceRules, type ComposeDraft, type WorldKind, type WorldPlacement, type WorldRule } from '@/apis/world';
 import { AiCompose, RulesEditor } from './RuleForm';
 
 const NEW_KIND: Record<string, unknown> = {
@@ -222,6 +222,10 @@ export function SpaceRulesPanel({ toast }: { toast: (icon: string, text: string)
           <JsonBox value={state} onChange={setState} />
           {err && <Typography sx={{ fontSize: 11.5, color: '#ff9b9b', whiteSpace: 'pre-wrap' }}>{err}</Typography>}
           <Button size="small" variant="contained" disabled={busy} onClick={() => void save()}>{busy ? <CircularProgress size={14} /> : '存'}</Button>
+          <Button size="small" onClick={() => {
+            if (!window.confirm('清空所有来过的人在这间房里的状态(分数、背包、通关记号……)?相当于重开一局')) return;
+            resetRoomPlayers().then((r) => toast('🧹', `清空了 ${r.cleared} 个人的状态`)).catch((e) => toast('⚠️', errText(e)));
+          }} sx={{ color: '#ffb0b0', fontSize: 12 }}>清空所有人的状态(重开一局)</Button>
         </Box>
       ))}
     </Box>

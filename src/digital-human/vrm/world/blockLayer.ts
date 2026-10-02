@@ -76,7 +76,8 @@ function makeTexture(THREE_NS: typeof THREE, id: number, look: BlockMaterial['lo
   return t;
 }
 
-function makeMaterial(THREE_NS: typeof THREE, id: number): THREE.Material {
+/** 按物质数据做一个 three 材质(积木层用;实体 look.material 也用它) */
+export function makeMaterial(THREE_NS: typeof THREE, id: number): THREE.Material {
   const look = materialOf(id)?.look;
   if (look?.unlit) return new THREE_NS.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   const opacity = Math.max(0.05, Math.min(1, look?.opacity ?? 1));

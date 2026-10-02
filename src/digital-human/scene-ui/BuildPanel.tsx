@@ -18,6 +18,7 @@ import { BLOCK_MAX_ROOM, BLOCK_MAX_Y, SHAPES, fillOps, type BlockOp } from '../v
 import type { BlockHit } from '../vrm/world/blockLayer';
 import { matColor, onMaterials, pickableMaterials } from '../vrm/world/materials';
 import { ensureMaterials, type BlocksState } from './useBlocks';
+import { RoomMaterials } from './RoomMaterials';
 
 type Tool = 'place' | 'erase' | 'pick' | 'fill' | 'clear';
 const TOOLS: { id: Tool; label: string; tip: string }[] = [
@@ -34,11 +35,12 @@ const glass = { bgcolor: 'rgba(10,12,24,0.8)', backdropFilter: 'blur(16px)', bor
 type Cell = { x: number; y: number; z: number };
 
 /** 鼠标停在材质上时说一句它的物理属性 */
-function matHint(p: { solid?: boolean; walkable?: boolean; liquid?: { slow?: number } } | undefined): string {
+function matHint(p: { solid?: boolean; walkable?: boolean; liquid?: { slow?: number; float?: boolean } } | undefined): string {
   const out: string[] = [];
   if (p?.solid === false) out.push('能穿过去');
   else if (p?.walkable === false) out.push('站不上去');
   if (p?.liquid?.slow) out.push(`在里面走得慢`);
+  if (p?.liquid?.float) out.push('深了浮起来');
   return out.join(',');
 }
 
@@ -55,6 +57,7 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
   const [color, setColor] = React.useState<number>(() => matColor(1));
   // 材质是数据(物质登记表):读到 / 换了跟着刷新
   const [mats, setMats] = React.useState(pickableMaterials);
+  const [matsOpen, setMatsOpen] = React.useState(false);
   React.useEffect(() => {
     const off = onMaterials(() => setMats(pickableMaterials()));
     void ensureMaterials().then(() => setMats(pickableMaterials()));
@@ -191,7 +194,10 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
       </Box>
 
       <Box>
-        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', mb: 0.4 }}>材质</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.4 }}>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', flex: 1 }}>材质</Typography>
+          {blocks.mine && <ButtonBase onClick={() => setMatsOpen((v) => !v)} sx={{ fontSize: 11, color: '#9be8ff' }}>{matsOpen ? '收起' : '＋ 我的材质'}</ButtonBase>}
+        </Box>
         <Box sx={narrow ? { display: 'flex', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } } : { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0.5 }}>
           {mats.map((m) => (
             <ButtonBase key={m.id} title={matHint(m.props)} onClick={() => { setMat(m.id); setColor(matColor(m.id)); }} sx={{ py: 0.5, flexShrink: 0, minWidth: narrow ? 48 : 0, borderRadius: 1.5, fontSize: 11.5, display: 'flex', flexDirection: 'column', gap: 0.25, bgcolor: mat === m.id ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.05)', border: mat === m.id ? '1px solid #25F4EE' : '1px solid transparent' }}>
@@ -200,6 +206,11 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
             </ButtonBase>
           ))}
         </Box>
+        {matsOpen && blocks.mine && (
+          <Box sx={{ mt: 0.75, p: 0.75, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <RoomMaterials toast={toast} onSaved={() => { setMatsOpen(false); blocks.reload(); }} />
+          </Box>
+        )}
       </Box>
 
       <Box>

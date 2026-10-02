@@ -7,6 +7,8 @@
  *     opacity、roughness、metalness、unlit(不受光,发光块);
  *   - props:solid 挡不挡人、walkable 顶上能不能站、liquid.slow 人在里面走得慢多少(0–0.9)。
  * 积木网格(blocks.ts)按这里判断走路,积木层(blockLayer.ts)按这里画,搭建面板按这里列。
+ * 0–199 是平台的(GET /world/materials),200–255 是这间房自己的(跟着 GET /world/rooms/:uid/blocks 下发,setRoomMaterials)。
+ * liquid.float:深的液体里人浮在水面附近(blocks.ts surfaceAt),靠岸能爬上去。
  * 还没读到(或者读失败)时谁都当成能站、挡人的白色方块。
  */
 
@@ -16,34 +18,60 @@ export interface BlockMaterial {
   name: string;
   color: string;
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
-  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number } };
+  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean } };
+  /** 人踩上 / 走进这种积木时(enter / leave / touch)做什么(服务端跑) */
+  rules?: { on: string; if?: string; do: Record<string, unknown>[] }[];
   hidden?: boolean;
 }
+
+/** 这间房自己的物质 id 从这里起 */
+export const ROOM_MAT_MIN = 200;
+export const ROOM_MAT_MAX = 255;
 
 export interface MatPhysics {
   solid: boolean;
   walkable: boolean;
   /** 人在里面走路的速度打几折(0 = 不减速) */
   slow: number;
+  /** 深的液体里浮起来 */
+  float: boolean;
 }
 
-const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0 };
+const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0, float: false };
 
+let platform: readonly BlockMaterial[] = [];
+let room: readonly BlockMaterial[] = [];
 let byId = new Map<number, BlockMaterial>();
 let phys = new Map<number, MatPhysics>();
 let version = 0;
 const listeners = new Set<() => void>();
 
-/** 换成服务端给的这份 */
-export function setMaterials(list: readonly BlockMaterial[]) {
+function rebuild() {
+  const list = [...platform.filter((m) => m.id < ROOM_MAT_MIN), ...room.filter((m) => m.id >= ROOM_MAT_MIN && m.id <= ROOM_MAT_MAX)];
   byId = new Map(list.map((m) => [m.id, m]));
   phys = new Map(list.map((m) => {
     const solid = m.props?.solid !== false;
-    return [m.id, { solid, walkable: solid && m.props?.walkable !== false, slow: Math.max(0, Math.min(0.9, m.props?.liquid?.slow ?? 0)) }];
+    return [m.id, { solid, walkable: solid && m.props?.walkable !== false, slow: Math.max(0, Math.min(0.9, m.props?.liquid?.slow ?? 0)), float: !!m.props?.liquid?.float }];
   }));
   version++;
   listeners.forEach((f) => f());
 }
+
+/** 换成服务端给的平台物质 */
+export function setMaterials(list: readonly BlockMaterial[]) {
+  platform = list;
+  rebuild();
+}
+
+/** 换成这间房自己的物质(进房间 / 房主改了;离开房间传 []) */
+export function setRoomMaterials(list: readonly BlockMaterial[]) {
+  if (JSON.stringify(list) === JSON.stringify(room)) return;
+  room = list;
+  rebuild();
+}
+
+/** 这间房自己的(编辑用) */
+export function roomMaterials(): readonly BlockMaterial[] { return room; }
 
 export function materialOf(id: number): BlockMaterial | undefined { return byId.get(id); }
 

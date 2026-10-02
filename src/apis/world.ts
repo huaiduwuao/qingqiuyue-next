@@ -83,7 +83,7 @@ export interface WorldPlacement {
   anim?: number;
 }
 
-export interface EntityLook { model?: string; shape?: 'box' | 'cylinder' | 'sphere' | 'disc'; color?: string; size?: number[] }
+export interface EntityLook { model?: string; shape?: 'box' | 'cylinder' | 'sphere' | 'disc'; color?: string; size?: number[]; material?: number }
 export interface EntityProps {
   solid?: boolean;
   walkable?: boolean;
@@ -338,7 +338,16 @@ export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 
 
 // ── 十二期:积木 ──
 /** 一间房的积木:blocks 是打包的二进制(每块 12 字节)再 base64,用 vrm/world/blocks.ts decodeBlocks 解 */
-export async function getBlocks(owner: string): Promise<{ blocks: string; n: number; version: number; canBuild: boolean }> {
+/** 这间房自己的物质(id 200–255);房主整份换掉 */
+export async function saveRoomMaterials(list: WorldMaterial[]): Promise<{ list: WorldMaterial[] }> {
+  return accountClient.put<{ list: WorldMaterial[] }>('/world/rooms/mine/materials', { list });
+}
+/** 清空这间房里所有人身上的状态(分数、背包……重开一局) */
+export async function resetRoomPlayers(): Promise<{ cleared: number }> {
+  return accountClient.delete<{ cleared: number }>('/world/rooms/mine/players');
+}
+
+export async function getBlocks(owner: string): Promise<{ blocks: string; n: number; version: number; canBuild: boolean; materials?: WorldMaterial[] }> {
   return accountClient.get(`/world/rooms/${encodeURIComponent(owner)}/blocks`);
 }
 /** 改积木:[1, x, y, z, shape, mat, color, rot] 放 / [0, x, y, z] 拆,一次最多 512 条 */
@@ -357,7 +366,9 @@ export interface WorldMaterial {
   /** pattern 纹理样式(plain / speckle / wood / brick / brushed / tile / cloth)、opacity、roughness、metalness、unlit */
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
   /** solid 挡人、walkable 顶上能站、transparent 透光、emits 发光、liquid {slow} 人在里面走得慢 */
-  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number } };
+  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean } };
+  /** 人踩上 / 走进这种积木时做什么(只认 enter / leave / touch 和自定义信号) */
+  rules?: WorldRule[];
   hidden?: boolean;
 }
 

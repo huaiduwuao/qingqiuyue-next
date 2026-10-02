@@ -13,7 +13,7 @@ import { editBlocks, getBlocks, listMaterials } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldDef } from '../vrm/world/worldLayout';
 import { BLOCK_MAX_OPS, BlockGrid, decodeBlocks, type BlockOp } from '../vrm/world/blocks';
-import { setMaterials } from '../vrm/world/materials';
+import { setMaterials, setRoomMaterials } from '../vrm/world/materials';
 
 let matsLoad: Promise<void> | null = null;
 /** 物质(积木材质)登记表读一次;读失败下次再试 */
@@ -62,6 +62,7 @@ export function useBlocks(opts: UseBlocksOptions) {
       setCount(0);
       setCanBuild(false);
       setReady(false);
+      setRoomMaterials([]);
       handle?.setBlockGrid(null);
       return;
     }
@@ -73,6 +74,7 @@ export function useBlocks(opts: UseBlocksOptions) {
     // 先有物质登记表再画(材质、能不能站都按它)
     Promise.all([getBlocks(owner), ensureMaterials()]).then(([r]) => {
       if (!alive) return;
+      setRoomMaterials(r.materials ?? []);
       grid.load(decodeBlocks(r.blocks));
       handle.setBlockGrid(grid);
       setCount(grid.size);
@@ -149,6 +151,8 @@ export function useBlocks(opts: UseBlocksOptions) {
 
   return {
     owner, ready, count, canBuild, grid: gridRef.current,
+    /** 是我自己的房间(能改这间房自己的物质) */
+    mine: !!owner && owner === opts.me,
     commit, undo, redo, canUndo: undoRef.current.length > 0, canRedo: redoRef.current.length > 0,
     applyRemote, reload,
   };

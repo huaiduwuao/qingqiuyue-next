@@ -7,7 +7,8 @@
  *
  * 走路:方块、半砖、斜坡的顶面能站;一步能迈上 0.55 米(正好一格),再高就挡路;薄墙、柱子只挡路不能站。
  * 物质的属性也算数:solid = false(水)穿得过去、不挡也站不上;walkable = false 站不上去(和墙一样挡);
- * liquid.slow 人泡在里面走得慢(slowAt)。
+ * liquid.slow 人泡在里面走得慢(slowAt);liquid.float 深的液体里人浮在液面下 FLOAT_DEPTH 米(脚),
+ * 泡在液体里时一步能迈 SWIM_STEP 米 —— 游到岸边能爬上去。
  * 服务端 worldapp/blocks.go 按同样的格子存,一次最多改 512 格。
  */
 
@@ -20,6 +21,10 @@ export const BLOCK_MAX_OPS = 512;
 export const BLOCK_MAX_ROOM = 20000;
 /** 一步能迈多高(米) */
 export const STEP_UP = 0.55;
+/** 浮起来时脚在液面下多深(头露在外面) */
+export const FLOAT_DEPTH = 1.0;
+/** 泡在液体里一步能迈多高(从水里爬上岸) */
+export const SWIM_STEP = 1.15;
 
 export const SHAPES = [
   { id: 0, name: '方块', icon: '◼' },
@@ -125,15 +130,35 @@ export class BlockGrid {
     const col = this.cols.get(`${cx},${cz}`);
     if (!col || !col.size) return 0;
     const fx = x / BLOCK_SIZE - cx, fz = z / BLOCK_SIZE - cz;
+    const step = this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
     let best = 0;
     for (const y of col) {
       const b = this.get(cx, y, cz)!;
       if (!matPhysics(b.m).walkable) continue;
       const t = topAt(b, fx, fz);
-      if (t === null || t > curY + STEP_UP) continue;
+      if (t === null || t > curY + step) continue;
       if (t > best) best = t;
     }
+    // 浮起:脚下往上连着的会浮的液体够深,就浮在液面下 FLOAT_DEPTH 米
+    let y = Math.floor(best / BLOCK_SIZE + 1e-6);
+    let top = -1;
+    while (this.get(cx, y, cz) && matPhysics(this.get(cx, y, cz)!.m).float) { top = (y + 1) * BLOCK_SIZE; y++; }
+    if (top > 0 && top - FLOAT_DEPTH > best) return top - FLOAT_DEPTH;
     return best;
+  }
+
+  /** 站在 (x, curY, z) 的人身边(自己这列和四周一圈)有没有液体 —— 泡在水里能迈得更高,好爬上岸 */
+  inLiquid(x: number, z: number, curY: number): boolean {
+    const cx = cellOf(x), cz = cellOf(z);
+    const y0 = Math.floor(curY / BLOCK_SIZE), y1 = Math.floor((curY + 1.2) / BLOCK_SIZE);
+    for (let i = cx - 1; i <= cx + 1; i++) for (let k = cz - 1; k <= cz + 1; k++) {
+      if (!this.cols.get(`${i},${k}`)?.size) continue;
+      for (let y = y0; y <= y1; y++) {
+        const b = this.get(i, y, k);
+        if (b && matPhysics(b.m).slow > 0 && !matPhysics(b.m).solid) return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -144,6 +169,7 @@ export class BlockGrid {
     const out: Obstacle[] = [];
     const r = Math.ceil(range / BLOCK_SIZE);
     const cx = cellOf(x), cz = cellOf(z);
+    const step = this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
     for (let i = cx - r; i <= cx + r; i++) {
       for (let k = cz - r; k <= cz + r; k++) {
         const col = this.cols.get(`${i},${k}`);
@@ -156,7 +182,7 @@ export class BlockGrid {
           const bottom = b.y * BLOCK_SIZE;
           // 方块、半砖:迈得上去就不挡;薄墙、柱子、站不上去的物质:和身子有重叠就挡
           const standable = (b.s === 0 || b.s === 1) && ph.walkable;
-          if (bottom >= curY + 1.4 || blockTop(b) <= curY + (standable ? STEP_UP : 0.05)) continue;
+          if (bottom >= curY + 1.4 || blockTop(b) <= curY + (standable ? step : 0.05)) continue;
           blocking = b;
           break;
         }

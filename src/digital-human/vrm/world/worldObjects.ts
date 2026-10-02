@@ -32,6 +32,8 @@ import type * as THREE from 'three';
 import { createRealKit, type RealKit } from './realKit';
 import type { Obstacle } from './worldLayout';
 import { guessSeatHeight, seatCount, type Interact, type SeatSpot } from './interact';
+import { makeMaterial } from './blockLayer';
+import { matColor } from './materials';
 
 export interface PlacedObject {
   id: string;
@@ -61,7 +63,7 @@ export interface PlacedObject {
   interact?: Interact | null;
   /** 世界模型:原型、外观、算好的属性、动画毫秒数 */
   kind?: string;
-  look?: { model?: string; shape?: string; color?: string; size?: number[] };
+  look?: { model?: string; shape?: string; color?: string; size?: number[]; material?: number };
   props?: { solid?: boolean; visible?: boolean; emits?: { color?: string; intensity?: number; radius?: number }; label?: unknown; zone?: unknown; sense?: boolean; [k: string]: unknown };
   anim?: number;
 }
@@ -201,7 +203,15 @@ export function createObjectLayer(
       case 'sphere': geo = new THREE_NS.SphereGeometry(hx, 20, 14); y = Math.max(hx, 0.6); break;
       default: geo = new THREE_NS.BoxGeometry(hx * 2, hy * 2, hz * 2);
     }
-    const mat = new THREE_NS.MeshStandardMaterial({ color: new THREE_NS.Color(look.color || '#cccccc'), roughness: 0.6, transparent: look.shape === 'disc', opacity: look.shape === 'disc' ? 0.55 : 1, name: 'emiss' });
+    // look.material:用一种物质的外观(纹理、透明、发光),颜色没写就用物质的颜色 —— 积木样子的机关
+    let mat: THREE.Material;
+    if (typeof look.material === 'number') {
+      mat = makeMaterial(THREE_NS, look.material);
+      (mat as THREE.MeshStandardMaterial).color.set(look.color || `#${matColor(look.material).toString(16).padStart(6, '0')}`);
+      mat.name = 'emiss';
+    } else {
+      mat = new THREE_NS.MeshStandardMaterial({ color: new THREE_NS.Color(look.color || '#cccccc'), roughness: 0.6, transparent: look.shape === 'disc', opacity: look.shape === 'disc' ? 0.55 : 1, name: 'emiss' });
+    }
     const mesh = new THREE_NS.Mesh(geo, mat);
     mesh.position.y = y;
     mesh.castShadow = look.shape !== 'disc';

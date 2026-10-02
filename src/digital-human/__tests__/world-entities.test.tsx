@@ -3,6 +3,7 @@ import React from 'react';
 import * as THREE from 'three';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
+import { setMaterials } from '../vrm/world/materials';
 import { useRoomSocket } from '../scene-ui/useRoomSocket';
 import { useObjectUse } from '../scene-ui/useObjectUse';
 import type { RoomFrame, RoomSocket, RoomSocketStatus } from '@/lib/world/roomSocket';
@@ -50,6 +51,20 @@ describe('entities in the object layer', () => {
     layer.tick(0.1, 0.1, cam);
     expect(layer.groupOf('e1')!.visible).toBe(false);
     expect(lights[0].intensity).toBe(0);
+    layer.dispose();
+  });
+
+  it('draws an entity with a block material look', () => {
+    setMaterials([{ id: 4, key: 'glass', name: '玻璃', color: '#bfe6ff', look: { opacity: 0.35 } }]);
+    const parent = new THREE.Group();
+    const layer = createObjectLayer(THREE, parent, { quality: 'low' });
+    layer.set([ent({ id: 'g', kind: 'u1.window', look: { shape: 'box', size: [0.5, 0.5, 0.05], material: 4 } })]);
+    const meshes: THREE.Mesh[] = [];
+    parent.traverse((x) => { if ((x as THREE.Mesh).isMesh && (x as THREE.Mesh).geometry instanceof THREE.BoxGeometry) meshes.push(x as THREE.Mesh); });
+    const m = meshes[0].material as THREE.MeshStandardMaterial;
+    expect(m.transparent).toBe(true);
+    expect(m.opacity).toBeCloseTo(0.35);
+    expect('#' + m.color.getHexString()).toBe('#bfe6ff');
     layer.dispose();
   });
 
