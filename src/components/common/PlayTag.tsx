@@ -70,12 +70,13 @@ export function PlayTag({ id, contentType, status, readyItems, totalItems, varia
 
   const ready = readyItems ?? item?.readyItems;
   const total = totalItems ?? item?.totalItems;
-  if (specOf(st, ready, total)) {
+  if (specOf(st, ready, total, ct)) {
     return (
       <AvailabilityBadge
         status={st}
         readyItems={ready}
         totalItems={total}
+        contentType={ct}
         variant={variant}
         sx={sx}
         {...pos}

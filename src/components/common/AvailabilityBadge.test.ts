@@ -47,4 +47,9 @@ describe('specOf', () => {
   it('确实坏了的才标红', () => {
     expect(specOf('pending_repair')).toMatchObject({ label: '修复中', tone: 'broken' });
   });
+
+  it('音乐找不到音源说「去原平台听」', () => {
+    expect(specOf('bandwidth_limited', undefined, undefined, 'MUSIC')?.label).toBe('去原平台听');
+    expect(specOf('bandwidth_limited')?.label).toBe('去原站看');
+  });
 });
