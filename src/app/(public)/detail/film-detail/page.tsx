@@ -63,6 +63,16 @@ interface Film {
   work?: WorkInfo | null;
 }
 
+/**
+ * 这条收录自己的 source 页能不能直接交给播放器。availability 的「能看」判的是这条收录,
+ * 实际能播的可能是作品里的另一条播放源(比如 source 是 B 站番剧页、能播的是欧乐影院的 m3u8);
+ * 作品把 source 列为去原站的链接时,它就不是能播的那个,得让给 streamOffers。
+ */
+function ownSourceWatchable(data: Partial<Film>): boolean {
+  if (data.availability?.watchable !== true) return false;
+  return !(data.work?.offers || []).some((o) => o.url === data.source && !o.watchable);
+}
+
 function FilmDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -130,7 +140,7 @@ function FilmDetailContent() {
                   // 选源:用户手动选的 > 这条收录跨源绑定的 > 这条自己能看的页面 > 同一部作品其它来源里最好的那个
                   // (作品归并后,点进哪一条收录都能看)> 原始 source。
                   const offers = streamOffers(data.work);
-                  const ownWatchable = data.availability?.watchable === true;
+                  const ownWatchable = ownSourceWatchable(data);
                   const chosen = chosenSource && chosenSource.id === id ? chosenSource.url : '';
                   const playPage = chosen || data.playSourceUrl || (ownWatchable ? data.source : '') || offers[0]?.url || data.source || '';
                   const notice = data.playSourceUrl || chosen || offers.length > 0 ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
@@ -148,7 +158,7 @@ function FilmDetailContent() {
             <Container maxWidth="lg" sx={{ py: 3 }}>
               <WorkSourcePanel
                 work={data.work}
-                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || data.playSourceUrl || (data.availability?.watchable ? data.source : '') || streamOffers(data.work)[0]?.url}
+                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || data.playSourceUrl || (ownSourceWatchable(data) ? data.source : '') || streamOffers(data.work)[0]?.url}
                 onSelect={(o) => setChosenSource({ id, url: o.url })}
               />
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
