@@ -26,7 +26,7 @@ const ACCOUNT_PAGES = [
   { key: 'reward', label: '悬赏', sub: '赏金广场 · 任务 · 邀请', path: '/account/reward', accent: 'warning.main' },
   { key: 'msg', label: '消息', sub: '互动 · 系统 · 私信', path: '/account/msg', accent: 'primary.main' },
   { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', accent: '#8B5CF6' },
-  { key: 'wallet', label: '我的钱包', sub: '钻石 · 收支明细', path: '/account/wallet', accent: '#FE2C55' },
+  { key: 'wallet', label: '我的钱包', sub: '已并入个人中心', path: '/account/wallet', accent: '#FE2C55' },
   { key: 'orders', label: '我的订单', sub: '充值与购买记录', path: '/account/orders', accent: '#5B8DEF' },
   { key: 'purchases', label: '我的购买', sub: '已购内容', path: '/account/purchases', accent: '#FF8A3D' },
   { key: 'vip', label: '会员中心', sub: '会员权益', path: '/account/vip', accent: '#D4AF37' },
@@ -34,7 +34,7 @@ const ACCOUNT_PAGES = [
   { key: 'creator-level', label: '创作者等级', sub: '等级与权益', path: '/account/creator-level', accent: 'secondary.main' },
   { key: 'my-lists', label: '我的合集', sub: '歌单 · 书架 · 收藏夹', path: '/account/my-lists', accent: 'primary.main' },
   { key: 'dashboard', label: '数据看板', sub: '概览', path: '/account/dashboard', accent: 'primary.main' },
-  { key: 'social-monetize', label: '社交变现', sub: '平台账号收益', path: '/account/social-monetize', accent: 'secondary.main' },
+  { key: 'social-monetize', label: '打赏与订阅', sub: '作品收入明细', path: '/account/social-monetize', accent: 'secondary.main' },
   { key: 'quota', label: 'AI 额度', sub: '用量与配额', path: '/account/quota', accent: '#5B8DEF' },
 ];
 

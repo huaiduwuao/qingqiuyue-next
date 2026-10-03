@@ -75,8 +75,8 @@ export default function ActivityMobile({
             items={[
               { label: '进行中', value: stats.active, onClick: () => onTab('active') },
               { label: '我已参与', value: stats.mySigned, onClick: () => onTab('mine') },
-              { label: '本月奖励', value: `¥${formatBigNumber(stats.monthlyReward)}` },
-              { label: '累计获奖', value: `¥${formatBigNumber(stats.totalWon)}`, onClick: () => onTab('won') },
+              { label: '本月奖励', value: `${formatBigNumber(stats.monthlyReward)} 钻` },
+              { label: '累计获奖', value: `${formatBigNumber(stats.totalWon)} 钻`, onClick: () => onTab('won') },
             ]}
           />
         </Box>

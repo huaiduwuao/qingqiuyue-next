@@ -19,7 +19,7 @@ import Typography from '@mui/material/Typography';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import RealmDemandList from './RealmDemandList';
 import RealizationList from './RealizationList';
-import { listRealizations, listRealmDemands, listTeams, yuan } from '@/apis/team';
+import { listRealizations, listRealmDemands, listTeams, centsAsDiamonds } from '@/apis/team';
 import type { EntityId } from '@/lib/id';
 
 export type RealmCollabTab = 'demands' | 'realizations' | 'teams';
@@ -97,7 +97,7 @@ function Teams({ topicId }: { topicId: EntityId }) {
               {t.name}
             </Typography>
             <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>
-              {t.memberCount} 人 · 交付 {t.realizedCount} · 收入 ¥{yuan(t.earnedCents)}
+              {t.memberCount} 人 · 交付 {t.realizedCount} · 收入 {centsAsDiamonds(t.earnedCents)}
             </Typography>
           </Box>
         </Box>

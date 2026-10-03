@@ -15,6 +15,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EventIcon from '@mui/icons-material/Event';
 import type { DemandItem } from '@/beans/reward';
+import { demandPayDiamonds, formatDiamonds, yuanToDiamonds } from '@/apis/wallet';
 
 interface Props {
   open: boolean;
@@ -30,9 +31,7 @@ function fmtDate(iso?: string | null) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 
-function fmtYuan(v?: number | null) {
-  return `¥${(v ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+
 
 /**
  * 结账确认 / 结算单,数据来自后端 DemandView.settlement:
@@ -43,9 +42,10 @@ function fmtYuan(v?: number | null) {
 export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, loading }: Props) {
   if (!demand) return null;
   const settlement = demand.settlement;
-  const budget = Number(demand.pay ?? 0);
-  const paid = settlement?.totalPay ?? 0;
-  const refund = settlement?.refundPay ?? 0;
+  // 金额都按钻石;老接口只有按元的 totalPay / refundPay / amount
+  const budget = demandPayDiamonds(demand);
+  const paid = settlement?.totalDiamonds ?? yuanToDiamonds(settlement?.totalPay);
+  const refund = settlement?.refundDiamonds ?? yuanToDiamonds(settlement?.refundPay);
   const approved = settlement?.approvedCount ?? demand.completedCount ?? 0;
   const unfinished = Math.max(0, (demand.totalTaskCount ?? approved) - approved);
   const distribution = settlement?.distribution ?? [];
@@ -65,9 +65,9 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, l
       </DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 2 }}>
-          <Amount label="需求赏金" value={fmtYuan(budget)} color="text.primary" />
-          <Amount label={readonly ? '已付给贡献者' : '将付给贡献者'} value={fmtYuan(paid)} color="warning.main" />
-          <Amount label={readonly ? '已退回发布者' : '将退回你的钱包'} value={fmtYuan(refund)} color="text.secondary" />
+          <Amount label="需求赏金" value={formatDiamonds(budget)} color="text.primary" />
+          <Amount label={readonly ? '已付给贡献者' : '将付给贡献者'} value={formatDiamonds(paid)} color="warning.main" />
+          <Amount label={readonly ? '已退回发布者' : '将退回你的钱包'} value={formatDiamonds(refund)} color="text.secondary" />
         </Box>
 
         {!readonly && (
@@ -108,7 +108,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, l
                   </Typography>
                 </Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                  {fmtYuan(d.amount)}
+                  {formatDiamonds(d.diamonds ?? yuanToDiamonds(d.amount))}
                 </Typography>
               </Box>
             ))}

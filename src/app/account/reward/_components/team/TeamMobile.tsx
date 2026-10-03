@@ -15,7 +15,7 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { MobileListRow, MobileSection } from '@/components/mobile/MobileSection';
-import { yuan, type MyTeam, type Team } from '@/apis/team';
+import { centsAsDiamonds, type MyTeam, type Team } from '@/apis/team';
 import { MobileEmpty, MobileFab, MobileSkeletonRows, StatusTag } from '../personal/mobileKit';
 
 const ROLE_LABEL: Record<string, string> = { owner: '队长', admin: '管理员', member: '成员' };
@@ -45,7 +45,7 @@ function TeamAvatar({ src }: { src?: string | null }) {
   );
 }
 
-const stats = (t: Team) => `${t.memberCount} 人 · 交付 ${t.realizedCount} · ¥${yuan(t.earnedCents)}`;
+const stats = (t: Team) => `${t.memberCount} 人 · 交付 ${t.realizedCount} · ${centsAsDiamonds(t.earnedCents)}`;
 
 export default function TeamMobile({
   me,

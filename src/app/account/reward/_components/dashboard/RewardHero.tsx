@@ -1,16 +1,17 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import WhatshotIcon from '@mui/icons-material/Whatshot';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import StarIcon from '@mui/icons-material/Star';
 import { alpha } from '@mui/material/styles';
 import { DARK_BG } from '@/constants/gradients';
+import { WALLET_HREF, formatDiamonds } from '@/apis/wallet';
 
 interface RewardHeroProps {
   totalPoint: number;
@@ -18,10 +19,10 @@ interface RewardHeroProps {
   levelName: string;
   needPoint: number;
   // 真实 KPI 数据(替代硬编码)
-  todayRewardYuan?: number;
+  todayIncomeDiamonds?: number;
   adoptedCount?: number;
   rankingPosition?: number;
-  totalIncomeYuan?: number;
+  totalIncomeDiamonds?: number;
 }
 
 export default function RewardHero({
@@ -29,10 +30,10 @@ export default function RewardHero({
   level,
   levelName,
   needPoint,
-  todayRewardYuan = 0,
+  todayIncomeDiamonds = 0,
   adoptedCount = 0,
   rankingPosition = 0,
-  totalIncomeYuan = 0,
+  totalIncomeDiamonds = 0,
 }: RewardHeroProps) {
   // 后端没给 needPoint(已满级 / 接口缺字段)时以前算出 NaN,界面上是「194 / NaN」「还需 0 灵气」
   const hasNext = Number.isFinite(needPoint) && needPoint > 0;
@@ -151,10 +152,8 @@ export default function RewardHero({
           }}
         >
           {[
-            { icon: <WhatshotIcon sx={{ fontSize: 18 }} />, label: '今日赏金', value: todayRewardYuan > 0 ? `¥${todayRewardYuan.toLocaleString('zh-CN')}` : '¥0', color: 'primary.main' },
             { icon: <StarIcon sx={{ fontSize: 18 }} />, label: '已采纳', value: String(adoptedCount || 0), color: 'warning.main' },
             { icon: <EmojiEventsIcon sx={{ fontSize: 18 }} />, label: '排行榜', value: rankingPosition > 0 ? `#${rankingPosition}` : '—', color: 'secondary.main' },
-            { icon: <TrendingUpIcon sx={{ fontSize: 18 }} />, label: '累计收入', value: totalIncomeYuan > 0 ? `¥${totalIncomeYuan.toLocaleString('zh-CN')}` : '¥0', color: 'success.main' },
           ].map((s) => (
             <Box
               key={s.label}
@@ -191,6 +190,32 @@ export default function RewardHero({
               </Box>
             </Box>
           ))}
+          {/* 赏金收入只占一行:钱的事在个人中心的钱包里看 */}
+          <Box
+            component={Link}
+            href={WALLET_HREF}
+            sx={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1.5,
+              border: '1px dashed',
+              borderColor: 'divider',
+              color: 'text.secondary',
+              textDecoration: 'none',
+              fontSize: 12,
+              '&:hover': { color: 'text.primary', borderColor: 'text.secondary' },
+            }}
+          >
+            <TrendingUpIcon sx={{ fontSize: 16, color: 'success.main' }} />
+            <Box component="span" sx={{ flex: 1, minWidth: 0 }}>
+              赏金收入 今日 {formatDiamonds(todayIncomeDiamonds)} · 累计 {formatDiamonds(totalIncomeDiamonds)}
+            </Box>
+            <Box component="span" sx={{ whiteSpace: 'nowrap' }}>钱包 ›</Box>
+          </Box>
         </Box>
       </Box>
     </Box>

@@ -6,6 +6,7 @@
  * 注:axios 拦截器统一包成 {code, msg, data},这里每个 API 都通过 unwrap() 拆出真正的 data。
  */
 import { accountClient, adminClient } from '@/lib/api/client';
+import { demandPayDiamonds, fenToDiamonds } from '@/apis/wallet';
 import { DemandItem } from '@/beans/reward';
 import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
@@ -139,8 +140,8 @@ export interface Bounty {
   id: string;
   title: string;
   category: string;
-  /** 总赏金(分) */
-  reward: number;
+  /** 总赏金(钻) */
+  rewardDiamonds: number;
   /** 认领过任务的人数 */
   applicants: number;
   /** 距截止的天数;null 表示发布者没有设截止时间 */
@@ -156,8 +157,8 @@ export interface Bounty {
   endTime?: string;
   openTaskCount?: number;
   totalTaskCount?: number;
-  /** 发布时托管、尚未发出的赏金(分) */
-  escrowCents?: number;
+  /** 发布时托管、尚未发出的赏金(钻) */
+  escrowDiamonds?: number;
 }
 
 /** 赏金广场:所有人进行中的需求(demand/client/page?scope=market)。 */
@@ -197,7 +198,6 @@ const CATEGORY_GRADIENT: Record<string, string> = {
 };
 
 function bountyFromDemand(demand: DemandItem): Bounty {
-  const payNum = Number(demand.pay ?? 0);
   const endMs = demand.endTime ? new Date(demand.endTime).getTime() : null;
   const daysLeft = endMs == null ? null : Math.max(0, Math.ceil((endMs - Date.now()) / 86_400_000));
   const category = demand.category || 'video';
@@ -205,7 +205,7 @@ function bountyFromDemand(demand: DemandItem): Bounty {
     id: String(demand.id),
     title: demand.title || '',
     category,
-    reward: payNum > 0 ? Math.round(payNum * 100) : 0,
+    rewardDiamonds: demandPayDiamonds(demand),
     applicants: demand.applicants ?? 0,
     daysLeft,
     sponsor: demand.username || '',
@@ -219,7 +219,7 @@ function bountyFromDemand(demand: DemandItem): Bounty {
     endTime: demand.endTime,
     openTaskCount: demand.openTaskCount ?? 0,
     totalTaskCount: demand.totalTaskCount ?? 0,
-    escrowCents: demand.escrowCents ?? 0,
+    escrowDiamonds: demand.escrowDiamonds ?? fenToDiamonds(demand.escrowCents),
   };
 }
 
@@ -406,7 +406,8 @@ export interface RewardRanker {
   initials: string;
   avatarColor: string;
   bounty: number; // 已接悬赏数
-  income: number; // 累计收益(分)
+  income: number; // 累计收益(分),老字段
+  incomeDiamonds?: number; // 累计悬赏收入(钻,结账实际到账)
   color: string;
 }
 export async function getRewardRanking(params?: PageParams): Promise<PageResult<RewardRanker>> {
@@ -450,9 +451,9 @@ export interface MyStats {
   settledDemands: number;      // 我参与且已 SETTLED 的需求数
   approvedTasks: number;       // 我的已 approved 任务数
   pendingTasks: number;        // 我正在做(claimed/submitted)的任务数
-  totalIncomeYuan: number;     // 累计收入(元)
-  pendingIncomeYuan: number;   // 待收收入(元)
-  todayRewardYuan: number;     // 今日赏金(元)
+  totalIncomeDiamonds: number;   // 累计悬赏收入(钻,结账实际到账)
+  pendingIncomeDiamonds: number; // 待收(钻,进行中任务的标价之和)
+  todayIncomeDiamonds: number;   // 今日悬赏收入(钻)
   rankingPosition: number;     // 排行榜名次(0=未上榜)
   adoptedCount: number;        // 已采纳数(= approvedTasks)
   levelInfo: LevelInfo;       // 用户等级信息(基于累计消费)

@@ -43,6 +43,7 @@ import { loginHref } from '@/lib/auth/redirect';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
+import { WALLET_HREF } from '@/apis/wallet';
 
 type MenuItem = {
   key: string;
@@ -85,7 +86,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     title: '钱包与会员',
     items: [
       { key: 'recharge', label: '充钻石', icon: <DiamondRoundedIcon />, color: ACCENT.blue.main, href: '/recharge' },
-      { key: 'wallet', label: '我的钱包', icon: <AccountBalanceWalletRoundedIcon />, color: ACCENT.red.main, href: '/account/wallet' },
+      { key: 'wallet', label: '我的钱包', icon: <AccountBalanceWalletRoundedIcon />, color: ACCENT.red.main, href: WALLET_HREF },
       { key: 'points', label: '积分中心', icon: <StarsRoundedIcon />, color: ACCENT.purple.main, href: '/user/points' },
       { key: 'orders', label: '我的订单', icon: <ReceiptLongRoundedIcon />, color: ACCENT.blue.main, href: '/account/orders' },
       { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon />, color: ACCENT.orange.main, href: '/account/purchases' },

@@ -10,7 +10,7 @@ import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import { MobileListRow } from '@/components/mobile/MobileSection';
 import { CoverImage } from '@/components/common/CoverImage';
 import { TYPE_TO_ROUTE } from '@/lib/contentType.gen';
-import { yuan, type Realization } from '@/apis/team';
+import { centsAsDiamonds, type Realization } from '@/apis/team';
 import { RowIcon } from '../personal/mobileKit';
 
 const workHref = (r: Realization) => {
@@ -48,7 +48,7 @@ export default function RealizationRowsMobile({ items }: { items: Realization[] 
             trailing={
               <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                 {r.settledAt ? (
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'primary.main' }}>¥{yuan(r.amountCents)}</Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'primary.main' }}>{centsAsDiamonds(r.amountCents)}</Typography>
                 ) : (
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>待结账</Typography>
                 )}

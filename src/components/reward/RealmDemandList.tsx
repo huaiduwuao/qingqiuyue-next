@@ -8,6 +8,7 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import type { RealmDemand } from '@/apis/team';
+import { demandPayDiamonds, formatDiamonds } from '@/apis/wallet';
 
 const STATUS_LABEL: Record<string, string> = { PUBLISHED: '进行中', COMPLETED: '待结账', SETTLED: '已结账' };
 
@@ -56,7 +57,7 @@ export default function RealmDemandList({ items, empty = '这个意境里还没�
               </Box>
             </Box>
             <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-              <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'warning.main' }}>¥{d.pay}</Typography>
+              <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'warning.main' }}>{formatDiamonds(demandPayDiamonds(d))}</Typography>
               {open ? (
                 <Button size="small" variant="outlined" component={Link} href={`/account/reward?tab=board&demand=${d.id}`} sx={{ textTransform: 'none', mt: 0.5 }}>
                   去认领

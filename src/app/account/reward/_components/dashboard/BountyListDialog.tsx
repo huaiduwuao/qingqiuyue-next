@@ -23,6 +23,7 @@ import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { coverBackground } from '@/lib/media';
 import BountyDetailDialog from './BountyDetailDialog';
+import { formatDiamonds } from '@/apis/wallet';
 
 // 与后端 handler/reward_extra.go rewardCategoryMeta 对齐
 const CATEGORY_LABEL: Record<string, string> = {
@@ -306,7 +307,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
             fontFamily: 'monospace',
           }}
         >
-          ¥{(bounty.reward / 100).toLocaleString('zh-CN')}
+          {formatDiamonds(bounty.rewardDiamonds)}
         </Box>
       </Box>
       <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>

@@ -15,6 +15,7 @@ import { fallbackCoverDataUri } from '@/lib/bountyCover';
 import { gradient2 } from '@/constants/gradients';
 import { MobileSection } from '@/components/mobile/MobileSection';
 import BountyDetailDialog from '@/app/account/reward/_components/dashboard/BountyDetailDialog';
+import { formatDiamonds } from '@/apis/wallet';
 
 const LABEL: Record<string, string> = {
   video: '短视频', image: '图文', novel: '小说', art: '画作', music: '音乐',
@@ -60,7 +61,7 @@ export default function BountyPicks({ variant = 'desktop' }: { variant?: 'deskto
               }}
             >
               <Typography sx={{ width: 52, flexShrink: 0, fontSize: 15, fontWeight: 800, color: 'primary.main', fontFamily: 'monospace' }}>
-                ¥{((Number(b.reward) || 0) / 100).toLocaleString('zh-CN')}
+                {formatDiamonds(b.rewardDiamonds)}
               </Typography>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography noWrap sx={{ fontSize: 14, fontWeight: 600 }}>{b.title}</Typography>
@@ -118,7 +119,7 @@ export default function BountyPicks({ variant = 'desktop' }: { variant?: 'deskto
                     {LABEL[b.category] ?? b.category}
                   </Box>
                   <Box component="span" sx={{ position: 'absolute', right: 8, bottom: 8, px: 0.75, borderRadius: 0.75, fontSize: 13, fontWeight: 800, color: '#fff', bgcolor: 'primary.main', fontFamily: 'monospace' }}>
-                    ¥{((Number(b.reward) || 0) / 100).toLocaleString('zh-CN')}
+                    {formatDiamonds(b.rewardDiamonds)}
                   </Box>
                 </Box>
                 <Box sx={{ p: 1.25 }}>

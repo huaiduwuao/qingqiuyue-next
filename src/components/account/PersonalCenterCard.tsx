@@ -30,6 +30,8 @@ import { updateUser } from '@/apis/account';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
 import { PlayTag } from '@/components/common/PlayTag';
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import { WALLET_HREF } from '@/apis/wallet';
 
 // PROFILE 不再硬编码,昵称/统计从 currentUser 取(后端 /api/core/user/current)
 // 我的喜欢预览完全由 /api/core/account/likes/preview 拉取,不再用任何静态 fallback。
@@ -44,7 +46,7 @@ interface Section {
 // SECTIONS 改为"模板",count 在渲染时由 stats 实时注入(避免硬编码 '49'/'30天内'/'2'/'0' 跟实际不符)。
 // 渲染函数 buildSections() 接收 stats,返回带 count 的 Section[]。
 interface SectionTemplate {
-  key: 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders' | 'purchases';
+  key: 'wallet' | 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders' | 'purchases';
   label: string;
   icon: React.ReactNode;
   href: string;
@@ -54,6 +56,7 @@ interface SectionTemplate {
   display?: string;
 }
 const SECTION_TPLS: SectionTemplate[] = [
+  { key: 'wallet',     label: '我的钱包', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18, color: '#FE2C55' }} />, href: WALLET_HREF },
   { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/home/recommend?tab=me&mainTab=collect', statKey: 'favoritesCount' },
   { key: 'history',    label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />,      href: '/home/recommend?tab=me&mainTab=history',  statKey: 'historyCount', display: '30天内' },
   { key: 'watchlater', label: '稍后再看', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />,                href: '/home/recommend?tab=me&mainTab=later',    statKey: 'watchlaterCount' },

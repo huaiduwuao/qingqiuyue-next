@@ -61,7 +61,7 @@ export const CONTENT_NAV: ContentNavGroup[] = [
     id: 'earn',
     title: '变现',
     items: [
-      { id: 'monetize', label: '收益中心', description: '付费作品、打赏收入与提现', icon: <MonetizationOnRoundedIcon /> },
+      { id: 'monetize', label: '作品变现', description: '付费作品定价与销售;收益和提现在个人中心的钱包', icon: <MonetizationOnRoundedIcon /> },
       { id: 'original', label: '原创保护', description: '原创声明与侵权处理', icon: <CopyrightRoundedIcon /> },
     ],
   },

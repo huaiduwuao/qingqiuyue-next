@@ -69,10 +69,10 @@ export default function DashboardPage({ onOpenTab }: DashboardProps) {
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
         // 真实 KPI 数据
-        todayRewardYuan={myStats.todayRewardYuan}
+        todayIncomeDiamonds={myStats.todayIncomeDiamonds}
         adoptedCount={myStats.adoptedCount}
         rankingPosition={myStats.rankingPosition}
-        totalIncomeYuan={myStats.totalIncomeYuan}
+        totalIncomeDiamonds={myStats.totalIncomeDiamonds}
       />
       <RewardCategoryRow />
 

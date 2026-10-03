@@ -24,6 +24,7 @@ import { createTask, updateTask } from '@/apis/reward-task';
 import { myPage as listMyDemands } from '@/apis/reward-demand';
 import type { RewardTask, TaskPriority, DemandItem } from '@/beans/reward';
 import { normalizeRewardTaskStatus } from './status';
+import { demandPayDiamonds, formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
 
 interface Props {
   open: boolean;
@@ -60,7 +61,7 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
     setPriority((record?.priority as TaskPriority) || 'P1');
     setDeadline(record?.deadline ? record.deadline.slice(0, 10) : '');
     setDemandId(record?.demandId || defaultDemandId || '');
-    setReward(record?.reward ? String(record.reward) : '');
+    setReward(record && taskRewardDiamonds(record) > 0 ? String(taskRewardDiamonds(record)) : '');
     setIsPublic(record?.isPublic !== false); // 默认公开
     // 只能把任务挂到自己发布、仍在进行中的需求下(myPage 只返回当前用户发布的需求)
     let alive = true;
@@ -85,7 +86,7 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
     }
     const rewardNum = reward.trim() === '' ? 0 : Number(reward);
     if (!Number.isInteger(rewardNum) || rewardNum < 0) {
-      onError('标价请填写不小于 0 的整数(元)');
+      onError('标价请填写不小于 0 的整数(钻)');
       return;
     }
     setSaving(true);
@@ -96,7 +97,7 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
         priority,
         deadline: deadline ? new Date(`${deadline}T23:59:59`).toISOString() : null,
         demandId: demandId ? Number(demandId) : 0,
-        reward: demandId ? rewardNum : 0,
+        rewardDiamonds: demandId ? rewardNum : 0,
         isPublic,
       } as Partial<RewardTask>;
       const res = record?.id ? await updateTask(record.id, data) : await createTask(data);
@@ -205,13 +206,13 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
               <MenuItem value="">不挂需求(团队内部任务,无赏金)</MenuItem>
               {demands.map((d) => (
                 <MenuItem key={d.id} value={d.id}>
-                  #{d.id} {d.title} · 赏金 ¥{d.pay || 0}
+                  #{d.id} {d.title} · 赏金 {formatDiamonds(demandPayDiamonds(d))}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
           <TextField
-            label="任务标价(元,可选)"
+            label="任务标价(钻,可选)"
             type="number"
             value={reward}
             onChange={(e) => setReward(e.target.value)}
@@ -221,7 +222,7 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
             helperText={
               !demandId
                 ? '挂到需求下才能标价,赏金从需求托管中支付'
-                : `不填则与其他未标价任务均分剩余赏金;所有任务标价合计不能超过 ¥${selectedDemand?.pay ?? 0}`
+                : `不填则与其他未标价任务均分剩余赏金;所有任务标价合计不能超过 ${formatDiamonds(selectedDemand ? demandPayDiamonds(selectedDemand) : 0)}`
             }
             slotProps={{ htmlInput: { min: 0, step: 1 } }}
           />

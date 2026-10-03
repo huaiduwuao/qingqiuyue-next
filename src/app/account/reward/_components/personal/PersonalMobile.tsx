@@ -20,7 +20,7 @@ import { MobileListRow, MobileSection, MobileStatRow } from '@/components/mobile
 import { getWalletSummary } from '@/apis/reward-center';
 import { getMyStats, listMyPointRecords, type MyStats, type PointRecord } from '@/apis/dashboard';
 import { listDemands } from '@/apis/reward-demand';
-import { listRealizations, myTeams, yuan } from '@/apis/team';
+import { listRealizations, myTeams, centsAsDiamonds } from '@/apis/team';
 import { listTasks } from '@/apis/reward-task';
 import { safeSitePath } from '@/lib/safeUrl';
 import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/beans/reward';
@@ -28,6 +28,7 @@ import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_ST
 import RealizationRowsMobile from '../realization/RealizationRowsMobile';
 import { ListFooter, MobileEmpty, MobileSkeletonRows, StatusTag } from './mobileKit';
 import type { PersonalWorkspaceProps } from './page';
+import { demandPayDiamonds, formatDiamonds } from '@/apis/wallet';
 
 const DEMAND_META: Record<DemandStatus, { label: string; color: string; bg: string }> = {
   PENDING: { label: '待发布', color: 'text.secondary', bg: 'rgba(139, 143, 163, 0.12)' },
@@ -173,7 +174,7 @@ export default function PersonalMobile({
     if (path) router.push(path);
   };
 
-  const pending = Number(st.pendingIncomeYuan || 0);
+  const pending = Number(st.pendingIncomeDiamonds || 0);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
@@ -192,11 +193,11 @@ export default function PersonalMobile({
           </Typography>
         </Box>
         <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, mb: 1.5 }}>
-          累计已结 <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>¥{Number(st.totalIncomeYuan || 0).toLocaleString('zh-CN')}</Box>
+          赏金已结 <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>{formatDiamonds(st.totalIncomeDiamonds)}</Box>
           {pending > 0 && (
             <>
               {' · 待结 '}
-              <Box component="span" sx={{ color: 'warning.main', fontWeight: 700 }}>¥{pending.toLocaleString('zh-CN')}</Box>
+              <Box component="span" sx={{ color: 'warning.main', fontWeight: 700 }}>{formatDiamonds(pending)}</Box>
             </>
           )}
           {' · 累计 '}
@@ -261,9 +262,9 @@ export default function PersonalMobile({
                 subtitle={
                   <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
                     <StatusTag label={meta.label} color={meta.color} bg={meta.bg} />
-                    {d.pay != null && (
+                    {(d.pay != null || d.payDiamonds != null) && (
                       <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
-                        ¥{d.pay}
+                        {formatDiamonds(demandPayDiamonds(d))}
                       </Box>
                     )}
                     <span>{timeAgo(d.createTime as any)}</span>
@@ -296,7 +297,7 @@ export default function PersonalMobile({
                 </Avatar>
               }
               title={t.name}
-              subtitle={`${ROLE_LABEL[t.myRole] || ''} · 份额 ${t.myShare} · ${t.memberCount} 人 · ¥${yuan(t.earnedCents)}`}
+              subtitle={`${ROLE_LABEL[t.myRole] || ''} · 份额 ${t.myShare} · ${t.memberCount} 人 · ${centsAsDiamonds(t.earnedCents)}`}
               trailing={
                 <Button
                   size="small"

@@ -21,10 +21,11 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import { alpha } from '@mui/material/styles';
 import { listDemands } from '@/apis/reward-demand';
 import type { DemandItem, DemandStatus } from '@/beans/reward';
+import { demandPayDiamonds } from '@/apis/wallet';
 
 interface Props {
   currentUserId: number;
@@ -208,11 +209,11 @@ export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDe
                   />
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  {d.pay != null && (
+                  {(d.pay != null || d.payDiamonds != null) && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                      <AttachMoneyIcon sx={{ fontSize: 12, color: 'warning.main' }} />
+                      <DiamondRoundedIcon sx={{ fontSize: 12, color: 'warning.main' }} />
                       <Typography sx={{ fontSize: 10, color: 'warning.main', fontFamily: 'monospace' }}>
-                        {d.pay}
+                        {demandPayDiamonds(d).toLocaleString('zh-CN')}
                       </Typography>
                     </Box>
                   )}

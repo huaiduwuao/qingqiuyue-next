@@ -21,6 +21,7 @@ import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import BountyDetailDialog from './BountyDetailDialog';
+import { formatDiamonds } from '@/apis/wallet';
 
 const CATEGORY_LABEL: Record<string, string> = {
   video: '短视频',
@@ -108,7 +109,7 @@ export default function RewardHotGrid({
     id: b.id,
     title: b.title,
     category: (b.category as Bounty['category']) ?? 'video',
-    reward: b.reward / 100,
+    rewardDiamonds: b.rewardDiamonds,
     applicants: b.applicants,
     daysLeft: b.daysLeft,
     sponsor: b.sponsor,
@@ -390,7 +391,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
             fontFamily: 'monospace',
           }}
         >
-          ¥{bounty.reward.toLocaleString('zh-CN')}
+          {formatDiamonds(bounty.rewardDiamonds)}
         </Box>
       </Box>
 

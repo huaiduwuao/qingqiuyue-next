@@ -31,10 +31,9 @@ import {
   REWARD_TASK_STATUS_COLOR,
   REWARD_TASK_STATUS_LABEL,
 } from '../taskboard/status';
+import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
 
-function fmtYuan(cents: number) {
-  return `¥${(cents / 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
-}
+
 
 /**
  * 悬赏详情弹层,在赏金广场内打开,不跳路由。
@@ -162,19 +161,19 @@ export default function BountyDetailDialog({
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
-              <Stat icon={<CardGiftcardIcon sx={{ fontSize: 16, color: 'primary.main' }} />} label="总赏金" value={fmtYuan(found.reward)} />
+              <Stat icon={<CardGiftcardIcon sx={{ fontSize: 16, color: 'primary.main' }} />} label="总赏金" value={formatDiamonds(found.rewardDiamonds)} />
               <Stat icon={<GroupIcon sx={{ fontSize: 16, color: 'secondary.main' }} />} label="参与人数" value={String(found.applicants)} />
               <Stat icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'warning.main' }} />} label="剩余时间" value={deadlineText} />
             </Box>
 
-            {(found.escrowCents ?? 0) > 0 ? (
+            {(found.escrowDiamonds ?? 0) > 0 ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 1, bgcolor: alpha('#5DDB96', 0.1) }}>
                 <VerifiedUserIcon sx={{ fontSize: 16, color: 'success.main' }} />
                 <Typography sx={{ fontSize: 12, color: 'success.main' }}>
-                  赏金 {fmtYuan(found.escrowCents ?? 0)} 已托管,任务验收通过后在结账时直接到账
+                  赏金 {formatDiamonds(found.escrowDiamonds)} 已托管,任务验收通过后在结账时直接到账
                 </Typography>
               </Box>
-            ) : found.reward > 0 ? (
+            ) : found.rewardDiamonds > 0 ? (
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>赏金由发布者在结账时从钱包支付。</Typography>
             ) : null}
 
@@ -231,7 +230,7 @@ export default function BountyDetailDialog({
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>{t.title}</Typography>
                           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                            {t.reward ? `标价 ¥${t.reward}` : '均分剩余赏金'} · {REWARD_TASK_STATUS_LABEL[s]}
+                            {taskRewardDiamonds(t) > 0 ? `标价 ${formatDiamonds(taskRewardDiamonds(t))}` : '均分剩余赏金'} · {REWARD_TASK_STATUS_LABEL[s]}
                             {t.assigneeName ? ` · ${mine ? '我' : t.assigneeName}` : ''}
                           </Typography>
                         </Box>

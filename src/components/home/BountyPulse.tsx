@@ -11,6 +11,7 @@ import LocalAtmRoundedIcon from '@mui/icons-material/LocalAtmRounded';
 import { listRealmDemands, type RealmDemand } from '@/apis/team';
 import { coverBackground } from '@/lib/media';
 import { fallbackCoverDataUri } from '@/lib/bountyCover';
+import { demandPayDiamonds, formatDiamonds } from '@/apis/wallet';
 
 /**
  * 社区悬赏动态。首页右栏的常驻卡片,也可给首屏引导复用(见 components/onboarding/FirstRunGuide)。
@@ -115,7 +116,7 @@ export function BountyRow({
         </Box>
       </Box>
       <Typography sx={{ fontSize: 14, fontWeight: 800, color: 'warning.main', flexShrink: 0 }}>
-        ¥{demand.pay}
+        {formatDiamonds(demandPayDiamonds(demand))}
       </Typography>
     </Box>
   );

@@ -53,6 +53,7 @@ import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { openExternal } from '@/lib/safeUrl';
+import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
 
 interface Session {
   id: number;
@@ -1323,7 +1324,8 @@ interface BountyCardData {
   taskTitle: string;
   demandId?: number;
   demandTitle?: string;
-  reward?: number;
+  reward?: number; // 标价(元),老卡片只有这个
+  rewardDiamonds?: number;
   text?: string;
   work?: { id: string | number; contentType: string; title: string; cover?: string };
 }
@@ -1370,7 +1372,7 @@ function BountyCardBubble({ content, isMine }: { content: string; isMine: boolea
         {card.demandTitle && (
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             需求:{card.demandTitle}
-            {card.reward ? ` · 标价 ¥${card.reward}` : ''}
+            {taskRewardDiamonds(card) > 0 ? ` · 标价 ${formatDiamonds(taskRewardDiamonds(card))}` : ''}
           </Typography>
         )}
         {card.work && (

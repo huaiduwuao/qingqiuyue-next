@@ -74,6 +74,7 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { CoverImage } from '@/components/common/CoverImage';
 import { PlayTag } from '@/components/common/PlayTag';
+import { WALLET_HREF } from '@/apis/wallet';
 
 type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
 
@@ -185,7 +186,7 @@ const TAB_UNIT: Record<string, string> = {
 };
 
 const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string; accent: string }[] = [
-  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/wallet', accent: ACCENT.red.main },
+  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 20 }} />, href: WALLET_HREF, accent: ACCENT.red.main },
   { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 20 }} />, href: '/user/points', accent: ACCENT.purple.main },
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
   { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
@@ -723,7 +724,7 @@ function MyHomePageAuthed() {
           }}
         >
           {[
-            { key: 'wallet', label: '钻石', value: (walletQ.data?.balance ?? 0).toLocaleString(), href: '/account/wallet' },
+            { key: 'wallet', label: '钻石', value: (walletQ.data?.balance ?? 0).toLocaleString(), href: WALLET_HREF },
             { key: 'points', label: '积分', value: (pointQ.data?.points ?? 0).toLocaleString(), href: '/user/points' },
             { key: 'orders', label: '订单', value: String(orderQ.data?.total ?? orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0), href: '/account/orders' },
             { key: 'vip', label: '会员', value: (vipQ.data as any)?.tiers?.some((t: any) => t.active) ? 'VIP' : '开通', href: '/account/vip', warn: true },

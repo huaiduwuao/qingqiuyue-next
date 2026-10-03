@@ -2,6 +2,7 @@
 
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -21,176 +22,28 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { toEntityId } from '@/lib/id';
 import {
-  getEarnings,
   getEarningHistory,
   getTips,
   getMyPaidContents,
   getMyPurchases,
-  applyWithdraw,
   setPaidContent,
-  type EarningsStats,
   type Earning,
   type Tip,
   type PaidContent,
   type Purchase,
 } from '@/apis/social-monetize';
-import { diamondsToYuan, MIN_WITHDRAW_DIAMONDS } from '@/apis/wallet';
+import { WALLET_HREF, diamondsToYuan } from '@/apis/wallet';
 
-// 图标
-const IconMoney = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93V18c0-.55-.45-1-1-1s-1 .45-1 1v1.93C7.06 19.64 4 16.17 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8c0 4.17-3.06 7.64-7 7.93zM12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/>
-  </svg>
-);
-
-// 收益概览卡片
-function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWithdrawn: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [bankAccount, setBankAccount] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  // 收益与可提现都是钻石,输入框也按钻(整数);到账人民币 = 钻 × 10 分
-  const amountNum = Number(amount) || 0;
-  const canSubmit =
-    Number.isInteger(amountNum) &&
-    amountNum >= MIN_WITHDRAW_DIAMONDS &&
-    amountNum <= stats.availableAmount &&
-    bankAccount.trim() &&
-    bankName.trim() &&
-    !submitting;
-
-  const submit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      await applyWithdraw({
-        amount: amountNum, // 钻
-        bankAccount: bankAccount.trim(),
-        bankName: bankName.trim(),
-      });
-      setOpen(false);
-      setAmount('');
-      setBankAccount('');
-      setBankName('');
-      onWithdrawn();
-    } catch (e: any) {
-      setError(e?.message || '提现申请失败,请稍后重试');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+// 收益和提现在个人中心的钱包;这里只留打赏、订阅、付费内容的明细
+function WalletEntry() {
   return (
-    <Paper sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', mb: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        收益概览
+    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', mb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Typography sx={{ flex: 1, fontSize: 13, color: 'text.secondary' }}>
+        打赏、订阅、付费内容的收入实时进入钱包。余额、全部收益和提现都在个人中心的钱包里。
       </Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
-        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(93, 219, 150, 0.1)', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#5DDB96' }}>
-            💎 {stats.availableAmount}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            可提现
-          </Typography>
-        </Box>
-        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(255, 180, 0, 0.1)', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#FFB400' }}>
-            💎 {stats.totalEarnings}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            累计收益
-          </Typography>
-        </Box>
-        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(91, 141, 239, 0.1)', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#5B8DEF' }}>
-            💎 {stats.todayEarnings}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            今日收益
-          </Typography>
-        </Box>
-        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(254, 44, 85, 0.1)', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FE2C55' }}>
-            💎 {stats.withdrawnAmount}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            已提现
-          </Typography>
-        </Box>
-      </Box>
-      <Button
-        variant="contained"
-        fullWidth
-        onClick={() => setOpen(true)}
-        sx={{
-          mt: 2,
-          bgcolor: 'linear-gradient(90deg, #5DDB96 0%, #25F4EE 100%)',
-          color: '#0a0a0f',
-          fontWeight: 700,
-          '&:hover': { filter: 'brightness(1.1)' },
-        }}
-        disabled={stats.availableAmount < MIN_WITHDRAW_DIAMONDS}
-      >
-        {stats.availableAmount < MIN_WITHDRAW_DIAMONDS
-          ? `满 ${MIN_WITHDRAW_DIAMONDS} 钻可提现（还差 ${MIN_WITHDRAW_DIAMONDS - stats.availableAmount} 钻）`
-          : '申请提现'}
+      <Button component={Link} href={WALLET_HREF} size="small" variant="outlined" sx={{ textTransform: 'none', borderRadius: 999, flexShrink: 0 }}>
+        去钱包 ›
       </Button>
-
-      {/* 提现弹窗 */}
-      <Dialog open={open} onClose={() => !submitting && setOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>申请提现</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            当前可提现 💎 {stats.availableAmount}(≈ ¥{diamondsToYuan(stats.availableAmount)})
-          </Typography>
-          <TextField
-            label="提现钻石数"
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            fullWidth
-            size="small"
-            slotProps={{
-              htmlInput: { min: MIN_WITHDRAW_DIAMONDS, max: stats.availableAmount, step: 1 },
-              input: { startAdornment: <InputAdornment position="start">💎</InputAdornment> },
-            }}
-            helperText={
-              `单次最少 ${MIN_WITHDRAW_DIAMONDS} 钻,最多 ${stats.availableAmount} 钻` +
-              (amountNum > 0 ? ` · 到账 ¥${diamondsToYuan(amountNum)}` : '')
-            }
-          />
-          <TextField
-            label="开户行/支付渠道"
-            placeholder="如:招商银行 / 支付宝"
-            value={bankName}
-            onChange={(e) => setBankName(e.target.value)}
-            fullWidth
-            size="small"
-          />
-          <TextField
-            label="收款账号"
-            placeholder="银行卡号 / 支付宝账号"
-            value={bankAccount}
-            onChange={(e) => setBankAccount(e.target.value)}
-            fullWidth
-            size="small"
-          />
-          {error && (
-            <Typography sx={{ fontSize: 12, color: 'error.main' }}>{error}</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={submitting}>取消</Button>
-          <Button onClick={submit} variant="contained" disabled={!canSubmit}>
-            {submitting ? '提交中...' : '确认提现'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Paper>
   );
 }
@@ -592,12 +445,6 @@ function PurchasesTab() {
 export default function SocialMonetizePage() {
   const [tab, setTab] = useState(0);
 
-  const { data: earnings, isLoading, refetch: refetchEarnings } = useQuery({
-    queryKey: ['social-earnings'],
-    queryFn: getEarnings,
-    staleTime: 30 * 1000,
-  });
-
   return (
     <Box
       sx={{
@@ -607,35 +454,27 @@ export default function SocialMonetizePage() {
       }}
     >
       <Box sx={{ maxWidth: 600, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-        <LoginGate mode="replace" message="登录后查看收益中心">
-          {isLoading ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>加载中...</Box>
-          ) : earnings ? (
-            <>
-              <EarningsOverview stats={earnings} onWithdrawn={() => refetchEarnings()} />
-              <EarningsBreakdown />
+        <LoginGate mode="replace" message="登录后查看打赏与订阅明细">
+          <>
+            <WalletEntry />
+            <EarningsBreakdown />
 
-              <Tabs
-                value={tab}
-                onChange={(_, v) => setTab(v)}
-                sx={{ mb: 2, '& .MuiTab-root': { minWidth: 'auto', px: 2 } }}
-              >
-                <Tab label="打赏" />
-                <Tab label="收益" />
-                <Tab label="付费内容" />
-                <Tab label="购买" />
-              </Tabs>
+            <Tabs
+              value={tab}
+              onChange={(_, v) => setTab(v)}
+              sx={{ mb: 2, '& .MuiTab-root': { minWidth: 'auto', px: 2 } }}
+            >
+              <Tab label="打赏" />
+              <Tab label="收益" />
+              <Tab label="付费内容" />
+              <Tab label="购买" />
+            </Tabs>
 
-              {tab === 0 && <TipsTab />}
-              {tab === 1 && <EarningsHistoryTab />}
-              {tab === 2 && <PaidContentsTab />}
-              {tab === 3 && <PurchasesTab />}
-            </>
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
-              暂无数据
-            </Box>
-          )}
+            {tab === 0 && <TipsTab />}
+            {tab === 1 && <EarningsHistoryTab />}
+            {tab === 2 && <PaidContentsTab />}
+            {tab === 3 && <PurchasesTab />}
+          </>
         </LoginGate>
       </Box>
     </Box>

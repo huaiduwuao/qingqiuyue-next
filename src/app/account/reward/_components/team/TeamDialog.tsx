@@ -31,7 +31,7 @@ import {
   setTeamMember,
   teamCandidates,
   updateTeam,
-  yuan,
+  centsAsDiamonds,
   type TeamMember,
   type TeamRole,
 } from '@/apis/team';
@@ -94,7 +94,7 @@ export default function TeamDialog({ teamId, me, onClose, onChanged, onOpenTaskb
           </Typography>
           {team && (
             <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
-              {team.memberCount} 人 · 交付 {team.realizedCount} · 累计收入 ¥{yuan(team.earnedCents)}
+              {team.memberCount} 人 · 交付 {team.realizedCount} · 累计收入 {centsAsDiamonds(team.earnedCents)}
               {team.status !== 'active' && ' · 已解散'}
             </Typography>
           )}

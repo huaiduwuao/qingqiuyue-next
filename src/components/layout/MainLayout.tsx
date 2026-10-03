@@ -47,6 +47,7 @@ import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import type { MenuItem as MenuItemType } from '@/beans/system';
 import { useUpdateMode } from '@/components/client/ClientVersionCard';
 import { requestUpdateCheck } from '@/lib/appUpdate';
+import { WALLET_HREF } from '@/apis/wallet';
 
 const LEFT_SIDEBAR_WIDTH = 200;
 
@@ -244,9 +245,9 @@ export function MainLayout({ children }: { children: ReactNode }) {
               <ListItemIcon><EmojiEventsIcon fontSize="small" /></ListItemIcon>
               创作者等级
             </MenuItem>
-            <MenuItem component={Link} href="/account/social-monetize" onClick={handleMenuClose}>
+            <MenuItem component={Link} href={WALLET_HREF} onClick={handleMenuClose}>
               <ListItemIcon><MonetizationOnIcon fontSize="small" /></ListItemIcon>
-              收益中心
+              我的钱包
             </MenuItem>
             <MenuItem component={Link} href="/account/dashboard" onClick={handleMenuClose}>
               <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>

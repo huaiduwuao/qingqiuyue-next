@@ -23,7 +23,7 @@ import Typography from '@mui/material/Typography';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import RealmDemandList from '@/components/reward/RealmDemandList';
 import RealizationList from '@/components/reward/RealizationList';
-import { listRealizations, listRealmDemands, listTeams, yuan } from '@/apis/team';
+import { listRealizations, listRealmDemands, listTeams, centsAsDiamonds } from '@/apis/team';
 
 type TabKey = 'demands' | 'realizations' | 'teams';
 
@@ -94,7 +94,7 @@ export default function HomeRewardPage() {
                       {t.name}
                     </Typography>
                     <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>
-                      {t.memberCount} 人 · 交付 {t.realizedCount} · 收入 ¥{yuan(t.earnedCents)}
+                      {t.memberCount} 人 · 交付 {t.realizedCount} · 收入 {centsAsDiamonds(t.earnedCents)}
                     </Typography>
                     {t.intro && (
                       <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

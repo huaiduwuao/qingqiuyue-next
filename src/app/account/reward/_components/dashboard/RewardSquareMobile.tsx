@@ -27,6 +27,7 @@ import { gradient2 } from '@/constants/gradients';
 import { MobileSection, MobileStatRow, MobileListRow } from '@/components/mobile/MobileSection';
 import BountyDetailDialog from './BountyDetailDialog';
 import RankingListDialog from './RankingListDialog';
+import { formatDiamonds, formatDiamondsShort } from '@/apis/wallet';
 
 const CATEGORIES: { code: string; label: string }[] = [
   { code: '', label: '全部' },
@@ -143,10 +144,9 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
           </Box>
           <MobileStatRow
             items={[
-              { label: '今日赏金', value: `¥${st.todayRewardYuan ?? 0}` },
               { label: '已采纳', value: st.adoptedCount ?? 0 },
               { label: '排名', value: st.rankingPosition ? `#${st.rankingPosition}` : '—' },
-              { label: '累计收入', value: `¥${st.totalIncomeYuan ?? 0}` },
+              { label: '赏金收入', value: formatDiamondsShort(st.totalIncomeDiamonds) },
             ]}
           />
         </Box>
@@ -269,7 +269,6 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
           </Typography>
         ) : (
           items.map((b, i) => {
-            const yuan = (Number(b.reward) || 0) / 100;
             const left = b.daysLeft == null ? '长期' : b.daysLeft === 0 ? '已截止' : `剩 ${b.daysLeft} 天`;
             return (
               <Box
@@ -308,7 +307,7 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
                   </Typography>
                   <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', gap: 1.25, color: 'text.secondary' }}>
                     <Typography sx={{ fontSize: 15, fontWeight: 800, color: 'primary.main', fontFamily: 'monospace', flexShrink: 0 }}>
-                      ¥{yuan.toLocaleString('zh-CN')}
+                      {formatDiamonds(b.rewardDiamonds)}
                     </Typography>
                     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>
                       <AccessTimeRoundedIcon sx={{ fontSize: 13 }} />

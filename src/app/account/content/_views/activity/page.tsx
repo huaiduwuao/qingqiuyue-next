@@ -52,7 +52,7 @@ import { accountClient } from '@/lib/api/client';
   formatDuration,
   ensureArray,
 } from './data';
-import { parseRewardCny } from './helpers';
+import { parseRewardDiamonds } from './helpers';
 import { KpiCard } from './KpiCard';
 import { ActivityCard } from './ActivityCard';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
@@ -163,10 +163,10 @@ export default function ActivityPage() {
     ).length;
     const monthlyReward = items
       .filter((a) => a.participation === 'won' && a.myWonAt && a.myWonAt > Date.now() - 30 * 86400000)
-      .reduce((sum, a) => sum + (parseRewardCny(a.myWonReward) || 0), 0);
+      .reduce((sum, a) => sum + (parseRewardDiamonds(a.myWonReward) || 0), 0);
     const totalWon = items
       .filter((a) => a.participation === 'won')
-      .reduce((sum, a) => sum + (parseRewardCny(a.myWonReward) || 0), 0);
+      .reduce((sum, a) => sum + (parseRewardDiamonds(a.myWonReward) || 0), 0);
     return { active, mySigned, monthlyReward, totalWon };
   }, [items]);
 
@@ -597,8 +597,8 @@ export default function ActivityPage() {
         >
           <KpiCard icon={<LocalFireDepartmentIcon />} label="进行中活动" value={stats.active.toString()} suffix="个" color="#FE2C55" bg="rgba(254, 44, 85, 0.12)" />
           <KpiCard icon={<HowToRegRoundedIcon />} label="我已参与" value={stats.mySigned.toString()} suffix="个" color="#25F4EE" bg="rgba(37, 244, 238, 0.12)" />
-          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="元" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
-          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="元" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
+          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="钻" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
+          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="钻" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
         </Box>
       </Box>
 

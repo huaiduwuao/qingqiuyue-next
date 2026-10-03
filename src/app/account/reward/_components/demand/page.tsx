@@ -29,7 +29,7 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Divider from '@mui/material/Divider';
 import LinearProgress from '@mui/material/LinearProgress';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import AddIcon from '@mui/icons-material/Add';
@@ -48,6 +48,7 @@ import { BotBadge } from '@/components/community/UserLine';
 import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/beans/reward';
 import { useResponsive } from '@/hooks/useResponsive';
 import DemandMobileList from './DemandMobileList';
+import { demandPayDiamonds, fenToDiamonds, formatDiamonds } from '@/apis/wallet';
 
 const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
   { value: '', label: '全部' },
@@ -57,6 +58,11 @@ const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
   { value: 'SETTLED', label: '已结算' },
   { value: 'CLOSED', label: '已关闭' },
 ];
+
+/** 托管中的赏金(钻);老接口只给 escrowCents */
+function escrowDiamondsOf(d?: DemandItem | null): number {
+  return d?.escrowDiamonds ?? fenToDiamonds(d?.escrowCents);
+}
 
 const STATUS_META: Record<DemandStatus, { label: string; color: string; bg: string }> = {
   PENDING: { label: '待发布', color: 'text.secondary', bg: 'rgba(139, 143, 163, 0.12)' },
@@ -118,7 +124,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     url.searchParams.delete('realm');
     window.history.replaceState(window.history.state, '', url.toString());
     setSelectedRecord(null);
-    setFormValues({ topicId: realm, pay: 0 });
+    setFormValues({ topicId: realm, payDiamonds: 0 });
     setWriteVisible(true);
   }, []);
 
@@ -176,7 +182,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     setFormValues({
       title: record?.title || '',
       subtitle: record?.subtitle || '',
-      pay: record?.pay || 0,
+      payDiamonds: demandPayDiamonds(record),
       content: record?.content || '',
       cover: record?.cover || '',
       tags: record?.tags || '',
@@ -253,7 +259,9 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     // 截止日期按当天 23:59:59 计;不填表示长期有效
     const payload = {
       ...formValues,
-      pay: Number(formValues.pay) || 0,
+      // 赏金按钻石提交;老的按元字段不再发,免得后端两边对不上
+      payDiamonds: Math.max(0, Math.round(Number(formValues.payDiamonds) || 0)),
+      pay: undefined,
       endTime: formValues.endTime ? new Date(`${formValues.endTime}T23:59:59`).toISOString() : null,
     };
     try {
@@ -283,11 +291,11 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   };
 
   const handleStatusChange = async (record: DemandItem, status: DemandStatus) => {
-    const pay = Number(record.pay) || 0;
+    const pay = demandPayDiamonds(record);
     const tip =
       status === 'PUBLISHED'
         ? pay > 0
-          ? `发布后将从你的钱包托管赏金 ¥${pay},结账时付给验收通过的贡献者,未分配的部分退回。确定发布?`
+          ? `发布后将从你的钱包托管赏金 ${formatDiamonds(pay)},结账时付给验收通过的贡献者,未分配的部分退回。确定发布?`
           : '确定发布这条需求?'
         : '关闭后托管的赏金会退回你的钱包,已认领的任务将不能再提交。确定关闭?';
     if (!confirm(tip)) return;
@@ -422,8 +430,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                 </Typography>
                 <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <AttachMoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="caption">{item.pay || 0}</Typography>
+                    <DiamondRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="caption">{formatDiamonds(demandPayDiamonds(item))}</Typography>
                   </Box>
                   {item.endTime && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -535,18 +543,18 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
               fullWidth
             />
             <TextField
-              label="赏金(元)"
+              label="赏金(钻)"
               type="number"
-              value={formValues.pay ?? 0}
-              onChange={(e) => handleFormChange('pay', e.target.value)}
+              value={formValues.payDiamonds ?? 0}
+              onChange={(e) => handleFormChange('payDiamonds', e.target.value)}
               fullWidth
               disabled={!!selectedRecord?.id && selectedRecord.status !== 'PENDING'}
               helperText={
                 selectedRecord?.id && selectedRecord.status !== 'PENDING'
                   ? '发布后赏金已托管,不能再修改'
-                  : '发布时从你的钱包托管这笔赏金;拆分任务后,验收通过的贡献者在结账时分得'
+                  : '发布时从你的钱包托管这笔钻石;拆分任务后,验收通过的贡献者在结账时分得'
               }
-              slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
             />
             <TextField
               label="截止日期(可选)"
@@ -674,10 +682,10 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                 sx={{ bgcolor: STATUS_META[selectedRecord.status as DemandStatus].bg, color: STATUS_META[selectedRecord.status as DemandStatus].color, fontWeight: 600 }}
               />
             )}
-            <Chip label={`赏金 ¥${selectedRecord?.pay || 0}`} variant="outlined" />
-            {(selectedRecord?.escrowCents ?? 0) > 0 && (
+            <Chip label={`赏金 ${formatDiamonds(selectedRecord ? demandPayDiamonds(selectedRecord) : 0)}`} variant="outlined" />
+            {escrowDiamondsOf(selectedRecord) > 0 && (
               <Chip
-                label={`托管中 ¥${((selectedRecord?.escrowCents ?? 0) / 100).toFixed(2)}`}
+                label={`托管中 ${formatDiamonds(escrowDiamondsOf(selectedRecord))}`}
                 sx={{ bgcolor: 'rgba(93, 219, 150, 0.12)', color: 'success.main' }}
               />
             )}

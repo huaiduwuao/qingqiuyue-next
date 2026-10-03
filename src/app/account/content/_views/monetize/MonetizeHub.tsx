@@ -6,68 +6,53 @@ import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { getEarnings, getMyPaidContents, type PaidContent } from '@/apis/social-monetize';
+import { getMyPaidContents, type PaidContent } from '@/apis/social-monetize';
+import { WALLET_HREF, formatDiamonds, getWalletIncome } from '@/apis/wallet';
+import { worksIncome } from './worksIncome';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { useActiveTab } from '../../ActiveTabContext';
-import WalletSummary from './page';
 import { useResponsive } from '@/hooks/useResponsive';
 import MonetizeMobile from './MonetizeMobile';
 
 /**
- * 收益中心:创作收益(付费作品 + 打赏 + 订阅)→ 付费作品表现 → 钱包流水。
- * 收入实时进入钱包,提现在钱包页发起。
+ * 作品变现:付费作品的定价与销售。钱(余额、提现、全部收益与流水)在个人中心的钱包里,
+ * 这里只留一行作品收益,点过去看全部。
  */
 export default function MonetizeHub() {
   const { isMobile } = useResponsive();
-  // 手机:三段各一行数字 + 付费作品行 + 右下角「提现」,单独设计,见 MonetizeMobile
   if (isMobile) return <MonetizeMobile />;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <CreatorEarnings />
+      <WorksIncomeLine />
       <PaidWorks />
-      <WalletSummary />
     </Box>
   );
 }
 
 const card = { p: { xs: 2, md: 3 }, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' };
 
-function CreatorEarnings() {
-  const earnings = useQuery({ queryKey: ['social', 'earnings'], queryFn: getEarnings });
-  const e = earnings.data;
-  const items = [
-    { label: '可提现', value: e?.availableAmount },
-    { label: '今日收益', value: e?.todayEarnings },
-    { label: '本月收益', value: e?.monthEarnings },
-    { label: '累计收益', value: e?.totalEarnings },
-  ];
+function WorksIncomeLine() {
+  const incomeQ = useQuery({ queryKey: ['wallet-income'], queryFn: getWalletIncome });
+  const w = worksIncome(incomeQ.data);
   return (
-    <Box component="section" aria-label="创作收益" sx={card}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 600, flex: 1 }}>
-          创作收益
-        </Typography>
-        <Button variant="outlined" component={Link} href="/account/social-monetize" size="small" sx={{ textTransform: 'none' }}>
-          订阅与打赏明细
-        </Button>
-        <Button component={Link} href="/account/wallet" size="small" variant="contained" sx={{ textTransform: 'none', borderRadius: 999 }}>
-          提现
-        </Button>
-      </Box>
-      <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' } }}>
-        {items.map((it) => (
-          <Box key={it.label} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'action.hover' }}>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{it.label}</Typography>
-            <Typography sx={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', mt: 0.5 }}>
-              {it.value === undefined ? '—' : `💎 ${it.value}`}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1.5 }}>
-        付费作品、打赏与订阅收入扣除 10% 平台服务费后实时进入钱包。
+    <Box
+      component="section"
+      aria-label="作品收益"
+      sx={{ ...card, py: { xs: 1.5, md: 1.75 }, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}
+    >
+      <Typography sx={{ fontSize: 14, flex: 1, minWidth: 240 }}>
+        作品收益 本月 <b>{incomeQ.data ? formatDiamonds(w.month) : '—'}</b> · 累计 <b>{incomeQ.data ? formatDiamonds(w.total) : '—'}</b>
+        <Box component="span" sx={{ fontSize: 12, color: 'text.secondary', ml: 1 }}>
+          付费作品、打赏、订阅、礼物,扣除 10% 平台服务费后实时进入钱包
+        </Box>
       </Typography>
+      <Button variant="text" component={Link} href="/account/social-monetize" size="small" sx={{ textTransform: 'none' }}>
+        订阅与打赏明细
+      </Button>
+      <Button component={Link} href={WALLET_HREF} size="small" variant="outlined" sx={{ textTransform: 'none', borderRadius: 999 }}>
+        去钱包 ›
+      </Button>
     </Box>
   );
 }

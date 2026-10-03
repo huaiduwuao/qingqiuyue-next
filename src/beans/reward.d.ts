@@ -2,18 +2,22 @@ import {TableListItem} from "@/beans/system";
 
 export type DemandStatus = 'PENDING' | 'PUBLISHED' | 'COMPLETED' | 'SETTLED' | 'CLOSED';
 
-/** 分账单(后端 DemandView.settlement)。金额单位:元。 */
+/** 分账单(后端 DemandView.settlement)。金额单位:钻;*Pay / amount 是同值折合元的老字段。 */
 export interface DemandSettlement {
   demandId: number;
-  /** 付给认领人的赏金合计 */
+  /** 付给认领人的赏金合计(钻) */
+  totalDiamonds?: number;
+  /** 退回发布者的未分配赏金(钻) */
+  refundDiamonds?: number;
   totalPay: number;
-  /** 退回发布者的未分配赏金 */
   refundPay?: number;
   approvedCount: number;
   distribution: Array<{
     assigneeId: number;
     assigneeName: string;
     taskCount: number;
+    /** 分到的赏金(钻) */
+    diamonds?: number;
     amount: number;
   }>;
   completedAt?: string | null;
@@ -30,6 +34,9 @@ export interface DemandItem extends TableListItem {
   subtitle?: string;
   content?: any;
   cover?: string;
+  /** 赏金(钻) */
+  payDiamonds?: number;
+  /** 赏金(元),老字段;读用 demandPayDiamonds,写传 payDiamonds */
   pay?: number;
   category?: string;
   status?: DemandStatus | string;
@@ -49,7 +56,9 @@ export interface DemandItem extends TableListItem {
   openTaskCount?: number;
   /** 认领过任务的人数 */
   applicants?: number;
-  /** 发布时从钱包托管、尚未发出的赏金(分) */
+  /** 发布时从钱包托管、尚未发出的赏金(钻) */
+  escrowDiamonds?: number;
+  /** 同上折合分,老字段 */
   escrowCents?: number;
   settledAt?: string | null;
   settlement?: DemandSettlement | null;
@@ -140,7 +149,9 @@ export interface RewardTask extends TableListItem {
   claimedAt?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
-  /** 任务标价(元);0 表示与其他未标价任务均分需求剩余赏金 */
+  /** 任务标价(钻);0 表示与其他未标价任务均分需求剩余赏金 */
+  rewardDiamonds?: number;
+  /** 任务标价(元),老字段;读用 taskRewardDiamonds,写传 rewardDiamonds */
   reward?: number;
   /** 是否公开(供公开任务池展示)。true/缺省 = 公开。 */
   isPublic?: boolean;

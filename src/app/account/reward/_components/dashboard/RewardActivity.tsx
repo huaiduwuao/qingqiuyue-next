@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import HistoryIcon from '@mui/icons-material/History';
 import { getCreatorActivities, type ActivityItem } from '@/apis/creator';
+import { formatDiamonds } from '@/apis/wallet';
 
 interface Activity {
   id: string;
@@ -124,7 +125,7 @@ export default function RewardActivity() {
               <Typography sx={{ fontSize: 12, color: 'text.tertiary', flex: 1 }}>{a.text}</Typography>
               {a.amount !== undefined && (
                 <Typography sx={{ fontSize: 12, color: 'success.main', fontWeight: 700, fontFamily: 'monospace' }}>
-                  +¥{a.amount.toLocaleString('zh-CN')}
+                  +{formatDiamonds(a.amount)}
                 </Typography>
               )}
               <Typography sx={{ fontSize: 10, color: 'text.disabled', minWidth: 60, textAlign: 'right' }}>

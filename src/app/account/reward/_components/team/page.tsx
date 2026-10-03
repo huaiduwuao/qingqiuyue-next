@@ -27,7 +27,7 @@ import Typography from '@mui/material/Typography';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { useApp } from '@/contexts/AppContext';
 import RealmSelect from '@/components/reward/RealmSelect';
-import { acceptTeamRequest, applyTeam, createTeam, listTeams, myTeams, removeTeamMember, yuan, type MyTeam, type Team } from '@/apis/team';
+import { acceptTeamRequest, applyTeam, createTeam, listTeams, myTeams, removeTeamMember, centsAsDiamonds, type MyTeam, type Team } from '@/apis/team';
 import TeamDialog from './TeamDialog';
 import TeamMobile from './TeamMobile';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -297,7 +297,7 @@ function TeamCard({
             {team.name}
           </Typography>
           <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>
-            {team.memberCount} 人 · 交付 {team.realizedCount} · 收入 ¥{yuan(team.earnedCents)}
+            {team.memberCount} 人 · 交付 {team.realizedCount} · 收入 {centsAsDiamonds(team.earnedCents)}
           </Typography>
         </Box>
         {badge && <Chip size="small" label={badge} />}

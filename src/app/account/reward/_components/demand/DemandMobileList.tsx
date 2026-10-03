@@ -24,6 +24,7 @@ import { MobileSection } from '@/components/mobile/MobileSection';
 import { coverBackgroundImage } from '@/lib/media';
 import type { DemandItem, DemandStatus } from '@/beans/reward';
 import { ListFooter, MobileChipRow, MobileEmpty, MobileFab, MobileSkeletonRows, StatusTag } from '../personal/mobileKit';
+import { demandPayDiamonds, formatDiamonds } from '@/apis/wallet';
 
 interface Props {
   statusOptions: Array<{ value: DemandStatus | ''; label: string }>;
@@ -134,7 +135,7 @@ export default function DemandMobileList({
                   </Box>
                   <Box sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1.25, fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <Box component="span" sx={{ fontSize: 14, fontWeight: 700, color: 'primary.main' }}>
-                      ¥{d.pay || 0}
+                      {formatDiamonds(demandPayDiamonds(d))}
                     </Box>
                     {total > 0 && (
                       <span>

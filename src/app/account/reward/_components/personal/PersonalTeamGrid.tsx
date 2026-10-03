@@ -9,7 +9,7 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import GroupsIcon from '@mui/icons-material/Groups';
-import { myTeams, yuan } from '@/apis/team';
+import { myTeams, centsAsDiamonds } from '@/apis/team';
 
 const ROLE_LABEL: Record<string, string> = { owner: '队长', admin: '管理员', member: '成员' };
 
@@ -51,7 +51,7 @@ export default function PersonalTeamGrid({ onOpenTeam, onOpenTaskboard }: Props)
                     {t.name}
                   </Typography>
                   <Typography noWrap sx={{ fontSize: 11.5, color: 'text.secondary' }}>
-                    {ROLE_LABEL[t.myRole]} · 份额 {t.myShare} · {t.memberCount} 人 · 交付 {t.realizedCount} · ¥{yuan(t.earnedCents)}
+                    {ROLE_LABEL[t.myRole]} · 份额 {t.myShare} · {t.memberCount} 人 · 交付 {t.realizedCount} · {centsAsDiamonds(t.earnedCents)}
                   </Typography>
                 </Box>
                 <Button size="small" variant="text" sx={{ textTransform: 'none', flexShrink: 0 }} onClick={() => onOpenTaskboard?.(t.id)}>

@@ -162,7 +162,7 @@ const NAVIGATION_KEYWORDS: Array<{ pattern: RegExp; path: string; label: string 
   { pattern: /^(打开|去|进入|跳转|查看).*个人中心/, path: '/account/center', label: '个人中心' },
   { pattern: /^(打开|去|进入|跳转|查看).*我的(内容|作品)/, path: '/account/content', label: '我的内容' },
   { pattern: /^(打开|去|进入|跳转|查看).*消息/, path: '/account/msg', label: '消息' },
-  { pattern: /^(打开|去|进入|跳转|查看).*钱包/, path: '/account/wallet', label: '钱包' },
+  { pattern: /^(打开|去|进入|跳转|查看).*钱包/, path: '/account/center?tab=wallet', label: '钱包' },
   { pattern: /^(打开|去|进入|跳转|查看).*悬赏/, path: '/reward', label: '悬赏中心' },
   { pattern: /^(打开|去|进入|跳转|查看).*管理(后台|面板)/, path: '/system/user', label: '管理后台' },
 ]

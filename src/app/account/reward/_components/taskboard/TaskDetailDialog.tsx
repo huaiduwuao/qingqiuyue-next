@@ -26,6 +26,7 @@ import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
 import { DeliveredWork, useGoCreateForTask, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
+import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
 
 interface Props {
   open: boolean;
@@ -215,7 +216,7 @@ const res = await claimTask(task.id!, claimAs || undefined);
             <Chip
               size="small"
               sx={{ bgcolor: 'rgba(255,180,0,0.12)', color: 'warning.main', fontWeight: 600 }}
-              label={task.reward ? `标价 ¥${task.reward}` : '均分需求剩余赏金'}
+              label={taskRewardDiamonds(task) > 0 ? `标价 ${formatDiamonds(taskRewardDiamonds(task))}` : '均分需求剩余赏金'}
             />
           </Box>
         )}

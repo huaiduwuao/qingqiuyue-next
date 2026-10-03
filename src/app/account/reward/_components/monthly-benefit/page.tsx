@@ -26,7 +26,6 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { MobileListRow, MobileSection, MobileStatRow } from '@/components/mobile/MobileSection';
 import { MobileEmpty, RowIcon } from '../personal/mobileKit';
 
-/** 分 → "¥1.00" */
 // 月度福利按钻石发放(monthlyReward / diamondCount 都是钻)
 const diamonds = (n?: number) => `💎 ${n ?? 0}`;
 
