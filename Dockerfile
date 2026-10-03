@@ -17,7 +17,9 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY package.json pnpm-lock.yaml ./
 # 依赖走机房代理:直连 npmjs 只有约 90KB/s,层缓存一失效 866 个包 25 分钟下不完,构建超时
 # (2026-10-03 连续两次);代理约 2MB/s。只在这个 RUN 的 shell 里设,不写 ENV,不带进别的层。
-RUN export http_proxy=http://10.2.1.24:7891 https_proxy=http://10.2.1.24:7891 \n      HTTP_PROXY=http://10.2.1.24:7891 HTTPS_PROXY=http://10.2.1.24:7891 \n  && pnpm install --frozen-lockfile --ignore-workspace
+RUN export http_proxy=http://10.2.1.24:7891 https_proxy=http://10.2.1.24:7891 \
+      HTTP_PROXY=http://10.2.1.24:7891 HTTPS_PROXY=http://10.2.1.24:7891 \
+  && pnpm install --frozen-lockfile --ignore-workspace
 
 # 再复制源码，这样只有源码变化时才重新构建
 COPY . .
