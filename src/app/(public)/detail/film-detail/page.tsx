@@ -104,6 +104,8 @@ function FilmDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '电影详情'}
+        playId={id}
+        playType="FILM"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton

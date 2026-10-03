@@ -225,6 +225,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || `${config.typeLabel}详情`}
+        playId={id}
+        playType={query.data?.contentType || config.kind}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <IconButton onClick={handleLike} disabled={likeBusy} sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}>

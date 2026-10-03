@@ -19,6 +19,7 @@ import { getFacets, FacetOption } from '@/apis/facets';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { RankStrip } from '@/components/common/RankStrip';
+import { PlayTag } from '@/components/common/PlayTag';
 
 /**
  * 放映厅 —— 电影 / 电视剧 / 动漫 / 综艺。
@@ -523,6 +524,8 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
         <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
+        {/* 左上是名次、右上是评分/类型,能不能播挂在名次下面 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={6} top={36} />
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
@@ -593,6 +596,8 @@ function TheaterCard({ item }: { item: TheaterItem }) {
             {item.durationMin} 分钟
           </Box>
         )}
+        {/* 上面两角是评分 / 类型,右下是时长,能不能播放左下 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={8} bottom={8} top="auto" />
       </Box>
       <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', mb: 0.5 }}>

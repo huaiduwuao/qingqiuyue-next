@@ -7,9 +7,18 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { PlayTag } from '@/components/common/PlayTag';
+import type { EntityId } from '@/lib/id';
 
 interface Props {
   title: string;
+  /**
+   * 给了内容 id 就在标题后挂一个 PlayTag(能不能播 / 能不能读)。
+   * 不传 = 不挂(人物、专题等页面)。
+   */
+  playId?: EntityId | null;
+  /** 内容类型 code,PlayTag 用来跳过壁纸 / 人物这类没有可播性的类型。 */
+  playType?: string | null;
   rightActions?: React.ReactNode;
   /**
    * 'glass'（默认，行为/外观与今天完全一致） | 'transparent'（透明+白字，与彩色 Hero 融合）。
@@ -28,7 +37,7 @@ interface Props {
   onBack?: () => void;
 }
 
-export default function DetailHeader({ title, rightActions, variant = 'glass', forceSolid = false, onBack }: Props) {
+export default function DetailHeader({ title, rightActions, variant = 'glass', forceSolid = false, onBack, playId, playType }: Props) {
   const router = useRouter();
   const isSolid = variant === 'glass' || forceSolid;
   const handleBack = onBack ?? (() => router.back());
@@ -87,6 +96,11 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
       >
         {title}
       </Typography>
+      {playId != null && playId !== '' && (
+        <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', ml: 0.75, mr: 0.5 }}>
+          <PlayTag id={playId} contentType={playType} variant="inline" />
+        </Box>
+      )}
       {rightActions && <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{rightActions}</Box>}
     </Box>
   );

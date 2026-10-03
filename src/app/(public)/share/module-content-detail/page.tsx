@@ -64,6 +64,8 @@ function ShareModuleContentDetailContent() {
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <DetailHeader
         title={content?.name || content?.title || '内容详情'}
+        playId={id}
+        playType={content?.contentType}
         onBack={handleBack}
       />
       <Container maxWidth="lg" sx={{ py: { xs: 1, md: 2 } }}>

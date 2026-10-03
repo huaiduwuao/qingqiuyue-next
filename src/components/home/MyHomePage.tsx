@@ -73,6 +73,7 @@ import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 
 type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
 
@@ -1360,6 +1361,10 @@ function WorkGridView({
                   <Typography sx={{ fontSize: 9, color: badge.color, fontWeight: 700 }}>{badge.label}</Typography>
                 </Box>
               )}
+              {/* 右上角批量模式下让给勾选框 */}
+              {!batchMode && (
+                <PlayTag variant="overlay" id={it.id} contentType={it.contentType} top={6} right={6} sx={{ maxWidth: 'calc(100% - 12px)' }} />
+              )}
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 0.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -1482,6 +1487,7 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
                 看到 {formatDuration(Math.floor(it.durationSec * 0.6))} · {formatViews(it.views)} 播放 · {formatRelativeTime(it.postedAt)}
               </Typography>
             </Box>
+            <PlayTag id={it.id} contentType={it.contentType} sx={{ flexShrink: 0 }} />
             <VisibilityRoundedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
           </Box>
         );
@@ -1524,6 +1530,8 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
               <Box sx={{ position: 'absolute', top: 6, right: 6, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)' }}>
                 <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 600 }}>已添加 {formatRelativeTime(it.postedAt)}</Typography>
               </Box>
+              {/* 右上是添加时间、左上是批量勾选框,能不能播放左下 */}
+              <PlayTag variant="overlay" id={it.id} contentType={it.contentType} top="auto" left={6} bottom={6} sx={{ maxWidth: 'calc(100% - 12px)' }} />
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 0.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

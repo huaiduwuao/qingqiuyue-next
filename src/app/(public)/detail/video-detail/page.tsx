@@ -123,6 +123,8 @@ function VideoDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '视频详情'}
+        playId={id}
+        playType="VIDEO"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <CollectButton contentId={id!} contentType="video" />

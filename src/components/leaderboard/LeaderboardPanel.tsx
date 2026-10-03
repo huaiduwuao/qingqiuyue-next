@@ -31,6 +31,7 @@ import {
   type LeaderboardPeriod,
 } from '@/apis/leaderboard';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import TrendingBoard from '@/components/home/TrendingBoard';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
@@ -563,6 +564,8 @@ function Podium({
               <Box sx={{ position: 'absolute', top: 10, right: 8 }}>
                 <DeltaBadge entry={e} compared={compared} solid />
               </Box>
+              {/* 右上角让给升降名次,能不能播挂在它下面 */}
+              <PlayTag id={e.id} contentType={e.contentType} variant="overlay" top={36} right={8} />
               <Typography
                 sx={{ position: 'absolute', bottom: 8, left: 10, right: 10, color: '#fff', fontSize: 12, fontWeight: 700 }}
                 noWrap
@@ -638,6 +641,7 @@ function EntryRow({
           {e.title}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, minWidth: 0 }}>
+          <PlayTag id={e.id} contentType={e.contentType} variant="inline" sx={{ flexShrink: 0, height: 18, fontSize: 10 }} />
           {e.labels?.slice(0, 2).map((l) => (
             <Box
               key={l}

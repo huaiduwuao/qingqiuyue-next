@@ -28,6 +28,7 @@ import DetailHeader from '@/components/detail/DetailHeader';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { track, recordHistory } from '@/lib/track';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
@@ -39,6 +40,8 @@ interface PersonWork {
   cover?: string;
   contentType: string;
   isLive?: boolean;
+  /** 搜索结果(相关内容)自带的 playability 状态;直播间列表没有,PlayTag 自己去问 */
+  availability?: string;
 }
 
 interface PersonMeta {
@@ -111,6 +114,7 @@ function WorkGrid({ items, onOpen }: { items: PersonWork[]; onOpen: (w: PersonWo
             >
               {TYPE_LABEL[w.contentType] || w.contentType}
             </Box>
+            <PlayTag id={w.id} contentType={w.contentType} status={w.availability} variant="overlay" top={6} right={6} />
           </Box>
           <Box sx={{ minWidth: 0, [LIST_ROW]: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
             <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>

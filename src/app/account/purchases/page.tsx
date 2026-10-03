@@ -16,6 +16,7 @@ import { LoginGate } from '@/components/auth/LoginGate';
 import { getMyUnifiedPurchases, type UnifiedPurchase } from '@/apis/social-monetize';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { coverBackground } from '@/lib/media';
+import { PlayTag } from '@/components/common/PlayTag';
 
 /**
  * 我的购买 —— 单条内容购买 + 合集买断(GET /social/my-purchases/unified)。
@@ -129,6 +130,7 @@ export default function PurchasesPage() {
                           color={isCollection ? '#FFB400' : '#5B8DEF'}
                           bg={isCollection ? 'rgba(255,180,0,0.12)' : 'rgba(91,141,239,0.12)'}
                         />
+                        {!isCollection && <PlayTag id={p.refId} contentType={p.contentType} variant="inline" />}
                         <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatTime(p.createdAt)}</Typography>
                       </Box>
                       <Typography

@@ -12,6 +12,7 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 
 import { fetchLeaderboard, fetchLeaderboardCatalog } from '@/apis/leaderboard';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { DeltaBadge, RankNumber, formatBuiltAt } from './shared';
 
@@ -121,6 +122,7 @@ export default function LeaderboardMini({ defaultType = 'ALL', limit = 10, embed
               >
                 {e.title}
               </Typography>
+              <PlayTag id={e.id} contentType={e.contentType} variant="inline" sx={{ flexShrink: 0, height: 18, fontSize: 10 }} />
               <DeltaBadge entry={e} compared={!!board?.compared} />
             </Box>
           ))}

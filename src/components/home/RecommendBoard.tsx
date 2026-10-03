@@ -10,6 +10,7 @@ import { fetchRecommend, HotItem } from '@/apis/home-discover';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { useRouter } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 
 // 每次打开页面一个随机种子:推荐板不再永远是同样 12 条(后端 Request.Shuffle)。
 const BOARD_SHUFFLE = Math.floor(Math.random() * 2 ** 31) + 1;
@@ -115,6 +116,16 @@ export default function RecommendBoard({
                   }}
                 />
               )}
+              {/* 右上是播放量,能不能播放左上;推荐流本来就带 playbackStatus */}
+              <PlayTag
+                variant="overlay"
+                id={item.id}
+                contentType={item.category}
+                status={(item as any).playbackStatus}
+                top={4}
+                left={4}
+                sx={{ maxWidth: 'calc(100% - 8px)' }}
+              />
               {item.views !== undefined && (
                 <Box
                   sx={{

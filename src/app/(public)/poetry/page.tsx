@@ -22,6 +22,7 @@ import Pagination from '@mui/material/Pagination';
 import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
 import DetailHeader from '@/components/detail/DetailHeader';
+import { PlayTag } from '@/components/common/PlayTag';
 import { overview, poems, poets, lifespanText, type PoetCard } from '@/apis/poetry';
 
 const PAGE_SIZE = 24;
@@ -269,6 +270,7 @@ function PoetryChannel() {
                   {w.author && (
                     <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{w.author}</Typography>
                   )}
+                  <PlayTag id={w.id} contentType="POETRY" variant="inline" sx={{ alignSelf: 'center', flexShrink: 0 }} />
                 </Box>
                 {w.excerpt && (
                   <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>{w.excerpt}</Typography>

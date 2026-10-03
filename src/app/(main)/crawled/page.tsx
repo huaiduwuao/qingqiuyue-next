@@ -16,6 +16,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { myPage, ModuleContentItem } from '@/apis/module-content';
 import { listSources } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -132,6 +133,17 @@ export default function CrawledPage() {
         width: 90,
         renderCell: (p) => (
           <Chip label={TYPE_LABEL[p.value] || p.value} size="small" variant="outlined" />
+        ),
+      },
+      {
+        field: 'playable',
+        headerName: '可播',
+        width: 96,
+        sortable: false,
+        renderCell: (p) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <PlayTag id={p.row.id} contentType={p.row.contentType} variant="inline" />
+          </Box>
         ),
       },
       { field: 'author', headerName: '作者', width: 110 },

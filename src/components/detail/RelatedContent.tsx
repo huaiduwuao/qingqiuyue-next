@@ -10,6 +10,7 @@ import Skeleton from '@mui/material/Skeleton';
 import { getRelated, type FeedItem } from '@/apis/recommend';
 import { getDetailRoute, TYPE_LABEL } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import { useApp } from '@/contexts/AppContext';
@@ -144,6 +145,7 @@ function RelatedCard({ item }: { item: FeedItem }) {
       <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }} noWrap>
         {[TYPE_LABEL[item.contentType?.toUpperCase()], item.author].filter(Boolean).join(' · ')}
       </Typography>
+      <PlayTag id={item.id} contentType={item.contentType} status={item.playbackStatus} variant="inline" sx={{ mt: 0.5 }} />
       </Box>
     </Box>
     {/* 音乐:封面右上角直接播放(放在链接外面,不嵌套可交互元素) */}

@@ -39,6 +39,7 @@ import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
@@ -1253,15 +1254,6 @@ function ContentResult({
   // 没有封面图时,用类型色做渐变兜底(永远不至于一片黑)。
   const fallbackBg = `linear-gradient(135deg, ${TYPE_ACCENT[item.contentType]} 0%, rgba(20,20,30,0.85) 100%)`;
   const scorePct = typeof item.score === 'number' ? Math.round(item.score * 100) : null;
-  // 可用性徽标:usable=true 给绿色"可读/可播";其它状态(pending/partial/blocked)用中性色 + 文案,
-  // 让用户搜到"求魔"这种站内还没收录完整章节的也知道点进去会看到什么。
-  const availabilityBadge = (() => {
-    if (item.usable) return { label: '可读可播', color: '#22c55e' };
-    if (item.availability === 'partial') return { label: '部分章节', color: '#f59e0b' };
-    if (item.availability === 'pending') return { label: '收录中', color: '#94a3b8' };
-    if (item.availability === 'blocked') return { label: '暂不可读', color: '#ef4444' };
-    return null;
-  })();
   // 章节进度:有 readyItems/totalItems 时显示 "12/345 章" 之类,小说/剧集用户最关心。
   const chapterLabel =
     item.readyItems != null && item.totalItems != null && item.totalItems > 0
@@ -1440,35 +1432,8 @@ function ContentResult({
               </Typography>
             </>
           )}
-          {availabilityBadge && (
-            <>
-              <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.4,
-                  px: 0.6,
-                  py: 0.15,
-                  borderRadius: 0.5,
-                  bgcolor: `${availabilityBadge.color}1F`,
-                  color: availabilityBadge.color,
-                  fontSize: 10,
-                  fontWeight: 600,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: '50%',
-                    bgcolor: availabilityBadge.color,
-                  }}
-                />
-                {availabilityBadge.label}
-              </Box>
-            </>
-          )}
+          {/* 能不能播 / 能不能读:搜索结果自带 availability(playability 状态),直接给 PlayTag,不再发请求 */}
+          <PlayTag id={item.id} contentType={item.contentType} status={item.availability} variant="inline" />
           {(item.mergedCount ?? 0) > 1 && (
             <>
               <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />

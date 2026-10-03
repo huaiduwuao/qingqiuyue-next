@@ -208,6 +208,8 @@ function MusicDetailContent() {
           不加安全区就直接压在状态栏底下(--sat 见 globals.css) */}
       <DetailHeader
         title={query.data?.title || '音乐详情'}
+        playId={id}
+        playType="MUSIC"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton

@@ -37,6 +37,7 @@ import PublicTopBar from '@/components/layout/PublicTopBar';
 import PlaylistCover from '@/components/player/PlaylistCover';
 import PlaylistImportDialog from '@/components/player/PlaylistImportDialog';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { PlayTag } from '@/components/common/PlayTag';
 import {
   createMyList,
   deleteMyList,
@@ -487,7 +488,10 @@ function PlaylistDetail({ id }: { id: string }) {
                   </Box>
                   <Box sx={{ minWidth: 0 }}>
                     <Box sx={{ fontSize: 14, fontWeight: 600, color: isPlaying ? 'primary.main' : 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</Box>
-                    <Box sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.author || '未知歌手'}</Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                      <Box sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.author || '未知歌手'}</Box>
+                      <PlayTag id={r.contentId} contentType={r.type || 'MUSIC'} variant="inline" sx={{ flexShrink: 0 }} />
+                    </Box>
                   </Box>
                 </Box>
                 {list.mine && (

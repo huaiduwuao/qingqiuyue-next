@@ -90,6 +90,8 @@ function ArticleDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '文章详情'}
+        playId={id}
+        playType="ARTICLE"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }}>

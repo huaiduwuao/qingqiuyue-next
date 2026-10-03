@@ -17,6 +17,7 @@ import { fetchTopic, fetchTopicContents, fetchTopicInsights, type CommunityTopic
 import { isApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
@@ -251,6 +252,7 @@ function TopicContents({ topicId }: { topicId: string | number }) {
             <Box sx={{ position: 'relative', aspectRatio: '16/10', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
               <CoverImage src={c.cover} alt={c.title} sx={{ width: '100%', height: '100%' }} />
               {c.pinned && <Chip size="small" label="精选" sx={{ position: 'absolute', top: 6, left: 6, height: 18, fontSize: 10, fontWeight: 700, color: '#fff', bgcolor: 'var(--brand-color, #FE2C55)' }} />}
+              <PlayTag id={c.id} contentType={c.contentType} variant="overlay" top={6} right={6} />
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #fff)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36, [LIST_ROW]: { fontSize: 14, minHeight: 0 } }}>{c.title}</Typography>

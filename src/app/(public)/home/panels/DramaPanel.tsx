@@ -19,6 +19,7 @@ import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradi
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { RankStrip } from '@/components/common/RankStrip';
 import { getFacets, FacetOption } from '@/apis/facets';
+import { PlayTag } from '@/components/common/PlayTag';
 
 /**
  * 短剧频道 —— 只有竖屏短剧。
@@ -439,6 +440,8 @@ function RankCard({ item }: { item: DramaSeries }) {
         <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
+        {/* 左上是名次、右上是状态/评分,能不能播挂在名次下面 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={36} />
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {statusLabel && (
             <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
@@ -498,6 +501,8 @@ function DramaCard({ item }: { item: DramaSeries }) {
         >
           <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
         </Box>
+        {/* 右上角是状态/评分一列,能不能播放左上 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={6} />
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {(() => {
             // status 是自由文本(库里常见 "active"),认不出就不画角标,别把原始值露给用户

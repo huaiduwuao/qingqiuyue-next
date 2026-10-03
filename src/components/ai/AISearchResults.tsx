@@ -26,6 +26,7 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError } from '@/lib/api/client';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 
 export const AI_GRADIENT = `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`;
 
@@ -231,6 +232,7 @@ function AIResultCard({ item }: { item: AISearchItem }) {
           sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.LIGHT }} />
+        <PlayTag id={item.id} contentType={item.contentType} variant="overlay" top={6} right={6} />
         <Typography
           sx={{
             position: 'absolute', left: 8, bottom: 6, right: 8,

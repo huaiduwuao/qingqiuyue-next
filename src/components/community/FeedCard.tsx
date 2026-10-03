@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import {
   addComment,
@@ -195,6 +196,7 @@ export function FeedCard({
             <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.45))', mt: 0.5 }}>
               {CONTENT_TYPE_LABEL[item.target.contentType] || item.target.contentType} · {compactCount(item.target.views)} 播放 · {compactCount(item.target.likes)} 赞
             </Typography>
+            <PlayTag id={item.target.id} contentType={item.target.contentType} variant="inline" sx={{ mt: 0.5, alignSelf: 'flex-start' }} />
           </Box>
         </Box>
       )}

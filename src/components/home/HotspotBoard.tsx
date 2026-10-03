@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography';
 import WhatshotRoundedIcon from '@mui/icons-material/WhatshotRounded';
 import { contentClient } from '@/lib/api/client';
 import { getDetailRoute, useContentNavigate } from '@/lib/contentRoute';
+import { PlayTag } from '@/components/common/PlayTag';
 
 interface HotItem {
   id: string;
@@ -108,13 +109,18 @@ export default function HotspotBoard({ variant = 'panel', limit = 8 }: { variant
                   component="button"
                   onClick={() => open(it)}
                   sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0,
                     textAlign: 'left', border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', color: 'primary.main',
-                    fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', font: 'inherit',
-                    '&:hover': { textDecoration: 'underline' },
+                    fontSize: 12.5, font: 'inherit',
+                    '&:hover .hs-title': { textDecoration: 'underline' },
                   }}
                   title={it.title}
                 >
-                  ▶ {it.title}
+                  <Box component="span" className="hs-title" sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    ▶ {it.title}
+                  </Box>
+                  {/* 能不能播 / 能不能读;人物词条不挂 */}
+                  <PlayTag id={it.id} contentType={it.contentType} sx={{ flexShrink: 0, height: 18, fontSize: 10 }} />
                 </Box>
               ))}
             </Box>

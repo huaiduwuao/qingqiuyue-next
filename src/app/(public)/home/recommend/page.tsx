@@ -18,6 +18,7 @@ import { moduleContentPage } from '@/apis/home';
 import { getHotTopics, Topic } from '@/apis/topic';
 import TopicCover from '@/components/topic/TopicCover';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG, IMAGE_OVERLAY } from '@/constants/gradients';
@@ -435,6 +436,8 @@ export default function HomeRecommendPage() {
                     >
                       {rank}
                     </Box>
+                    {/* 左上名次、右上播放量,能不能播挂在名次下面 */}
+                    <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={6} top={42} />
 
                     {item.viewCount !== undefined && (
                       <Box
@@ -592,7 +595,8 @@ function RecommendRow({ item, rank, gradient, onOpen }: { item: ContentItem; ran
           <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255, 88, 88, 0.15)', color: 'primary.main', fontSize: 10, fontWeight: 600 }}>
             {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
           </Box>
-          {item.author?.nickname && <span>{item.author.nickname}</span>}
+          <PlayTag id={item.id} contentType={item.contentType} sx={{ flexShrink: 0 }} />
+          {item.author?.nickname && <Box component="span" sx={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.author.nickname}</Box>}
           {item.viewCount !== undefined && (
             <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
               <PlayArrowRoundedIcon sx={{ fontSize: 12 }} />{formatCount(item.viewCount)}
@@ -887,6 +891,7 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
           >
             {i + 1}
           </Box>
+          <PlayTag variant="overlay" id={c.id} contentType={c.category?.toUpperCase()} top={6} right={6} />
           <Box
             sx={{
               position: 'absolute',

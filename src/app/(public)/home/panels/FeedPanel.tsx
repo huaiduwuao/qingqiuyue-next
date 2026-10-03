@@ -44,7 +44,7 @@ import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/List
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
-import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
+import { PlayTag } from '@/components/common/PlayTag';
 import type { PlaybackStatus } from '@/apis/recommend';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import SplitText from '@/components/reactbits/SplitText';
@@ -858,11 +858,16 @@ function FeedCard({ item }: { item: FeedItem }) {
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         {/* 站内能不能看/能不能读,在卡片上就说清楚。用户点进去才发现是空白页
             或者"去原站看",是这个产品最主要的一种挫败来源。 */}
-        <AvailabilityBadge
+        {/* 没随 feed 下发判定的(走 moduleContentPage 的频道)由 PlayTag 按 id 合批去问;
+            右上角让给「图文」时往下挪一格。 */}
+        <PlayTag
           variant="overlay"
+          id={item.id}
+          contentType={targetType}
           status={item.playbackStatus}
           readyItems={item.readyItems}
           totalItems={item.totalItems}
+          top={item.category === 'image' ? 32 : 8}
         />
         {item.isLive ? (
           <Chip

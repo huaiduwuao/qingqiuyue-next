@@ -6,6 +6,7 @@ import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { useContentNavigate, TYPE_LABEL } from '@/lib/contentRoute';
 import type { InsightAvail, InsightItem, InsightStory } from '@/apis/insight';
 
@@ -53,6 +54,9 @@ export function AvailBadge({ avail }: { avail?: InsightAvail }) {
     </Box>
   );
 }
+
+/** 专题接口的 avail 只标了两种能直接消费的状态,翻成 playability 状态交给 PlayTag;没标的让 PlayTag 自己去问。 */
+const availStatus = (avail?: InsightAvail) => (avail === 'play' ? 'playable' : avail === 'read' ? 'readable' : undefined);
 
 /** 编者论:观点文字,和史料 / 原文在视觉上分开 —— 标题下写明「编者观点」。 */
 export function EssayCard({ paras, accent }: { paras: string[]; accent: string }) {
@@ -180,6 +184,7 @@ export function VerseCard({ item, accent }: { item: InsightItem; accent: string 
       <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.25 }}>
         {[item.dynasty, item.author].filter(Boolean).join(' · ')}
       </Typography>
+      <PlayTag id={item.id} contentType={item.contentType} status={availStatus(item.avail)} variant="inline" sx={{ mt: 0.75 }} />
       {item.excerpt && (
         <Typography
           sx={{
@@ -221,7 +226,7 @@ export function WorkCard({ item, showType = false }: { item: InsightItem; showTy
         }}
       >
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        <AvailBadge avail={item.avail} />
+        <PlayTag id={item.id} contentType={item.contentType} status={availStatus(item.avail)} variant="overlay" top={4} left={4} />
         {typeof item.rating === 'number' && item.rating > 0 && (
           <Box
             sx={{

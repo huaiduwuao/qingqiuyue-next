@@ -9,6 +9,7 @@ import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { CoverImage } from "@/components/common/CoverImage";
+import { PlayTag } from "@/components/common/PlayTag";
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from "@/components/common/ListLayout";
 import { accountClient, isAuthError } from "@/lib/api/client";
 import { loginHref } from "@/lib/auth/redirect";
@@ -77,6 +78,15 @@ function GridView({ items, tab }: { items: MePageItem[]; tab: MainTab }) {
               src={it.cover || it.coverUrl}
               alt={it.title || ""}
               sx={{ width: "100%", height: "100%" }}
+            />
+            {/* 历史 / 收藏行的 id 可能是记录 id,内容 id 优先取 contentId */}
+            <PlayTag
+              variant="overlay"
+              id={it.contentId ?? it.id}
+              contentType={it.contentType || it.type}
+              top={4}
+              right={4}
+              sx={{ maxWidth: "calc(100% - 8px)" }}
             />
             {it.title && (
               <Box

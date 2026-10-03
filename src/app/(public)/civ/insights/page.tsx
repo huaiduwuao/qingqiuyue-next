@@ -20,6 +20,7 @@ import { topicInsights, type TopicInsights, type TopicNodeRow } from '@/apis/top
 import { ago } from '@/components/insight/Branches';
 import { civHref, ORIGIN_LABEL, SERIF } from '@/components/civ/CivParts';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { PlayTag } from '@/components/common/PlayTag';
 import type { CivOrigin } from '@/apis/civ';
 
 // 参考色板前三个槽位(蓝 / 橙 / 青),亮暗各一套,三色两两都过色弱检查(dataviz 参考色板)。
@@ -438,6 +439,7 @@ export default function TopicInsightsPage() {
                         >
                           {w.title}
                         </Typography>
+                        <PlayTag id={w.id} contentType={w.contentType} variant="inline" sx={{ flexShrink: 0, alignSelf: 'center', height: 18, fontSize: 10 }} />
                         <Typography sx={{ fontSize: 11, color: 'text.secondary', whiteSpace: 'nowrap' }}>在「{w.nodeName}」</Typography>
                         <Typography sx={{ fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{w.clicks} 次</Typography>
                       </Box>
