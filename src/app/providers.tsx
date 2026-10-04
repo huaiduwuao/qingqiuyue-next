@@ -2,6 +2,7 @@
 
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { isCanceledError } from '@/lib/api/client';
 import { Suspense, useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
@@ -57,7 +58,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             // HMR 重新挂载后旧缓存自动回收;production 不会因为 gcTime 影响数据新鲜度
             // (staleTime 5 min < gcTime 30 min,取数仍会按需 refetch)。
             gcTime: 30 * 60 * 1000,
-            retry: 2,
+            // 主动取消的请求不重试(重试等于把用户已离开的页面请求再发两遍),其余最多重试 2 次
+            retry: (failureCount, error) => !isCanceledError(error) && failureCount < 2,
             retryDelay: (i) => Math.min(500 * 2 ** i, 2000),
             // 切走页面后立即停止请求,避免无意义的 network + 内存占用
             refetchOnWindowFocus: false,

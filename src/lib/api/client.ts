@@ -27,7 +27,12 @@ export interface ApiClient {
   raw: AxiosInstance;
 }
 
-export type ApiErrorCategory = 'network' | 'auth' | 'business' | 'timeout' | 'unknown';
+/**
+ * canceled:调用方主动 abort(卸载 / 切路由 / 换参数),不是故障,不该弹「网络连接失败」。
+ * 这类错误的 name 为 'AbortError',与 fetch / DOM 的取消约定一致,
+ * 已有的 `e.name === 'AbortError'` 判断无需改动即可识别。
+ */
+export type ApiErrorCategory = 'network' | 'auth' | 'business' | 'timeout' | 'canceled' | 'unknown';
 
 export class ApiError extends Error {
   category: ApiErrorCategory;
@@ -43,7 +48,7 @@ export class ApiError extends Error {
     response?: any;
   }) {
     super(opts.message);
-    this.name = 'ApiError';
+    this.name = opts.category === 'canceled' ? 'AbortError' : 'ApiError';
     this.category = opts.category;
     this.code = opts.code;
     this.status = opts.status;
@@ -61,6 +66,17 @@ export function isAuthError(error: unknown): boolean {
 
 export function isNetworkError(error: unknown): boolean {
   return isApiError(error) && (error.category === 'network' || error.category === 'timeout');
+}
+
+/**
+ * 是否为「请求被主动取消」:本 client 的 canceled ApiError、axios 原生 CanceledError、
+ * fetch / DOM 的 AbortError 都算。取消不是失败,调用方据此静默,不弹错误提示。
+ */
+export function isCanceledError(error: unknown): boolean {
+  if (isApiError(error)) return error.category === 'canceled';
+  if (axios.isCancel(error)) return true;
+  const e = error as { name?: unknown; code?: unknown } | null | undefined;
+  return !!e && (e.name === 'AbortError' || e.name === 'CanceledError' || e.code === 'ERR_CANCELED');
 }
 
 export function isBusinessError(error: unknown): boolean {
@@ -142,6 +158,7 @@ export function formatApiError(error: unknown): string {
     if (error.category === 'auth') return '登录已过期,请重新登录';
     if (error.category === 'network') return '网络连接失败,请检查网络';
     if (error.category === 'timeout') return '请求超时,请稍后重试';
+    if (error.category === 'canceled') return '请求已取消';
     return error.message || '请求失败';
   }
   if (error instanceof Error) return error.message;
@@ -334,6 +351,15 @@ function createApiClient(baseURL: string): ApiClient {
       const status = error.response?.status;
       const data = error.response?.data as { code?: string | number; msg?: string; message?: string; error?: string } | undefined;
 
+      // 主动取消(AbortController / 卸载 / 切路由):单独归类,不要落到下面的「网络连接失败」。
+      // AbortSignal.timeout() 触发的取消 reason 是 TimeoutError,按超时算。
+      if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+        const reason = (error.config?.signal as AbortSignal | undefined)?.reason as { name?: string } | undefined;
+        if (reason?.name === 'TimeoutError') {
+          return Promise.reject(new ApiError({ message: '请求超时,请稍后重试', category: 'timeout' }));
+        }
+        return Promise.reject(new ApiError({ message: '请求已取消', category: 'canceled' }));
+      }
       if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         return Promise.reject(new ApiError({
           message: '请求超时,请稍后重试',

@@ -5,6 +5,7 @@ import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import type { AlertColor } from '@mui/material'
 import { safeErrorLog } from '@/lib/error-handler'
+import { isCanceledError } from '@/lib/api/client'
 
 export function useErrorHandler() {
   const [snackbar, setSnackbar] = useState<{
@@ -30,6 +31,8 @@ export function useErrorHandler() {
     context?: string,
     userMessage?: string
   ) => {
+    // 主动取消(卸载 / 切路由)不是失败,不弹提示也不记错误日志
+    if (isCanceledError(error)) return
     safeErrorLog(context || 'API Error', error)
     const message = userMessage || extractErrorMessage(error)
     showSnackbar(message, 'error')
@@ -128,6 +131,7 @@ export async function withErrorHandler<T>(
   try {
     return await fn()
   } catch (error) {
+    if (isCanceledError(error)) return undefined
     safeErrorLog(context || 'Async operation failed', error)
     errorHandler(error)
     return undefined
