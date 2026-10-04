@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import NextLink from 'next/link';
 import {
   Dialog,
@@ -53,6 +54,8 @@ export interface ShareTaskDialogProps {
   onSuccess?: () => void;
 }
 
+const EMPTY_ACCOUNTS: PlatformAccountBrief[] = [];
+
 export default function ShareTaskDialog(props: ShareTaskDialogProps) {
   const {
     open, onClose, platform,
@@ -61,9 +64,22 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
     onSuccess,
   } = props;
 
-  const [accounts, setAccounts] = useState<PlatformAccountBrief[]>([]);
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
-  const [accountId, setAccountId] = useState<number>(0);
+  // 账号列表走 react-query:每次打开都后台刷新一次(可能刚去绑定了新账号),
+  // 但先显示缓存,不再每次打开都闪「加载账号列表…」。
+  const accountsQ = useQuery({
+    queryKey: ['share-accounts', platform],
+    queryFn: async (): Promise<PlatformAccountBrief[]> => {
+      const data: any = await listAccounts(platform);
+      return Array.isArray(data) ? data : data?.list || [];
+    },
+    enabled: open,
+    staleTime: 0,
+  });
+  const accounts = accountsQ.data ?? EMPTY_ACCOUNTS;
+  const loadingAccounts = accountsQ.isLoading;
+  // 用户选过且仍在列表里就用它,否则默认第一个(与原来「加载完选中第一个」一致)
+  const [pickedAccountId, setAccountId] = useState<number>(0);
+  const accountId = accounts.some((a) => a.id === pickedAccountId) ? pickedAccountId : (accounts[0]?.id ?? 0);
   const [title, setTitle] = useState(defaultTitle);
   const [videoId, setVideoId] = useState('');
   const [coverUrl, setCoverUrl] = useState(defaultCoverUrl || '');
@@ -84,16 +100,10 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
     setScheduledAt('');
     setError(null);
     setSuccess(null);
-    setLoadingAccounts(true);
-    listAccounts(platform)
-      .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.list || [];
-        setAccounts(list);
-        if (list.length > 0) setAccountId(list[0].id);
-      })
-      .catch((e: any) => setError(e?.message || '拉账号列表失败'))
-      .finally(() => setLoadingAccounts(false));
+    setAccountId(0);
   }, [open, platform, defaultTitle, defaultCoverUrl, defaultTags]);
+  const loadError = accountsQ.error ? accountsQ.error.message || '拉账号列表失败' : null;
+  const shownError = error ?? loadError;
 
   const platformMeta = useMemo(
     () => PLATFORMS.find((p) => p.value === platform),
@@ -158,7 +168,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>分享到 {platformMeta?.label}</DialogTitle>
       <DialogContent>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {shownError && <Alert severity="error" sx={{ mb: 2 }}>{shownError}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>

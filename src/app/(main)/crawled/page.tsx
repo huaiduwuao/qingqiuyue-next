@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -19,6 +19,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { PlayTag } from '@/components/common/PlayTag';
 import { myPage, ModuleContentItem } from '@/apis/module-content';
 import { listSources } from '@/apis/spider';
+import { useQuery } from '@tanstack/react-query';
 import type { GridColDef } from '@mui/x-data-grid';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 
@@ -33,31 +34,30 @@ interface SourceOption {
   value: string;
 }
 
+const EMPTY_SOURCES: SourceOption[] = [];
+
 export default function CrawledPage() {
   const navigate = useContentNavigate();
   const [sourceFilter, setSourceFilter] = useState('');
   const [titleQ, setTitleQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [allSources, setAllSources] = useState<SourceOption[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [typeBreakdown, setTypeBreakdown] = useState<Record<string, number>>({});
   const [publishedCount, setPublishedCount] = useState(0);
 
-  // 加载来源下拉框（从 spider-api 的 source 列表取可读名称）
-  useEffect(() => {
-    listSources({ page: 1, pageSize: 200 })
-      .then((res) => {
-        const list = res.list || [];
-        const opts: SourceOption[] = list
-          .filter((s: any) => s.name)
-          .map((s: any) => ({ label: s.name, value: s.name }));
-        setAllSources(opts);
-      })
-      .catch(() => {
-        setAllSources([]);
-      });
-  }, []);
+  // 加载来源下拉框（从 spider-api 的 source 列表取可读名称）;失败时下拉为空(与原来一致)
+  const sourcesQ = useQuery({
+    queryKey: ['spider-source-options'],
+    queryFn: async (): Promise<SourceOption[]> => {
+      const res = await listSources({ page: 1, pageSize: 200 });
+      return (res.list || [])
+        .filter((s: any) => s.name)
+        .map((s: any) => ({ label: s.name, value: s.name }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const allSources = sourcesQ.data ?? EMPTY_SOURCES;
 
   const fetchData = useCallback(
     async (params: any) => {

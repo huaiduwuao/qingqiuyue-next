@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Aurora from '@/components/reactbits/Aurora';
@@ -149,32 +150,25 @@ function formatReleaseDate(iso?: string): string {
  */
 function useReleaseInfo() {
   const mode = useUpdateMode();
-  const [latest, setLatest] = useState<{ version: string; date: string }>({ version: VERSION, date: '' });
-  const [installed, setInstalled] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    fetchLatestRelease()
-      .then((r) => alive && setLatest({ version: r.version, date: formatReleaseDate(r.date) }))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mode) return;
-    let alive = true;
-    import('@tauri-apps/api/app')
-      .then(({ getVersion }) => getVersion())
-      .then((v) => alive && setInstalled(v))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [mode]);
-
-  return { ...latest, installed };
+  // react-query 缓存:离开再回到下载页不再重复请求 GitHub(匿名 API 每小时只有 60 次额度)。
+  // 失败静默回退到内置 VERSION,不重试(和原来一致)。
+  const latestQ = useQuery({
+    queryKey: ['client-latest-release'],
+    queryFn: () => fetchLatestRelease(),
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+  const installedQ = useQuery({
+    queryKey: ['client-installed-version'],
+    queryFn: () => import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()),
+    enabled: !!mode,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const latest = latestQ.data
+    ? { version: latestQ.data.version, date: formatReleaseDate(latestQ.data.date) }
+    : { version: VERSION, date: '' };
+  return { ...latest, installed: (mode && installedQ.data) || '' };
 }
 
 function DownloadPageContent() {
