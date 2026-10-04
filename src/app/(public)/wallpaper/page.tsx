@@ -33,6 +33,7 @@ import { adminClient, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { formatCount } from '@/lib/utils/format';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
 type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber' | 'other';
@@ -94,12 +95,6 @@ const WALLPAPERS: Wallpaper[] = [];
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 const MY_WALLPAPERS: MyWallpaper[] = [];
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);

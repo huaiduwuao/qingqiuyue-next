@@ -8,6 +8,9 @@ import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 
 import type { LeaderboardEntry, LeaderboardMetric } from '@/apis/leaderboard';
 import { RANK_PILL, gradient2 } from '@/constants/gradients';
+import { formatCount } from '@/lib/utils/format';
+// 原先在这里各自实现,已收口到 lib/utils/format;保留转出,旧导入路径不变
+export { formatCount };
 
 // 各榜型的主题色(按钮高亮、分数条)。
 export const METRIC_GRADIENT: Record<LeaderboardMetric, string> = {
@@ -16,13 +19,6 @@ export const METRIC_GRADIENT: Record<LeaderboardMetric, string> = {
   new: gradient2('#25F4EE', '#5DDB96'),
   praise: gradient2('#FFB400', '#FF8A3D'),
 };
-
-export function formatCount(n: number = 0): string {
-  if (!n || n < 0 || Number.isNaN(n)) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
 
 export function formatBuiltAt(s?: string): string {
   if (!s) return '';

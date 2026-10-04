@@ -105,6 +105,7 @@ import { HdResolution,
   REVIEW_CHECK_TEMPLATE,
   REVIEWER_LEVEL_META,
   FAST_CHANNEL_MONTHLY } from './data';
+import { formatCount } from '@/lib/utils/format';
 
 type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
 interface SnackMsg {
@@ -156,12 +157,6 @@ function formatDuration(s: number): string {
 function formatSize(mb: number): string {
   if (mb < 1024) return `${mb} MB`;
   return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
 }
 
 // relativeTime() 已废弃:直接调用 Date.now() 在 SSR/CSR 阶段值不同,会引发 hydration mismatch。

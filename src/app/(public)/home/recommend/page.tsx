@@ -35,6 +35,7 @@ import FadeContent from '@/components/reactbits/FadeContent';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import { useListLayout } from '@/lib/listLayoutPrefs';
+import { formatCount } from '@/lib/utils/format';
 
 // 右侧边栏渐变色映射
 const GRADIENT_BY_TYPE: Record<string, string> = {
@@ -94,13 +95,6 @@ const QUICK_LINKS: { key: string; href: string; label: string; icon: React.React
   { key: 'friend', href: '/home/recommend?tab=feed&scope=friend', label: '朋友', icon: <GroupIcon sx={{ fontSize: 14 }} /> },
   { key: 'ai', href: '/home/recommend?tab=ai', label: 'AI 助手', icon: <SmartToyIcon sx={{ fontSize: 14 }} /> },
 ];
-
-function formatCount(n: number = 0): string {
-  if (n == null || isNaN(n) || n < 0) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}
 
 const PAGE_SIZE = 12;
 

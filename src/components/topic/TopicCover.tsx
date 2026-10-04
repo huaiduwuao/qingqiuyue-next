@@ -13,6 +13,9 @@ import TheaterComedyRoundedIcon from '@mui/icons-material/TheaterComedyRounded';
 import { gradient2 } from '@/constants/gradients';
 import { mediaUrl } from '@/lib/media';
 import { CoverImage } from '@/components/common/CoverImage';
+import { formatCount } from '@/lib/utils/format';
+// 原先在这里各自实现,已收口到 lib/utils/format;保留转出,旧导入路径不变
+export { formatCount };
 
 /**
  * 专题封面渐变 —— 按专题 ID 轮换,空封面也能有稳定、好看的品牌渐变背景。
@@ -140,10 +143,3 @@ export default function TopicCover({
   );
 }
 
-/** 数字格式化(1.2w / 3.4k),与首页推荐卡一致。 */
-export function formatCount(n: number = 0): string {
-  if (n == null || isNaN(n) || n < 0) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}

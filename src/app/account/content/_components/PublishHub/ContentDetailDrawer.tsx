@@ -14,6 +14,7 @@ import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
+import { formatCount } from '@/lib/utils/format';
 
 type SelectPayload = {
   id: string | number;
@@ -42,13 +43,6 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   review_failed: { label: '审核未通过', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
   un_publish: { label: '已下架', color: 'text.disabled', bg: 'action.hover' },
 };
-
-function formatCount(n: number | undefined): string {
-  const num = n ?? 0;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-  return String(num);
-}
 
 /**
  * 通用右滑 Drawer — 显示某个非 VIDEO 内容的精简详情。

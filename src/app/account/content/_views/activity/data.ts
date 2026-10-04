@@ -2,6 +2,10 @@
 // 注意:这里不放业务数据(活动列表/我的作品),全部从后端 /api/core/creator/* 拉。
 // 真实数据接入见 ../activity/page.tsx。
 
+import { formatDuration } from '@/lib/utils/format'
+// 原先在这里各自实现,已收口到 lib/utils/format;保留转出,旧导入路径不变
+export { formatDuration }
+
 export type ActivityStatus =
   | 'upcoming'
   | 'signup'
@@ -146,12 +150,6 @@ export function formatBigNumber(n: number): string {
   if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}亿`;
   if (n >= 10_000) return `${(n / 10_000).toFixed(1)}w`;
   return n.toLocaleString();
-}
-
-export function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 /**

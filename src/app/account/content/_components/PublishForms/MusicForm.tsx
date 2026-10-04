@@ -16,6 +16,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useContentForm, normalizeTags, uploadOneFile } from '../useContentForm';
 import { gradient2 } from '@/constants/gradients';
 import type { PublishFormProps } from './types';
+import { formatDuration } from '@/lib/utils/format';
 
 // 音乐发布 (MUSIC) — 真实表单。
 //
@@ -571,8 +572,3 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
   );
 }
 
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}

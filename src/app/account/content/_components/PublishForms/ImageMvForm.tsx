@@ -16,6 +16,7 @@ import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import { useContentForm, normalizeTags, uploadOneFile } from '../useContentForm';
 import { gradient2 } from '@/constants/gradients';
 import type { PublishFormProps } from './types';
+import { formatDuration } from '@/lib/utils/format';
 
 // 图片 MV 发布 (PICTURE MV 变体) — 真实表单。
 //
@@ -565,8 +566,3 @@ export default function ImageMvForm({ onSuccess }: PublishFormProps) {
   );
 }
 
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}

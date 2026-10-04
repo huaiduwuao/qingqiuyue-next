@@ -15,6 +15,7 @@ import { usableDirectUrl } from '@/apis/stream';
 import { CoverImage } from '@/components/common/CoverImage';
 import { RANK_BG } from '@/constants/gradients';
 import { PlayTag } from '@/components/common/PlayTag';
+import { formatCount } from '@/lib/utils/format';
 
 interface Episode {
   id: string | number;
@@ -39,13 +40,6 @@ interface Props {
   gradient: string;
   typeChip: string;
   onOpen: () => void; // 跳详情页
-}
-
-function formatCount(n: number = 0): string {
-  if (n == null || isNaN(n) || n < 0) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
 }
 
 /**

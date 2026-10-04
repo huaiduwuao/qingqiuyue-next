@@ -28,6 +28,7 @@ import { TYPE_LABEL } from '@/lib/contentRoute';
 import { gradient2 } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
 import { ListLayout } from '@/components/common/ListLayout';
+import { formatCount } from '@/lib/utils/format';
 
 type SelectPayload = {
   /** 内容 id — 传 VIDEO 类型时是 hd 接口返回的字符串;非 VIDEO 是数字 */
@@ -58,13 +59,6 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   transcoding: { label: '转码中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)' },
   failed: { label: '失败', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
 };
-
-function formatCount(n: number | undefined): string {
-  const num = n ?? 0;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-  return String(num);
-}
 
 /**
  * 统一的内容列表 — 跨类型显示作者名下所有内容。

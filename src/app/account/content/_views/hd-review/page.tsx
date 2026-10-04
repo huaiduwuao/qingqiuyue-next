@@ -51,6 +51,7 @@ import {
   REVIEW_CHECK_TEMPLATE,
 } from '../hd-publish/data';
 import { RelativeTime } from '@/components/common/RelativeTime';
+import { formatCount } from '@/lib/utils/format';
 
 type ReviewTab = 'pending' | 'reviewed';
 
@@ -95,12 +96,6 @@ function pickCreatorName(video: { id: string; creatorName?: string; author?: str
 function formatSize(mb: number): string {
   if (mb < 1024) return `${mb} MB`;
   return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
 }
 
 // relativeTime() 已废弃:SSR/CSR Date.now() 不同会引发 hydration mismatch。
