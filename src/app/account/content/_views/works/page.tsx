@@ -239,8 +239,8 @@ export default function WorksPage() {
           </Box>
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>类型</InputLabel>
-            <Select value={type} label="类型" onChange={(e) => setType(e.target.value)}>
+            <InputLabel shrink>类型</InputLabel>
+            <Select displayEmpty notched value={type} label="类型" onChange={(e) => setType(e.target.value)}>
               {TYPE_OPTIONS.map((o) => (
                 <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
               ))}
@@ -248,8 +248,8 @@ export default function WorksPage() {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 110 }}>
-            <InputLabel>状态</InputLabel>
-            <Select value={status} label="状态" onChange={(e) => setStatus(e.target.value)}>
+            <InputLabel shrink>状态</InputLabel>
+            <Select displayEmpty notched value={status} label="状态" onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((o) => (
                 <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
               ))}
@@ -260,8 +260,8 @@ export default function WorksPage() {
               SOURCE_OPTIONS_LIST 非空后再放开(SOURCE_OPTIONS 已用 ... 拼接好)。 */}
           {SOURCE_OPTIONS_LIST.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel>来源</InputLabel>
-              <Select value={source} label="来源" onChange={(e) => setSource(e.target.value)}>
+              <InputLabel shrink>来源</InputLabel>
+              <Select displayEmpty notched value={source} label="来源" onChange={(e) => setSource(e.target.value)}>
                 {SOURCE_OPTIONS.map((o) => (
                   <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                 ))}

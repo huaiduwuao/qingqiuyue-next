@@ -315,8 +315,8 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>旁白音色</InputLabel>
-              <Select label="旁白音色" disabled={running || !post?.voices?.length} value={String(settings.narrator_voice ?? '')} onChange={(ev) => saveSettings({ narrator_voice: ev.target.value })}>
+              <InputLabel shrink>旁白音色</InputLabel>
+              <Select displayEmpty notched label="旁白音色" disabled={running || !post?.voices?.length} value={String(settings.narrator_voice ?? '')} onChange={(ev) => saveSettings({ narrator_voice: ev.target.value })}>
                 <MenuItem value="">自动</MenuItem>
                 {(post?.voices ?? []).map((v) => (
                   <MenuItem key={v} value={v}>

@@ -456,8 +456,8 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
           ))}
 
         <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>优先级</InputLabel>
-          <Select value={priorityFilter} label="优先级" onChange={(e) => setPriorityFilter(e.target.value as any)}>
+          <InputLabel shrink>优先级</InputLabel>
+          <Select displayEmpty notched value={priorityFilter} label="优先级" onChange={(e) => setPriorityFilter(e.target.value as any)}>
             <MenuItem value="">全部</MenuItem>
             {(['P0', 'P1', 'P2'] as TaskPriority[]).map((p) => (
               <MenuItem key={p} value={p}>{PRIORITY_LABEL[p]}</MenuItem>
@@ -467,8 +467,8 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
 
         {viewMode !== 'mine' && (
           <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel>负责人</InputLabel>
-            <Select value={assigneeFilter} label="负责人" onChange={(e) => setAssigneeFilter(Number(e.target.value) || '')}>
+            <InputLabel shrink>负责人</InputLabel>
+            <Select displayEmpty notched value={assigneeFilter} label="负责人" onChange={(e) => setAssigneeFilter(Number(e.target.value) || '')}>
               <MenuItem value="">全部</MenuItem>
               {allAssignees.map((a) => (
                 <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
