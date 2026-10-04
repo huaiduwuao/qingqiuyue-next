@@ -40,6 +40,7 @@ import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
 import ClientVersionCard from '@/components/client/ClientVersionCard';
 import type { CurrentUser } from '@/beans/account';
+import { useMutation } from '@tanstack/react-query';
 import { updateUser } from '@/apis/account';
 import { fileUpload } from '@/apis/global';
 import { sendSmsCode } from '@/apis/user';
@@ -64,14 +65,22 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function AccountSettingsPage() {
-  const { currentUser } = useApp();
+  const { currentUser, setCurrentUser } = useApp();
   const [tab, setTab] = useState(0);
-  const [formValues, setFormValues] = useState({
-    name: currentUser?.name || '',
-    nickname: currentUser?.nickname || '',
-    info: currentUser?.info || '',
-    avatar: currentUser?.avatar || '',
+  const formFrom = (u: typeof currentUser) => ({
+    name: u?.name || '',
+    nickname: u?.nickname || '',
+    info: u?.info || '',
+    avatar: u?.avatar || '',
   });
+  const [formValues, setFormValues] = useState(() => formFrom(currentUser));
+  // 直接打开 / 刷新本页时 currentUser 是异步拉回来的,首帧为 null:以前表单就此定格成全空,
+  // 用户只改个简介点保存,会把昵称、姓名、头像一起写成空串。用户数据到了(或换了账号)就重新填表。
+  const [formUserId, setFormUserId] = useState(currentUser?.id);
+  if (currentUser?.id !== formUserId) {
+    setFormUserId(currentUser?.id);
+    setFormValues(formFrom(currentUser));
+  }
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -115,13 +124,18 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    try {
-      await updateUser(formValues);
+  const saveProfile = useMutation({
+    mutationFn: (values: typeof formValues) => updateUser(values),
+    onSuccess: (_d, values) => {
+      // 顶栏头像 / 昵称读的是 currentUser,保存后同步,不用刷新页面才看到
+      if (currentUser) setCurrentUser({ ...currentUser, ...values });
       showMessage('保存成功');
-    } catch (err) {
-      showMessage(formatApiError(err) ||'保存失败', 'error');
-    }
+    },
+    onError: (err) => showMessage(formatApiError(err) || '保存失败', 'error'),
+  });
+  const handleSubmit = () => {
+    if (!currentUser || saveProfile.isPending) return;
+    saveProfile.mutate(formValues);
   };
 
   return (
@@ -169,7 +183,7 @@ export default function AccountSettingsPage() {
                       onChange={(e) => handleChange('info', e.target.value)}
                     />
                   </Box>
-                  <Button variant="contained" onClick={handleSubmit}>
+                  <Button variant="contained" onClick={handleSubmit} disabled={!currentUser || saveProfile.isPending}>
                     保存
                   </Button>
                 </Box>
