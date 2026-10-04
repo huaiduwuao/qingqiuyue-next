@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { CurrentUser } from '@/beans/account';
 import type { MenuItem } from '@/beans/system';
 
@@ -96,36 +96,70 @@ export function AppContextProvider({ children }: { children: React.ReactNode }) 
     setActiveAgentId(null);
   }, []);
 
-  const value: AppContextValue = {
-    currentUser,
-    menuData,
-    dict,
-    modules,
-    showSearch,
-    search,
-    moduleTypeShow,
-    kfTalkShow,
-    contactTalkShow,
-    kfSingleShow,
-    activeAgentId,
-    activeConversationId,
-    agentStack,
-    setCurrentUser,
-    setMenuData,
-    setDict,
-    setModules,
-    setShowSearch,
-    setSearch,
-    setModuleTypeShow,
-    setKfTalkShow,
-    setContactTalkShow,
-    setKfSingleShow,
-    setActiveAgent,
-    setActiveConversation,
-    pushAgent,
-    popAgent,
-    clearAgentStack,
-  };
+  // value 必须 memo:Provider 的父组件每次重渲染都会新建对象,
+  // 38 个 useApp() 消费者会跟着全部重渲染,哪怕状态一个没变。
+  const value = useMemo<AppContextValue>(
+    () => ({
+      currentUser,
+      menuData,
+      dict,
+      modules,
+      showSearch,
+      search,
+      moduleTypeShow,
+      kfTalkShow,
+      contactTalkShow,
+      kfSingleShow,
+      activeAgentId,
+      activeConversationId,
+      agentStack,
+      setCurrentUser,
+      setMenuData,
+      setDict,
+      setModules,
+      setShowSearch,
+      setSearch,
+      setModuleTypeShow,
+      setKfTalkShow,
+      setContactTalkShow,
+      setKfSingleShow,
+      setActiveAgent,
+      setActiveConversation,
+      pushAgent,
+      popAgent,
+      clearAgentStack,
+    }),
+    [
+      currentUser,
+      menuData,
+      dict,
+      modules,
+      showSearch,
+      search,
+      moduleTypeShow,
+      kfTalkShow,
+      contactTalkShow,
+      kfSingleShow,
+      activeAgentId,
+      activeConversationId,
+      agentStack,
+      setCurrentUser,
+      setMenuData,
+      setDict,
+      setModules,
+      setShowSearch,
+      setSearch,
+      setModuleTypeShow,
+      setKfTalkShow,
+      setContactTalkShow,
+      setKfSingleShow,
+      setActiveAgent,
+      setActiveConversation,
+      pushAgent,
+      popAgent,
+      clearAgentStack,
+    ],
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

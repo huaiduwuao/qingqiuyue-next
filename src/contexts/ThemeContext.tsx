@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { lightTheme, darkTheme } from '@/styles/theme';
@@ -77,35 +77,38 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode]);
 
   /** 只有用户主动选择时才写 localStorage */
-  const choose = (next: ThemePreference) => {
+  const choose = useCallback((next: ThemePreference) => {
     setPreference(next);
     try {
       localStorage.setItem(MODE_KEY, next);
     } catch {
       /* ignore */
     }
-  };
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--brand-color', primaryColor);
   }, [primaryColor]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     choose(mode === 'light' ? 'dark' : 'light');
-  };
+  }, [choose, mode]);
 
-  const setTheme = (next: ThemePreference) => {
-    choose(next);
-  };
+  const setTheme = choose;
 
-  const setPrimaryColor = (color: string) => {
+  const setPrimaryColor = useCallback((color: string) => {
     setPrimaryColorState(color);
     try {
       localStorage.setItem('theme-primary', color);
     } catch {
       /* ignore */
     }
-  };
+  }, []);
+
+  const ctxValue = useMemo(
+    () => ({ mode, preference, toggleTheme, setTheme, primaryColor, setPrimaryColor, presetColors: PRESET_COLORS }),
+    [mode, preference, toggleTheme, setTheme, primaryColor, setPrimaryColor],
+  );
 
   const theme = useMemo(() => {
     const base = mode === 'dark' ? darkTheme : lightTheme;
@@ -117,7 +120,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode, primaryColor]);
 
   return (
-    <ThemeContext.Provider value={{ mode, preference, toggleTheme, setTheme, primaryColor, setPrimaryColor, presetColors: PRESET_COLORS }}>
+    <ThemeContext.Provider value={ctxValue}>
       <MuiThemeProvider theme={theme}>
         <CssBaseline />
         {children}

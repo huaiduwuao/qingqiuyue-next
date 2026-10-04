@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryCurrent, logout as apiLogout } from '@/apis/user';
@@ -180,15 +180,20 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     if (sid) await loadUser(sid);
   }, [loadUser]);
 
-  const value: AuthContextValue = {
-    status,
-    isAuthenticated: status === 'authenticated',
-    sessionId,
-    permissions,
-    login,
-    logout,
-    refresh,
-  };
+  // memo:AuthProvider 读了 useApp(),AppContext 任一 UI 开关变化都会让它重渲染;
+  // 不 memo 的话 43 个 useAuth() 消费者跟着全部重渲染。
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      status,
+      isAuthenticated: status === 'authenticated',
+      sessionId,
+      permissions,
+      login,
+      logout,
+      refresh,
+    }),
+    [status, sessionId, permissions, login, logout, refresh],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
