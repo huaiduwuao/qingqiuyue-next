@@ -64,13 +64,17 @@ interface Film {
 }
 
 /**
- * 这条收录自己的 source 页能不能直接交给播放器。availability 的「能看」判的是这条收录,
- * 实际能播的可能是作品里的另一条播放源(比如 source 是 B 站番剧页、能播的是欧乐影院的 m3u8);
- * 作品把 source 列为去原站的链接时,它就不是能播的那个,得让给 streamOffers。
+ * 进页面就定好的播放来源,不让用户再点一次来源面板:跨源绑定的页面 > 作品里能播的来源
+ * (本条收录自己那条优先,其次作品排好序的第一条)> 这条自己的 source(作品没有能播来源时)。
+ * availability 的「能看」判的是这条收录,source 本身可能只是百科 / 番剧页这种放不了的页面,
+ * 能播的是作品里另一条(比如欧乐影院的 qqy-vs),所以作品有能播来源时一律用它。
  */
-function ownSourceWatchable(data: Partial<Film>): boolean {
-  if (data.availability?.watchable !== true) return false;
-  return !(data.work?.offers || []).some((o) => o.url === data.source && !o.watchable);
+function defaultPlayUrl(data: Partial<Film>, id: string | null): string {
+  if (data.playSourceUrl) return data.playSourceUrl;
+  const offers = streamOffers(data.work);
+  const offer = offers.find((o) => o.url === data.source) || offers.find((o) => o.contentId === id) || offers[0];
+  if (offer) return offer.url;
+  return data.availability?.watchable === true ? data.source || '' : '';
 }
 
 function FilmDetailContent() {
@@ -137,12 +141,10 @@ function FilmDetailContent() {
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 {(() => {
-                  // 选源:用户手动选的 > 这条收录跨源绑定的 > 这条自己能看的页面 > 同一部作品其它来源里最好的那个
-                  // (作品归并后,点进哪一条收录都能看)> 原始 source。
+                  // 选源:用户手动选的 > defaultPlayUrl(进页面就选好,点进哪一条收录都能看)> 原始 source。
                   const offers = streamOffers(data.work);
-                  const ownWatchable = ownSourceWatchable(data);
                   const chosen = chosenSource && chosenSource.id === id ? chosenSource.url : '';
-                  const playPage = chosen || data.playSourceUrl || (ownWatchable ? data.source : '') || offers[0]?.url || data.source || '';
+                  const playPage = chosen || defaultPlayUrl(data, id) || data.source || '';
                   const notice = data.playSourceUrl || chosen || offers.length > 0 ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
                   return notice && !data.videoUrl ? (
                     // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
@@ -158,7 +160,7 @@ function FilmDetailContent() {
             <Container maxWidth="lg" sx={{ py: 3 }}>
               <WorkSourcePanel
                 work={data.work}
-                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || data.playSourceUrl || (ownSourceWatchable(data) ? data.source : '') || streamOffers(data.work)[0]?.url}
+                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || defaultPlayUrl(data, id)}
                 onSelect={(o) => setChosenSource({ id, url: o.url })}
               />
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
