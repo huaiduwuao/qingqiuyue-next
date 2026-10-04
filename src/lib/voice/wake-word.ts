@@ -15,7 +15,9 @@
  * 任意环节失败都会降级到 vad-fallback (靠 ASR 文本匹配唤醒词)
  */
 
-import * as ort from 'onnxruntime-web'
+// 只导入类型;运行时在 init() 里按需 import(),ORT 的 JS 不再随数字人页面一起打包下载,
+// 真正开启唤醒词时才加载。
+import type * as ort from 'onnxruntime-web'
 import { API_PREFIX } from '@/lib/api/prefix'
 import { voiceLog } from './logger'
 import type { WakeWordConfig } from './types'
@@ -34,6 +36,7 @@ const COOLDOWN_STEPS = 25    // 触发后 2s 内不再触发
 const DEFAULT_SENSITIVITY = 0.8
 
 let engine: OpenWakeWordEngine | null = null
+let ortRt: typeof import('onnxruntime-web') | null = null
 
 class OpenWakeWordEngine {
   private cfg: WakeWordConfig
@@ -68,25 +71,26 @@ class OpenWakeWordEngine {
 
   async init(): Promise<boolean> {
     try {
-      const wasmDir = await resolveWasmPaths()
+      const [wasmDir, rt] = await Promise.all([resolveWasmPaths(), import('onnxruntime-web')])
+      ortRt = rt
       // 必须用绝对 URL (worker 内没有 location); 单线程 + 主线程跑, 不需要 COOP/COEP
-      ort.env.wasm.wasmPaths = (typeof window !== 'undefined' && window.location?.origin)
+      rt.env.wasm.wasmPaths = (typeof window !== 'undefined' && window.location?.origin)
         ? window.location.origin + (wasmDir.startsWith('/') ? wasmDir : '/' + wasmDir)
         : wasmDir
-      ort.env.wasm.numThreads = 1
-      ort.env.wasm.proxy = false
+      rt.env.wasm.numThreads = 1
+      rt.env.wasm.proxy = false
 
       const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }
       const melUrl = this.cfg.melModelUrl || '/wake/melspectrogram.onnx'
       const embUrl = this.cfg.embeddingModelUrl || '/wake/embedding_model.onnx'
       voiceLog('info', 'wake', 'loading feature models:', melUrl, embUrl)
       ;[this.melSession, this.embSession] = await Promise.all([
-        ort.InferenceSession.create(melUrl, opts),
-        ort.InferenceSession.create(embUrl, opts),
+        rt.InferenceSession.create(melUrl, opts),
+        rt.InferenceSession.create(embUrl, opts),
       ])
 
       const model = await loadWakeModel(this.cfg)
-      this.wakeSession = await ort.InferenceSession.create(model.bytes, opts)
+      this.wakeSession = await rt.InferenceSession.create(model.bytes, opts)
       this.threshold = this.cfg.sensitivity ?? model.threshold ?? DEFAULT_SENSITIVITY
       this.patience = model.patience ?? DEFAULT_PATIENCE
       this.ready = true
@@ -146,7 +150,7 @@ class OpenWakeWordEngine {
     try {
       // 1. mel: [1, 1760] → [1,1,8,32]
       const melOut = (await this.melSession.run({
-        [this.melSession.inputNames[0]]: new ort.Tensor('float32', window, [1, window.length]),
+        [this.melSession.inputNames[0]]: new ortRt!.Tensor('float32', window, [1, window.length]),
       }))[this.melSession.outputNames[0]]
       const md = melOut.data as Float32Array
       const nFrames = md.length / 32
@@ -162,7 +166,7 @@ class OpenWakeWordEngine {
       const melWin = new Float32Array(MEL_WIN * 32)
       for (let f = 0; f < MEL_WIN; f++) melWin.set(this.mel[f], f * 32)
       const embOut = (await this.embSession.run({
-        [this.embSession.inputNames[0]]: new ort.Tensor('float32', melWin, [1, MEL_WIN, 32, 1]),
+        [this.embSession.inputNames[0]]: new ortRt!.Tensor('float32', melWin, [1, MEL_WIN, 32, 1]),
       }))[this.embSession.outputNames[0]]
       this.emb.push(Float32Array.from(embOut.data as Float32Array))
       if (this.emb.length > N_EMB) this.emb.shift()
@@ -172,7 +176,7 @@ class OpenWakeWordEngine {
       const feat = new Float32Array(N_EMB * 96)
       for (let i = 0; i < N_EMB; i++) feat.set(this.emb[i], i * 96)
       const out = (await this.wakeSession.run({
-        [this.wakeSession.inputNames[0]]: new ort.Tensor('float32', feat, [1, N_EMB, 96]),
+        [this.wakeSession.inputNames[0]]: new ortRt!.Tensor('float32', feat, [1, N_EMB, 96]),
       }))[this.wakeSession.outputNames[0]]
       const score = (out.data as Float32Array)[0]
       this.decide(score)
