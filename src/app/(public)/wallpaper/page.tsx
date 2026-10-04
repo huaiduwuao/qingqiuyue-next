@@ -248,20 +248,24 @@ function WallpaperPageContent() {
     }
   };
 
+  // 三个写操作:未登录先拦(以前先把心点亮 / 标成已应用,再提示「请先登录」,刷新就没了),
+  // 请求失败把本地状态退回去(以前只弹错误,界面停在成功的样子)。
   const toggleFavorite = async (id: string) => {
+    if (!currentUser?.id) {
+      setToast({ open: true, msg: '请先登录后收藏壁纸' });
+      return;
+    }
+    const prev = favorites;
     const next = new Set(favorites);
     const adding = !next.has(id);
     if (adding) next.add(id);
     else next.delete(id);
     setFavorites(next);
-    if (!currentUser?.id) {
-      setToast({ open: true, msg: '请先登录后收藏壁纸' });
-      return;
-    }
     try {
       await updateUser({ favoriteWallpapers: Array.from(next) });
       setToast({ open: true, msg: adding ? '已收藏' : '已取消收藏' });
     } catch (err) {
+      setFavorites(prev);
       setToast({ open: true, msg: formatApiError(err) });
     }
   };
@@ -272,15 +276,17 @@ function WallpaperPageContent() {
     const updated: MyWallpaper = existing
       ? { ...existing, appliedTo: target, setAt: new Date().toISOString() }
       : { id: wp.id, appliedTo: target, setAt: new Date().toISOString() };
-    setMyWallpapers([updated, ...cleared]);
     if (!currentUser?.id) {
       setToast({ open: true, msg: '请先登录后应用壁纸' });
       return;
     }
+    const prev = myWallpapers;
+    setMyWallpapers([updated, ...cleared]);
     try {
       await updateUser({ [target === 'home' ? 'homeWallpaper' : 'profileWallpaper']: wp.id });
       setToast({ open: true, msg: `已设为${target === 'home' ? '主页' : '个人中心'}背景` });
     } catch (err) {
+      setMyWallpapers(prev);
       setToast({ open: true, msg: formatApiError(err) });
     }
   };
@@ -290,16 +296,18 @@ function WallpaperPageContent() {
       setToast({ open: true, msg: '该壁纸已在「我的壁纸」中' });
       return;
     }
-    const next: MyWallpaper[] = [{ id: wp.id, appliedTo: 'none', setAt: new Date().toISOString() }, ...myWallpapers];
-    setMyWallpapers(next);
     if (!currentUser?.id) {
       setToast({ open: true, msg: '请先登录后保存壁纸' });
       return;
     }
+    const prev = myWallpapers;
+    const next: MyWallpaper[] = [{ id: wp.id, appliedTo: 'none', setAt: new Date().toISOString() }, ...myWallpapers];
+    setMyWallpapers(next);
     try {
       await updateUser({ savedWallpapers: next.map((m) => m.id) });
       setToast({ open: true, msg: `已收藏《${wp.title}》` });
     } catch (err) {
+      setMyWallpapers(prev);
       setToast({ open: true, msg: formatApiError(err) });
     }
   };
