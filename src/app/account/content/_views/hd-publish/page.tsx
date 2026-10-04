@@ -1870,7 +1870,7 @@ export default function HdPublishPage() {
                             </Typography>
                             <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
                               {detail.review.reviewerVerdict.appealDeadline
-                                ? `可在 ${<RelativeTime ts={detail.review.reviewerVerdict.appealDeadline} fallback="" />} 前提交申诉,72 小时内重新审核`
+                                ? <>可在 <RelativeTime ts={detail.review.reviewerVerdict.appealDeadline} fallback="" /> 前提交申诉,72 小时内重新审核</>
                                 : '可在 7 天内提交申诉,72 小时内重新审核'}
                             </Typography>
                           </Box>

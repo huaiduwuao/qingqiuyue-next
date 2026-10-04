@@ -350,9 +350,9 @@ export const ReviewHistoryDialog = memo(function ReviewHistoryDialog({
                     })()}
                     <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
                       {h.review.completedAt
-                        ? `完成于 ${<RelativeTime ts={h.review.completedAt} fallback="" />}`
+                        ? <>完成于 <RelativeTime ts={h.review.completedAt} fallback="" /></>
                         : h.review.startedAt
-                        ? `开始于 ${<RelativeTime ts={h.review.startedAt} fallback="" />}`
+                        ? <>开始于 <RelativeTime ts={h.review.startedAt} fallback="" /></>
                         : '尚未开始'}
                       {h.review.startedAt && h.review.completedAt && (
                         <Box component="span" sx={{ ml: 0.75 }}>

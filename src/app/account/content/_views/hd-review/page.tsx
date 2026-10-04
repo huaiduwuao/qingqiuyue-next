@@ -792,7 +792,7 @@ function QueueItem({
             <span>AI {passedCount}/{totalChecks}</span>
           </>
         ) : (
-          <span>{video.review?.completedAt ? `完成于 ${<RelativeTime ts={video.review.completedAt} fallback="" />}` : '—'}</span>
+          <span>{video.review?.completedAt ? <>完成于 <RelativeTime ts={video.review.completedAt} fallback="" /></> : '—'}</span>
         )}
       </Box>
 
