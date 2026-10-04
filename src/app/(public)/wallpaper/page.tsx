@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -120,6 +121,49 @@ const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<
   all: { Icon: DesktopWindowsIcon, label: '通用' },
 };
 
+type CategoryMeta = { key: WallpaperCategory; label: string; sub: string; accent: string };
+const EMPTY_COUNTS: Record<string, number> = {};
+
+async function fetchAllWallpapers(): Promise<{ items: Wallpaper[]; categories: CategoryMeta[]; counts: Record<string, number> }> {
+  // 拦截器已把 {code,msg,data} 外壳剥掉,返回值就是业务数据本体 { list, total, categories }
+  type WallpaperPayload = { list?: any[]; items?: any[]; categories?: any[]; total?: number };
+  const fetchPage = async (page: number): Promise<WallpaperPayload> => {
+    const raw = await adminClient.get<WallpaperPayload>(`/wallpaper/list?page=${page}&page_size=${PAGE_SIZE}`);
+    return {
+      list: raw?.list ?? [],
+      items: raw?.items ?? [],
+      categories: raw?.categories ?? undefined,
+      total: raw?.total ?? 0,
+    };
+  };
+
+  const first = await fetchPage(1);
+  const items = [...((first.list?.length ? first.list : first.items) ?? [])] as Wallpaper[];
+  const total = first.total ?? 0;
+  // 以前只取默认的第一页(30 条),多出来的壁纸在页面上根本不存在。
+  // 壁纸总量是百量级,按页取完即可;MAX_PAGES 兜住异常的 total。
+  for (let page = 2; items.length < total && page <= MAX_PAGES; page++) {
+    const more = await fetchPage(page);
+    const rows = ((more.list?.length ? more.list : more.items) ?? []) as Wallpaper[];
+    if (rows.length === 0) break;
+    items.push(...rows);
+  }
+
+  // 主题栏:后端给的是「这个主题有几张」,只把真的有图的列出来。
+  // 全站只剩一个「其它」时不摆主题栏 —— 一个永远全选中的筛选没有意义。
+  const counts: Record<string, number> = {};
+  for (const c of first.categories ?? []) {
+    const key = String(c?.key ?? '');
+    if (key) counts[key] = Number(c?.count ?? 0);
+  }
+  counts.all = total;
+  const themed = (first.categories ?? [])
+    .map((c: any) => CATEGORY_META.get(String(c?.key ?? '') as WallpaperCategory))
+    .filter((c): c is NonNullable<typeof c> => !!c && c.key !== 'all');
+  const onlyOther = themed.length <= 1 && themed[0]?.key === 'other';
+  return { items, categories: [WALLPAPER_CATEGORIES[0], ...(onlyOther ? [] : themed)], counts };
+}
+
 function WallpaperPageContent() {
   const router = useRouter();
   const { currentUser } = useApp();
@@ -131,81 +175,25 @@ function WallpaperPageContent() {
   const [detail, setDetail] = useState<Wallpaper | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
 
-  // 真实 API:加载壁纸分类 + 列表
-  const [categories, setCategories] = useState<Array<{ key: WallpaperCategory; label: string; sub: string; accent: string }>>(WALLPAPER_CATEGORIES);
-  const [wallpapers, setWallpapers] = useState<Wallpaper[]>(WALLPAPERS);
-  const [loading, setLoading] = useState(true);
+  // 真实 API:加载壁纸分类 + 列表(react-query 缓存:从详情返回 / 再次进入不再整页重拉、重闪骨架)
+  const wallpaperQ = useQuery({
+    queryKey: ['wallpaper-list'],
+    queryFn: fetchAllWallpapers,
+    staleTime: 5 * 60 * 1000,
+  });
+  const wallpapers = wallpaperQ.data?.items ?? WALLPAPERS;
+  const categories = wallpaperQ.data?.categories ?? WALLPAPER_CATEGORIES;
   // 每个主题真实有多少张(后端按标签算好给的,不是只数当前这一页)
-  const [catCounts, setCatCounts] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        // axios interceptor 返回 { code, data }，apiRes.data 包含 { code, data }
-        // 后端返回 { code: 0, data: { list, total, page, pageSize, categories } }
-        type WallpaperPayload = { list?: any[]; items?: any[]; categories?: any[]; total?: number };
-        const fetchPage = async (page: number): Promise<WallpaperPayload> => {
-          const apiRes = await adminClient.get<{ code?: number; data?: WallpaperPayload } & WallpaperPayload>(
-            `/wallpaper/list?page=${page}&page_size=${PAGE_SIZE}`,
-          );
-          const raw = apiRes;
-          // 拦截器已把 {code,msg,data} 外壳剥掉,raw 就是业务数据本体
-          return {
-            list: raw?.list ?? [],
-            items: raw?.items ?? [],
-            categories: raw?.categories ?? undefined,
-            total: raw?.total ?? 0,
-          };
-        };
-
-        const first = await fetchPage(1);
-        if (cancelled) return;
-        const items = [...((first.list?.length ? first.list : first.items) ?? [])] as Wallpaper[];
-        const total = first.total ?? 0;
-        // 以前只取默认的第一页(30 条),多出来的壁纸在页面上根本不存在。
-        // 壁纸总量是百量级,按页取完即可;MAX_PAGES 兜住异常的 total。
-        for (let page = 2; items.length < total && page <= MAX_PAGES; page++) {
-          const more = await fetchPage(page);
-          if (cancelled) return;
-          const rows = ((more.list?.length ? more.list : more.items) ?? []) as Wallpaper[];
-          if (rows.length === 0) break;
-          items.push(...rows);
-        }
-
-        // 主题栏:后端给的是「这个主题有几张」,只把真的有图的列出来。
-        // 全站只剩一个「其它」时不摆主题栏 —— 一个永远全选中的筛选没有意义。
-        const counts: Record<string, number> = {};
-        for (const c of first.categories ?? []) {
-          const key = String(c?.key ?? '');
-          if (key) counts[key] = Number(c?.count ?? 0);
-        }
-        counts.all = total;
-        const themed = (first.categories ?? [])
-          .map((c: any) => CATEGORY_META.get(String(c?.key ?? '') as WallpaperCategory))
-          .filter((c): c is NonNullable<typeof c> => !!c && c.key !== 'all');
-        const onlyOther = themed.length <= 1 && themed[0]?.key === 'other';
-        setCatCounts(counts);
-        setCategories([WALLPAPER_CATEGORIES[0], ...(onlyOther ? [] : themed)]);
-        setWallpapers(items);
-      } catch (err) {
-        if (!cancelled) {
-          if (isAuthError(err)) {
-            setToast({ open: true, msg: '登录已过期,请重新登录' });
-          } else {
-            setToast({ open: true, msg: formatApiError(err) || '加载壁纸失败' });
-          }
-          // 保留默认分类
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const catCounts = wallpaperQ.data?.counts ?? EMPTY_COUNTS;
+  const loading = wallpaperQ.isPending;
+  // 加载失败提示一次(渲染期按 errorUpdatedAt 对账)
+  const errorAt = wallpaperQ.errorUpdatedAt;
+  const [shownErrorAt, setShownErrorAt] = useState(errorAt);
+  if (errorAt !== shownErrorAt) {
+    setShownErrorAt(errorAt);
+    const err = wallpaperQ.error;
+    if (err) setToast({ open: true, msg: isAuthError(err) ? '登录已过期,请重新登录' : formatApiError(err) || '加载壁纸失败' });
+  }
 
   const currentApplied = myWallpapers.find((m) => m.appliedTo === 'home');
   const currentWallpaper = useMemo(
