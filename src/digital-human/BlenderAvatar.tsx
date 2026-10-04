@@ -105,7 +105,7 @@ const EXPRESSION_MAP: Record<string, string> = {
 
 // 缓存:url -> 加载好的 VRM 数据(单一格式,不再支持 GLB)
 // 加载层已抽离到 ./vrm/loadAvatar.ts,这里只 re-export 类型,行为完全不变
-import { loadAvatar, type Cached } from './vrm/loadAvatar';
+import { acquireAvatar, releaseAvatar, type Cached } from './vrm/loadAvatar';
 import { mountEffectCanvas } from './effectCanvas';
 
 
@@ -277,12 +277,16 @@ function VrmAvatar({
         let loaded: Cached | null = null;
         try {
           console.log('[BlenderAvatar] 开始加载 VRM:', modelUrl);
-          loaded = await loadAvatar(modelUrl);
+          loaded = await acquireAvatar(modelUrl);
           console.log('[BlenderAvatar] 加载成功,animations=', loaded.animations.length);
         } catch (e1: unknown) {
           throw e1;
         }
-        if (cancelled) return;
+        if (cancelled) {
+          // 加载期间已卸载:还没进场景,直接还掉引用
+          releaseAvatar(loaded);
+          return;
+        }
         if (!loaded) throw new Error('no avatar loaded');
         loadedRef.current = loaded;
         scene.add(loaded.scene);
@@ -365,8 +369,10 @@ function VrmAvatar({
       if (onMouseMove) window.removeEventListener('mousemove', onMouseMove);
       if (onResize) window.removeEventListener('resize', onResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      // 模型来自 loadAvatar 的模块级缓存,下次挂载还要复用,只从场景摘下、不 dispose
+      // 模型来自 loadAvatar 的 LRU 缓存,下次挂载还要复用:这里只从场景摘下、还掉引用,
+      // 不自己 dispose(没人用且被挤出缓存时由 loadAvatar 统一释放)
       if (loadedRef.current?.scene) sceneRef.current?.remove(loadedRef.current.scene);
+      releaseAvatar(loadedRef.current);
       rendererRef.current?.dispose?.();
       // dispose 不释放 WebGL context 本身,反复进出会撞上浏览器的 context 上限
       rendererRef.current?.forceContextLoss?.();

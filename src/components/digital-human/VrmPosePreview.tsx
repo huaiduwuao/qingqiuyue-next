@@ -16,7 +16,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { loadAvatar } from '@/digital-human/vrm/loadAvatar';
+import { acquireAvatar, releaseAvatar, type Cached } from '@/digital-human/vrm/loadAvatar';
 import { getBone, detectVrmVersion } from '@/digital-human/vrm/vrmCompat';
 
 export interface VrmBoneEditorHandle {
@@ -366,10 +366,16 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
 
       // 加载 VRM
       let cancelled = false;
+      /** 本次占用的模型引用,清理时摘下场景后还掉 */
+      let acquired: Cached | null = null;
       (async () => {
         try {
-          const cached = await loadAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
-          if (cancelled) return;
+          const cached = await acquireAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
+          if (cancelled) {
+            releaseAvatar(cached);
+            return;
+          }
+          acquired = cached;
 
           vrmRef.current = cached.vrm;
           humanoidRef.current = cached.humanoid;
@@ -412,6 +418,11 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
         renderer.domElement.removeEventListener('click', onCanvasClick);
         transformControls.removeEventListener('change', onTransformChange);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        // 模型是缓存共享的:从这个场景摘下再还引用,别留在已丢弃的 scene 里
+        if (acquired) {
+          scene.remove(acquired.scene);
+          releaseAvatar(acquired);
+        }
         orbitControls.dispose();
         transformControls.dispose();
         renderer.dispose();

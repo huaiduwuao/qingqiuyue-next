@@ -33,7 +33,7 @@ import { loadConfigBundle, loadConfigBundleAsync } from './vrm/config/loader';
 import type { ConfigBundle } from './vrm/config/types';
 import { useVrmPhysics } from './vrm/useVrmPhysics';
 import { useExpressionLerp } from './vrm/useExpressionLerp';
-import { loadAvatar, type Cached } from './vrm/loadAvatar';
+import { acquireAvatar, releaseAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
 import { useVrmScene } from './vrm/useVrmScene';
 import { useVrmLipSync } from './vrm/useVrmLipSync';
@@ -555,10 +555,16 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     if (!rendererState) return;
     if (debugNoThree) { setLoading(false); return; }
     let cancelled = false;
+    /** 本次 effect 占用的模型引用,清理时摘下场景后还掉 */
+    let acquired: Cached | null = null;
     (async () => {
       try {
-        const cached = await loadAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
-        if (cancelled) return;
+        const cached = await acquireAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
+        if (cancelled) {
+          releaseAvatar(cached);
+          return;
+        }
+        acquired = cached;
         vrmDataRef.current = cached;
         vrmRef.current = cached.vrm;
         // 开发时方便在控制台 / 测试页里量骨骼(线上不挂)
@@ -605,6 +611,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       cancelled = true;
       const cached = vrmDataRef.current;
       if (cached && rendererState) rendererState.scene.remove(cached.scene);
+      // 先摘下再释放:loadAvatar 只会 dispose 引用为 0 的模型,在场景里的绝不会被释放
+      if (acquired) {
+        if (rendererState) rendererState.scene.remove(acquired.scene);
+        releaseAvatar(acquired);
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, modelUrl]);
