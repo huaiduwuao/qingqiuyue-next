@@ -45,6 +45,7 @@ import { startCall } from '@/lib/call/controller';
 import { callRecordText, type CallMedia, type CallRecord } from '@/apis/call';
 import { adminClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
+import { systemNoticeView } from '@/lib/notice/systemNotice';
 import { fileUpload } from '@/apis/global';
 import { pinSession, unpinSession, removeSessions, sendShareCard, type ShareKind } from '@/apis/msg';
 import ShareCardBubble from '@/components/msg/ShareCardBubble';
@@ -506,13 +507,15 @@ function SystemPanel() {
 
 function SystemNoticeItem({ item }: { item: any }) {
   const qc = useQueryClient();
+  const router = useRouter();
+  const view = systemNoticeView(item);
   const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
   // 后端系统消息返回原始 NoticeEntity，无 unread 派生字段，用 status 推导
   const isUnread = item.unread ?? (item.status !== 'READ' && item.status !== 'read');
   const config = (() => {
-    if (item.level === 'success') return { color: 'success.main', bg: 'rgba(93, 219, 150, 0.12)', icon: <EventOutlinedIcon sx={{ fontSize: 18 }} /> };
-    if (item.level === 'warning') return { color: 'warning.main', bg: 'rgba(255, 180, 0, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
-    if (item.level === 'error') return { color: 'primary.main', bg: 'rgba(254, 44, 85, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
+    if (view.level === 'success') return { color: 'success.main', bg: 'rgba(93, 219, 150, 0.12)', icon: <EventOutlinedIcon sx={{ fontSize: 18 }} /> };
+    if (view.level === 'warning') return { color: 'warning.main', bg: 'rgba(255, 180, 0, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
+    if (view.level === 'error') return { color: 'primary.main', bg: 'rgba(254, 44, 85, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
     return { color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)', icon: <CampaignOutlinedIcon sx={{ fontSize: 18 }} /> };
   })();
 
@@ -524,8 +527,9 @@ function SystemNoticeItem({ item }: { item: any }) {
         qc.invalidateQueries({ queryKey: ['notice', 'count'] });
       }).catch(() => { /* 已读失败不影响操作 */ });
     }
-    if (item.link) {
-      openExternal(item.link);
+    if (view.link) {
+      if (view.link.startsWith('/')) router.push(view.link);
+      else openExternal(view.link);
       return;
     }
     setSnack({ open: true, msg: item.title || '系统消息' });
@@ -571,12 +575,12 @@ function SystemNoticeItem({ item }: { item: any }) {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
             <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: config.bg, color: config.color, fontSize: 10, fontWeight: 600 }}>
-              {item.typeName}
+              {view.typeName}
             </Box>
             <Typography sx={{ fontSize: 14, fontWeight: isUnread ? 600 : 500, color: 'text.primary', flex: 1 }}>
               {item.title}
             </Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(item.time)}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(view.time)}</Typography>
           </Box>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.7 }}>
             {item.content}

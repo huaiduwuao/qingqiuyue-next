@@ -25,6 +25,8 @@ import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { adminClient } from '@/lib/api/client';
+import { systemNoticeView } from '@/lib/notice/systemNotice';
+import { openExternal } from '@/lib/safeUrl';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { followUser, unfollowUser } from '@/apis/social';
@@ -265,7 +267,7 @@ export default function NoticeIconView() {
               list.map((item: any) => (
                 <InteractionItem
                   key={item.id}
-                  item={item}
+                  item={tab === 'system' ? asSystemRow(item) : item}
                   onClose={() => setAnchorEl(null)}
                   onMessage={setToast}
                 />
@@ -311,6 +313,22 @@ export default function NoticeIconView() {
   );
 }
 
+/**
+ * 系统消息(notice type=system)是原始 NoticeEntity:没有 time / unread / 跳转目标。
+ * 以前直接塞给 InteractionItem:时间空白、未读点不亮、点了提示「暂无可跳转的目标」,
+ * 已读也打到 interaction 的接口上。这里投影成它能用的形状。
+ */
+function asSystemRow(item: any) {
+  const view = systemNoticeView(item);
+  return {
+    ...item,
+    isSystem: true,
+    time: view.time,
+    unread: item.unread ?? (item.status !== 'READ' && item.status !== 'read'),
+    systemLink: view.link,
+  };
+}
+
 function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () => void; onMessage: (msg: string) => void }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -330,9 +348,12 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
   // 点击消息只标记已读(再按类型跳转),不再自动关注;关注/取关走右侧按钮或对方主页。
   const markRead = () => {
     if (!item.unread || !item.id) return;
-    adminClient.post('/notice/interaction/read', { id: item.id }).then(() => {
+    const kind = item.isSystem ? 'system' : 'interaction';
+    adminClient.post(`/notice/${kind}/read`, { id: item.id }).then(() => {
       qc.invalidateQueries({ queryKey: ['notice-interaction'] });
       qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['notice-system'] });
+      qc.invalidateQueries({ queryKey: ['notice-system-page'] });
       qc.invalidateQueries({ queryKey: ['notice-count'] });
       qc.invalidateQueries({ queryKey: ['notice', 'count'] });
     }).catch(() => { /* 已读失败不影响跳转 */ });
@@ -362,6 +383,12 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
   const handleClick = async () => {
     markRead();
     onClose();
+    if (item.isSystem) {
+      if (item.systemLink?.startsWith('/')) router.push(item.systemLink);
+      else if (item.systemLink) openExternal(item.systemLink);
+      else onMessage(item.title || '系统消息');
+      return;
+    }
     if (item.type === 'room_event' && item.fromUserId) {
       // 创世房间活动(from = 房主):进他的房间
       router.push(`/digital-human?room=${encodeURIComponent(String(item.fromUserId))}`);
