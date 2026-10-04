@@ -95,6 +95,8 @@ type FeedItem = {
   /** 推荐里被「此刻的分支」召回时,是哪一枝(如「外卖 · 谋生之重」) */
   topic?: string;
   totalItems?: number;
+  /** 集数角标「全81集 / 更新至12集 / 全308章 / 更新至37话」,/module/content/list 下发 */
+  episodeLabel?: string;
 };
 
 type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
@@ -334,7 +336,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         pageSize: PAGE_SIZE,
         ...params,
         // 后端认的参数名是 orderBy;之前传 order 被静默丢弃,"最新/高评分"排序从未生效。
-        orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
+        // 人气榜 = 全网热度(后端 internal/webheat);热度 = 站内点赞收藏
+        orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : sort === 'views' ? 'web_heat' : 'COLLECT',
         // 影视类只放站内能看的(其它类型后端放行)。
         watchable: 1,
         ...(ratingMin ? { ratingMin } : {}),
@@ -906,6 +909,10 @@ function FeedCard({ item }: { item: FeedItem }) {
           >
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
             {formatDuration(item.durationSec)}
+          </Box>
+        ) : item.episodeLabel ? (
+          <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: '#ffffff', fontSize: 10, fontWeight: 600 }}>
+            {item.episodeLabel}
           </Box>
         ) : null}
         {/* 音乐卡片:不进详情页也能直接听,交给全局底栏 */}

@@ -46,6 +46,8 @@ type DramaSeries = {
   views?: number;
   likes?: number;
   episodes?: number;
+  /** 集数角标「全81集 / 更新至40集」,后端从源站总集数、站内分集等处取最大值;不知道时为空 */
+  episodeLabel?: string;
   freeEpisodes?: number;
   author?: string;
   description?: string;
@@ -287,7 +289,7 @@ export function DramaPanel() {
           {genreLabelOf(genreOptions, genre) || '全部'}短剧
         </Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按播放量排序'}
+          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按全网热度排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
@@ -381,7 +383,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 }
 
 function Top10Podium({ list, genreLabel, status, sort }: { list: DramaSeries[]; genreLabel: string; status: DramaSeries['status'] | 'ALL'; sort: string }) {
-  const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
+  const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按全网热度排序';
   const titleParts: string[] = [];
   if (genreLabel) titleParts.push(genreLabel);
   if (status !== 'ALL') titleParts.push(STATUS_LABEL[status]);
@@ -459,7 +461,7 @@ function RankCard({ item }: { item: DramaSeries }) {
             {item.title}
           </Typography>
           <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {item.genre || '其他'} · {formatViews(item.views)} 播放
+            {[item.genre || '其他', item.episodeLabel, `${formatViews(item.views)} 播放`].filter(Boolean).join(' · ')}
           </Typography>
         </Box>
       </Box>
@@ -518,6 +520,11 @@ function DramaCard({ item }: { item: DramaSeries }) {
           {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
               <StarRoundedIcon sx={{ fontSize: 10 }} />{item.rating.toFixed(1)}
+            </Box>
+          )}
+          {!!item.episodeLabel && (
+            <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, fontWeight: 600 }}>
+              {item.episodeLabel}
             </Box>
           )}
         </Box>

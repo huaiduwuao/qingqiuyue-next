@@ -51,6 +51,8 @@ type TheaterItem = {
   /** 原始 content_type,仅兼容旧字段,展示与路由都不要用它。 */
   category?: string;
   durationMin?: number;
+  /** 电视剧 / 动漫 / 综艺的集数角标「全23集 / 更新至12集 / 更新至2026-06-24期」;电影为空 */
+  episodeLabel?: string;
   rating?: number;
   region?: string;
   regionCode?: string;
@@ -311,7 +313,7 @@ export function TheaterPanel() {
       <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
         <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{activeLabel}</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按上映年份排序' : '按播放量排序'}
+          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按上映年份排序' : '按全网热度排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>共 {total} 部</Typography>
@@ -591,12 +593,12 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: typeColor(item.contentType), fontSize: 10, fontWeight: 600 }}>
           {typeLabel(item.contentType)}
         </Box>
-        {!!item.durationMin && (
+        {(item.episodeLabel || !!item.durationMin) && (
           <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10 }}>
-            {item.durationMin} 分钟
+            {item.episodeLabel || `${item.durationMin} 分钟`}
           </Box>
         )}
-        {/* 上面两角是评分 / 类型,右下是时长,能不能播放左下 */}
+        {/* 上面两角是评分 / 类型,右下是集数(剧集)或时长(电影),能不能播放左下 */}
         <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={8} bottom={8} top="auto" />
       </Box>
       <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
@@ -624,6 +626,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
 /** 榜单卡片的副行。评分/年份缺失时跳过,不拼出"0.0 分"这种假数据。 */
 function subline(item: TheaterItem): string {
   const parts = [`${formatViews(item.views)} 播放`];
+  if (item.episodeLabel) parts.unshift(item.episodeLabel);
   if (item.rating) parts.push(`评分 ${item.rating.toFixed(1)}`);
   else if (item.year) parts.push(String(item.year));
   return parts.join(' · ');
