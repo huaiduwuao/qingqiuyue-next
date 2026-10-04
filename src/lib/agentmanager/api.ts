@@ -3,62 +3,47 @@
  * 多 Agent 管理平面前端 SDK
  */
 
-import { API_PREFIX } from '@/lib/api/prefix'
-import { authFetch, getAuthToken as readSessionToken, setAuthToken } from '@/lib/api/auth'
-
-const API_BASE = `${API_PREFIX}/api/agentmanager`
-
-interface RequestOptions extends RequestInit {
-  token?: string
-}
+import { getAuthToken as readSessionToken, setAuthToken, authFetch } from '@/lib/api/auth'
+import { AGENTMANAGER_BASE as API_BASE, agentmRequest, agentmResponseError, type AgentmRequestOptions } from './request'
 
 class AgentManagerAPI {
+  /**
+   * 只存 login() 拿到的 agentmanager 自有 access_token,且仅在没有登录会话时兜底。
+   * 以前 setToken 也往这里写,登出后会话已清、这里还留着旧值,匿名请求(数字人 / AI 对话)
+   * 照样带着过期会话发出去 → 401 → 误报会话失效。现在会话只认 lib/api/auth。
+   */
   private token: string | null = null
 
-  setToken(token: string) {
-    this.token = token
+  /** @deprecated 会话统一从 lib/api/auth 读,这里保留签名兼容旧调用,不再缓存 */
+  setToken(_token: string) {
+    void _token
   }
 
   clearToken() {
     this.token = null
   }
 
-  // 获取认证 token:登录会话优先(lib/api/auth),其次 setToken 设的
-  private getAuthToken(): string | null {
-    return readSessionToken() ?? this.token
+  /** 需要显式指定的令牌:有登录会话时交给 authFetch 自动带,否则用 login() 拿到的 */
+  private fallbackToken(): string | undefined {
+    return readSessionToken() ? undefined : (this.token ?? undefined)
   }
 
-  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { token, ...fetchOpts } = options
+  private request<T>(path: string, options: AgentmRequestOptions = {}): Promise<T> {
+    return agentmRequest<T>(path, { ...options, token: options.token || this.fallbackToken() })
+  }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    }
-
-    const authToken = token || this.getAuthToken()
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`
-    }
-
-    const res = await authFetch(`${API_BASE}${path}`, {
-      ...fetchOpts,
-      headers,
-    })
-
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error(error.error || `HTTP ${res.status}`)
-    }
-
-    return res.json()
+  /** 流式接口的请求头:会话头由 authFetch 补,这里只补兜底令牌 */
+  private streamHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const t = this.fallbackToken()
+    if (t) headers['Authorization'] = `Bearer ${t}`
+    return headers
   }
 
   // ========== Auth ==========
   // 同步 session_id（从 core-api 登录后调用）
   syncSessionId(sessionId: string) {
     if (typeof window !== 'undefined') setAuthToken(sessionId)
-    this.token = sessionId
   }
 
   // 登录时同步 session_id（向后兼容）
@@ -172,9 +157,7 @@ class AgentManagerAPI {
     messages: { role: string; content: string }[],
     handlers: { onDelta?: (text: string) => void; onDone?: () => void; onError?: (e: string) => void },
   ): Promise<void> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const authToken = this.getAuthToken()
-    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+    const headers = this.streamHeaders()
 
     const res = await authFetch(`${API_BASE}/gateway/llm/chat/completions`, {
       method: 'POST',
@@ -182,8 +165,7 @@ class AgentManagerAPI {
       body: JSON.stringify({ model, messages, stream: true }),
     })
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: res.statusText }))
-      handlers.onError?.(error.error || `HTTP ${res.status}`)
+      handlers.onError?.((await agentmResponseError(res)).message)
       return
     }
     if (!res.body) {
@@ -268,9 +250,7 @@ class AgentManagerAPI {
     },
     signal?: AbortSignal,
   ): Promise<void> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const authToken = this.getAuthToken()
-    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+    const headers = this.streamHeaders()
 
     let res: Response
     try {
@@ -287,8 +267,7 @@ class AgentManagerAPI {
       return
     }
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: res.statusText }))
-      handlers.onError?.(error.error || `HTTP ${res.status}`)
+      handlers.onError?.((await agentmResponseError(res)).message)
       return
     }
     if (!res.body) {

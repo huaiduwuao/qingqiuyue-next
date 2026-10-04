@@ -3,9 +3,8 @@
  * 新增: Kanban / MCP / Sandbox / PlanExecute 接口
  */
 
-import { agentmAPI as baseAPI } from './api'
-import { API_PREFIX } from '@/lib/api/prefix'
 import { authFetch } from '@/lib/api/auth'
+import { AGENTMANAGER_BASE as API_BASE, agentmRequest } from './request'
 
 // ========== Kanban ==========
 
@@ -178,25 +177,13 @@ export interface PlanStep {
 
 // ========== 扩展 API Client ==========
 
-const API_BASE = `${API_PREFIX}/api/agentmanager`
-
 class ExtendedAgentmAPI {
-  private token: string | null = null
+  /** @deprecated 会话统一从 lib/api/auth 读。以前只有调过 setToken 才带鉴权头,
+   *  而 CanvasFlow / AgentStudio 从没调过,listMCPServers 一直是匿名请求。 */
+  setToken(_t: string) { void _t }
 
-  setToken(t: string) { this.token = t }
-
-  private async request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(opts.headers as Record<string, string>),
-    }
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`
-    const res = await authFetch(`${API_BASE}${path}`, { ...opts, headers })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || `HTTP ${res.status}`)
-    }
-    return res.json()
+  private request<T>(path: string, opts: RequestInit = {}): Promise<T> {
+    return agentmRequest<T>(path, opts)
   }
 
   // --- Kanban ---
@@ -317,10 +304,7 @@ class ExtendedAgentmAPI {
 
   async runAgentStream(agentId: number, messages: AgentMessage[], opts?: { mode?: string }): Promise<EventSource> {
     const body = JSON.stringify({ agent_id: agentId, messages, mode: opts?.mode || 'react' })
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
-    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const resp = await authFetch(`${API_BASE}/agent/run/stream`, { method: 'POST', body, headers })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     // SSE stream via ReadableStream
