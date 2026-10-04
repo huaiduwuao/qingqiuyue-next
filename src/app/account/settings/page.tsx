@@ -528,6 +528,15 @@ function WechatDialog({
       'wechat_auth',
       `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`,
     );
+    // 再点一次「打开授权」会再起一个轮询:先停掉上一个,否则旧定时器永远没人清
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (!popupRef.current) {
+      // 弹窗被浏览器拦截(或 App 内 WebView 不支持 window.open):popup 为 null,
+      // 以前照样进「扫码中」并每秒轮询 null?.closed,永远等不到结果
+      setBindStatus('error');
+      onSaved('授权窗口被拦截,请允许本站弹出窗口后重试', 'error');
+      return;
+    }
     setBindStatus('scanning');
     // 轮询检查窗口是否关闭
     pollIntervalRef.current = setInterval(() => {
