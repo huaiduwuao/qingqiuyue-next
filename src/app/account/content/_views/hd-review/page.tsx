@@ -268,8 +268,11 @@ export default function HdReviewPage() {
     setSelectedRejectReasons((p) => (p.includes(reason) ? p.filter((r) => r !== reason) : [...p, reason]));
   };
 
+  // 结论提交中:三个按钮一起禁用。以前请求在路上时还能再点(连点「通过」第二次报审核单已处理;
+  // 点了「通过」又点「驳回」会给同一审核单发出两个相反的结论)。
+  const [submittingVerdict, setSubmittingVerdict] = useState(false);
   const handleSubmitVerdict = async (decision: ReviewerDecision) => {
-    if (!selectedVideo || !currentReviewer) return;
+    if (!selectedVideo || !currentReviewer || submittingVerdict) return;
     if (decision !== 'pass' && verdictNote.trim().length === 0 && selectedRejectReasons.length === 0) {
       setSnack('驳回/需修改时,必须填写备注或选择驳回原因');
       return;
@@ -298,6 +301,7 @@ export default function HdReviewPage() {
       setSnack('这条内容没有待处理的审核单');
       return;
     }
+    setSubmittingVerdict(true);
     try {
       await doReview({
         id: reviewId,
@@ -309,6 +313,8 @@ export default function HdReviewPage() {
     } catch (e: any) {
       setSnack(`提交审核结论失败:${e.message || '未知错误'}`);
       return;
+    } finally {
+      setSubmittingVerdict(false);
     }
 
     setVideos((p) =>
@@ -575,6 +581,7 @@ export default function HdReviewPage() {
               selectedRejectReasons={selectedRejectReasons}
               onToggleRejectReason={toggleRejectReason}
               onSubmit={handleSubmitVerdict}
+              submitting={submittingVerdict}
               onViewHistory={() => setActiveTab('works', { creatorName: pickCreatorName(selectedVideo) })}
             />
           ) : (
@@ -835,6 +842,7 @@ function ReviewPanel({
   selectedRejectReasons,
   onToggleRejectReason,
   onSubmit,
+  submitting = false,
   onViewHistory,
 }: {
   video: HdVideo;
@@ -844,6 +852,7 @@ function ReviewPanel({
   selectedRejectReasons: string[];
   onToggleRejectReason: (r: string) => void;
   onSubmit: (d: ReviewerDecision) => void;
+  submitting?: boolean;
   onViewHistory: () => void;
 }) {
   const router = useRouter();
@@ -1264,6 +1273,7 @@ function ReviewPanel({
               fullWidth
               variant="outlined"
               startIcon={<AssignmentLateRoundedIcon sx={{ fontSize: 16 }} />}
+              disabled={submitting}
               onClick={() => onSubmit('request_changes')}
               sx={{
                 textTransform: 'none',
@@ -1280,6 +1290,7 @@ function ReviewPanel({
               fullWidth
               variant="outlined"
               startIcon={<ErrorRoundedIcon sx={{ fontSize: 16 }} />}
+              disabled={submitting}
               onClick={() => onSubmit('reject')}
               sx={{
                 textTransform: 'none',
@@ -1296,6 +1307,7 @@ function ReviewPanel({
               fullWidth
               variant="contained"
               startIcon={<CheckCircleRoundedIcon sx={{ fontSize: 16 }} />}
+              disabled={submitting}
               onClick={() => onSubmit('pass')}
               sx={{
                 textTransform: 'none',
