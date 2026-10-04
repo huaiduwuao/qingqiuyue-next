@@ -16,6 +16,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# GITHUB_TOKEN 默认只读;只有最后的 release job 自己声明 contents: write 去建 Release / 传附件。
+# 不写这块时按仓库设置走,老仓库默认是全部写权限 —— PR 上跑的第三方 action 被投毒就能改代码 / 打 tag。
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   HUSKY: '0'
