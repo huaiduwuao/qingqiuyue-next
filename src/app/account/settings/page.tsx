@@ -125,7 +125,7 @@ export default function AccountSettingsPage() {
   };
 
   const saveProfile = useMutation({
-    mutationFn: (values: typeof formValues) => updateUser(values),
+    mutationFn: (values: Partial<typeof formValues>) => updateUser(values),
     onSuccess: (_d, values) => {
       // 顶栏头像 / 昵称读的是 currentUser,保存后同步,不用刷新页面才看到
       if (currentUser) setCurrentUser({ ...currentUser, ...values });
@@ -135,7 +135,10 @@ export default function AccountSettingsPage() {
   });
   const handleSubmit = () => {
     if (!currentUser || saveProfile.isPending) return;
-    saveProfile.mutate(formValues);
+    // PUT /user/profile 的 info 是「不带 = 不改,带 "" = 清空」。没动简介就别带它:
+    // currentUser 里缺 info 时表单是空串,原样提交会把用户的简介清掉。
+    const { info, ...rest } = formValues;
+    saveProfile.mutate(info !== (currentUser.info || '') ? formValues : rest);
   };
 
   return (
