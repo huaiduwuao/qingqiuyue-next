@@ -3,7 +3,6 @@ import { originOnlyPlatform, sourcePageOf } from './sourcePage';
 
 describe('originOnlyPlatform', () => {
   it('names licensed long-video platforms that can only be watched at the source', () => {
-    expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ep1113959?theme=movie')).toBe('哔哩哔哩');
     expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ss101758')).toBe('哔哩哔哩');
     expect(originOnlyPlatform('https://www.iqiyi.com/v_19rr7pm7rc.html')).toBe('爱奇艺');
     expect(originOnlyPlatform('https://v.qq.com/x/cover/mzc002001f5siqp/n0047co551x.html')).toBe('腾讯视频');
@@ -15,6 +14,8 @@ describe('originOnlyPlatform', () => {
   it('leaves rule-resolvable pages and everything else alone', () => {
     for (const url of [
       // 有解析规则:本站播放器播
+      // 番剧单集:bilibili-pgc 规则(2026-10-03 起),免费集站内播,会员集由分集详情的 info=locked 引去原站
+      'https://www.bilibili.com/bangumi/play/ep1113959?theme=movie',
       'https://www.bilibili.com/video/BV117Yj6rEG4',
       'https://www.bilibili.com/video/av7915086',
       'https://www.acfun.cn/v/ac48868360',

@@ -113,7 +113,7 @@ class OpenWakeWordEngine {
   private async processLoop(): Promise<void> {
     while (!this.destroyed && this.pending.length > 0) {
       // 积压太多 (标签页切后台回来) 就丢旧的, 只保留最近 ~2s, 不追赶历史音频
-      let chunks = this.pending.splice(0)
+      const chunks = this.pending.splice(0)
       let total = chunks.reduce((s, c) => s + c.length, 0)
       while (total > 32000 && chunks.length > 1) total -= chunks.shift()!.length
       for (const audio of chunks) await this.push(audio)
