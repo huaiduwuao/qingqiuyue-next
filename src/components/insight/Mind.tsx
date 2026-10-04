@@ -268,7 +268,7 @@ export function PracticeLadder({ themeKey, accent, hasJourney }: { themeKey: str
         </Typography>
       )}
       {!m?.loggedIn && !q.isLoading && (
-        <Button size="small" href={loginHref()} sx={{ mt: 1, px: 0 }}>
+        <Button size="small" variant="outlined" href={loginHref()} sx={{ mt: 1.5 }}>
           登录开始修习 →
         </Button>
       )}
