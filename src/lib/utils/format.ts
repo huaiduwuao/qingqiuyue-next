@@ -19,3 +19,20 @@ export function formatDuration(sec: number | null | undefined): string {
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+/**
+ * 时间值 → 毫秒时间戳;解析不了返回 NaN。
+ * - number / 纯数字字符串:当作毫秒时间戳
+ * - 后端部分接口给的 "2026-10-04 12:00:00"(日期和时间之间是空格):Chrome 认,Safari / iOS WebView
+ *   直接 Invalid Date,这里先把空格换成 'T'(按本地时间解析,与 Chrome 的结果一致)
+ * - 其余(ISO 8601 等)交给 Date.parse
+ */
+export function toTimestamp(v: number | string | Date | null | undefined): number {
+  if (v == null || v === '') return NaN;
+  if (typeof v === 'number') return v;
+  if (v instanceof Date) return v.getTime();
+  const s = v.trim();
+  if (/^\d+$/.test(s)) return Number(s);
+  const m = /^(\d{4}-\d{2}-\d{2})[ ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)$/.exec(s);
+  return Date.parse(m ? `${m[1]}T${m[2]}` : s);
+}

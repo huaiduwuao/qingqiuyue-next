@@ -42,7 +42,8 @@ export function NewsView({ data }: Props) {
             {data.author}
           </Typography>
         )}
-        {data.publish_time && <RelativeTime ts={data.publish_time} />}
+        {/* 详情接口给的是 publishTime(驼峰),publish_time 只是兼容老数据 */}
+        {(data.publishTime || data.publish_time) && <RelativeTime ts={data.publishTime || data.publish_time} />}
       </Box>
 
       {data.description && (

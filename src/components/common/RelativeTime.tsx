@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toTimestamp } from '@/lib/utils/format';
 
 /**
  * 渲染相对时间字符串(例如 "35 分钟前" / "2 小时后"),只使用 ts 作为输入。
@@ -12,7 +13,7 @@ import { useEffect, useState } from 'react';
  * 3. 每分钟刷一次,让用户能继续看到 "X 分钟前" 数字变化(可选,可关)。
  */
 export interface RelativeTimeProps {
-  /** Unix 毫秒时间戳 */
+  /** Unix 毫秒时间戳,或 ISO / "YYYY-MM-DD HH:mm:ss" 时间字符串 */
   ts: number | string | null | undefined;
   /** SSR 阶段 placeholder,默认空字符串,传 '—' 避免布局抖动 */
   fallback?: string;
@@ -54,7 +55,8 @@ export function RelativeTime({
 
   useEffect(() => {
     if (ts == null) return;
-    const numTs = typeof ts === 'string' ? Number(ts) : ts;
+    // 以前字符串只认纯数字,ISO / "YYYY-MM-DD HH:mm:ss" 一律 NaN → 什么都不显示
+    const numTs = toTimestamp(ts);
     if (!Number.isFinite(numTs)) return;
 
     const tick = () => setLabel(compute(numTs, showFuture));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCount, formatDuration } from './format';
+import { formatCount, formatDuration, toTimestamp } from './format';
 
 describe('formatCount', () => {
   it('小于 1000 原样', () => {
@@ -37,5 +37,33 @@ describe('formatDuration', () => {
     expect(formatDuration(null)).toBe('0:00');
     expect(formatDuration(NaN)).toBe('0:00');
     expect(formatDuration(-1)).toBe('0:00');
+  });
+});
+
+describe('toTimestamp', () => {
+  it('数字 / 纯数字字符串按毫秒时间戳', () => {
+    expect(toTimestamp(1700000000000)).toBe(1700000000000);
+    expect(toTimestamp('1700000000000')).toBe(1700000000000);
+  });
+
+  it('空值 / 乱码返回 NaN', () => {
+    expect(toTimestamp(null)).toBeNaN();
+    expect(toTimestamp(undefined)).toBeNaN();
+    expect(toTimestamp('')).toBeNaN();
+    expect(toTimestamp('not a date')).toBeNaN();
+  });
+
+  it('ISO 8601 原样解析', () => {
+    expect(toTimestamp('2026-10-04T12:00:00Z')).toBe(Date.UTC(2026, 9, 4, 12, 0, 0));
+    expect(toTimestamp('2026-10-04T12:00:00+08:00')).toBe(Date.UTC(2026, 9, 4, 4, 0, 0));
+  });
+
+  it('「日期 空格 时间」按本地时间解析(Safari 直接 new Date 会得到 Invalid Date)', () => {
+    expect(toTimestamp('2026-10-04 12:00:00')).toBe(new Date(2026, 9, 4, 12, 0, 0).getTime());
+    expect(toTimestamp('2026-10-04 12:00')).toBe(new Date(2026, 9, 4, 12, 0, 0).getTime());
+  });
+
+  it('Date 对象取 getTime', () => {
+    expect(toTimestamp(new Date(5))).toBe(5);
   });
 });
