@@ -210,12 +210,64 @@ function bilibiliProvider(id: string, idParam: 'bvid' | 'aid', match: string, so
   };
 }
 
+/**
+ * B 站番剧 / 电影 / 纪录片的单集(PGC,2026-10-04 在中国出口实测):
+ *   - pgc/player/web/playurl 只要 ep_id,不签名;免费集(season 接口 status=2)游客拿得到整集,
+ *     会员集只给几分钟试看(result.is_preview=1)—— 断言 is_preview=0,会员集当解析失败,
+ *     接口出错时 result 为空同样不过;
+ *   - 媒体地址(edge.mountaintoys / upos)不带 B 站 Referer 一律 403,和投稿的 html5 mp4 不同,
+ *     所以输出 DASH:浏览器先直接取,失败由客户端原生请求带 media.headers 的 Referer 再取。
+ *     网页端只有分到不校验 Referer 的节点时能放,否则提示去原站;游客 DASH 是 480P,
+ *     比 html5 的 360P 清楚。
+ */
+const BILIBILI_PGC: ProviderRule = {
+  id: 'bilibili-pgc',
+  label: '哔哩哔哩',
+  enabled: true,
+  match: ['^https?://(?:www\\.|m\\.)?bilibili\\.com/bangumi/play/ep(\\d+)'],
+  sourceLike: ['%bilibili.com/bangumi/play/ep%'],
+  headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' },
+  steps: [
+    {
+      id: 'spi',
+      url: 'https://api.bilibili.com/x/frontend/finger/spi',
+      expect: { path: 'code', equals: 0 },
+      extract: { b3: 'data.b_3', b4: 'data.b_4' },
+      cookies: { buvid3: '{{b3}}', buvid4: '{{b4|urlencode}}', b_nut: '{{now}}' },
+      reuseSeconds: 86400,
+    },
+    {
+      id: 'play',
+      url: 'https://api.bilibili.com/pgc/player/web/playurl',
+      query: { ep_id: '{{m1}}', qn: '64', fnval: '16', fnver: '0', fourk: '0' },
+      expect: { path: 'result.is_preview', equals: 0 },
+    },
+  ],
+  output: {
+    type: 'dash',
+    duration: 'result.dash.duration',
+    video: 'result.dash.video',
+    audio: 'result.dash.audio',
+    url: ['baseUrl', 'base_url'],
+    backup: ['backupUrl', 'backup_url'],
+    mime: ['mimeType', 'mime_type'],
+    codecs: ['codecs'],
+    height: ['height'],
+    init: ['SegmentBase.Initialization', 'segment_base.initialization'],
+    index: ['SegmentBase.indexRange', 'segment_base.index_range'],
+    maxHeight: 720,
+  },
+  media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/' } },
+  cacheSeconds: 1800,
+};
+
 export const DEFAULT_RULES: RuleSet = {
   schema: 1,
-  version: '2026-09-26.4',
+  version: '2026-10-04.1',
   providers: [
     bilibiliProvider('bilibili', 'bvid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]{10})', '%bilibili.com/video/BV%'),
     bilibiliProvider('bilibili-av', 'aid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/av(\\d+)', '%bilibili.com/video/av%'),
+    BILIBILI_PGC,
     {
       id: 'acfun',
       label: 'AcFun',

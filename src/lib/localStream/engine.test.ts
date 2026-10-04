@@ -40,15 +40,16 @@ describe('wbi signing', () => {
 
 describe('rules', () => {
   it('built-in rules validate and match Bilibili pages', () => {
-    expect(validateRules(DEFAULT_RULES)?.providers.map((p) => p.id)).toEqual(['bilibili', 'bilibili-av', 'acfun']);
+    expect(validateRules(DEFAULT_RULES)?.providers.map((p) => p.id)).toEqual(['bilibili', 'bilibili-av', 'bilibili-pgc', 'acfun']);
     expect(matchProvider('https://www.acfun.cn/v/ac47031567_2')?.groups).toEqual(['ac47031567_2']);
     expect(matchProvider('https://www.acfun.cn/player/ac47031567')).toBeNull();
     // 每一步都显式带 Origin:tauri-plugin-http 会给没带的补应用来源,B 站对陌生 Origin 回 403
     for (const p of DEFAULT_RULES.providers) expect(p.headers?.Origin, p.id).toMatch(/^https:\/\//);
     // 旧客户端(只认 dash/progressive)会把 hls 规则整条丢掉,退回外链播放器 —— 这是有意的
-    expect(validateRules({ ...DEFAULT_RULES, providers: DEFAULT_RULES.providers.filter((p) => p.output.type !== 'hls') })?.providers.length).toBe(2);
+    expect(validateRules({ ...DEFAULT_RULES, providers: DEFAULT_RULES.providers.filter((p) => p.output.type !== 'hls') })?.providers.length).toBe(3);
     expect(matchProvider('https://www.bilibili.com/video/BV1Lyem67ED9')?.groups[0]).toBe('BV1Lyem67ED9');
-    expect(matchProvider('https://www.bilibili.com/bangumi/play/ep1')).toBeNull();
+    expect(matchProvider('https://www.bilibili.com/bangumi/play/ep291268')?.rule.id).toBe('bilibili-pgc');
+    expect(matchProvider('https://www.bilibili.com/bangumi/play/ss5626')).toBeNull(); // 系列页没有单集,不解析
     expect(matchProvider('https://evil.com/?u=https://www.bilibili.com/video/BV1Lyem67ED9')).toBeNull();
   });
   it('drops providers with broken regex or non-https steps', () => {

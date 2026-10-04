@@ -24,6 +24,7 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { webCannotFetchMedia } from '@/lib/localStream/engine';
 import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
 import { useSeoMeta } from '@/hooks/useSeoMeta';
 import { WorkSourcePanel, streamOffers, type WorkInfo, type WorkOffer } from '@/components/detail/WorkSourcePanel';
@@ -147,7 +148,11 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const otherItemsQuery = useContentItems(config.kind, sourceContentId !== id ? sourceContentId : null, config.fetchItems);
   const itemsQuery = sourceContentId !== id ? otherItemsQuery : ownItemsQuery;
   useSeoMeta({ id, title: query.data?.title, description: query.data?.description || query.data?.content });
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  // 原平台的会员 / 付费集(info=locked,如 B 站番剧):挂锁、连播跳过,选中时播放器位置换成去原平台。
+  const items = useMemo(
+    () => (itemsQuery.data?.items ?? []).map((it) => (it.info === 'locked' && !it.locked ? { ...it, locked: true } : it)),
+    [itemsQuery.data],
+  );
   // 详情在同一请求里当场绑定了片源(分集刚写进库),而分集列表那次请求可能先于它返回空:补查一次。
   const boundEpisodes = Number(query.data?.videoSource?.episodes) || 0;
   const refetchItems = itemsQuery.refetch;
@@ -189,7 +194,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const selectEpisode = useCallback(
     (item: ContentItem, scroll = true) => {
       setActiveSel({ cid: sourceContentId, id: item.id });
-      if (item.locked) notify(`该${config.unit}需解锁后观看`, 'info');
+      if (item.locked) notify(item.info === 'locked' ? `该${config.unit}是会员内容，请到原平台观看` : `该${config.unit}需解锁后观看`, 'info');
       if (id && sourceContentId === id) {
         router.replace(`${pathname}?id=${encodeURIComponent(id)}&episodeId=${encodeURIComponent(item.id)}`, { scroll: false });
       }
@@ -209,6 +214,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const handlePlaybackError = useCallback(
     (message: string) => {
       if (!id || !active || reported.current.has(active.id)) return;
+      // 网页端放不了要原生请求的片源(B 站番剧)是预期内的,不进故障队列
+      if (active.url && webCannotFetchMedia(active.url)) return;
       reported.current.add(active.id);
       reportContent({
         targetId: id,
@@ -271,14 +278,21 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
           const direct = usableDirectUrl(active?.playUrl, active?.url);
           const platforms = platformsOf(data);
           // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因;补全中说正在找片源。
-          const unavailable = items.length === 0 && !data.playSourceUrl && !sourceOffer ? videoBackfillNotice(data, linkOutNoticeOf(data, fallbackSource)) : '';
+          let unavailable = items.length === 0 && !data.playSourceUrl && !sourceOffer ? videoBackfillNotice(data, linkOutNoticeOf(data, fallbackSource)) : '';
+          // 这一集在原平台要会员 / 付费:游客只拿得到几分钟试看,不交给播放器
+          const lockedEpisode = active?.info === 'locked' && !!active.url;
+          if (lockedEpisode && !unavailable) unavailable = `第${activeIndex + 1}${config.unit}是会员内容，本站只能放免费的${config.unit}，请到原平台观看`;
 
           return (
             <>
               <Box sx={{ bgcolor: '#000' }}>
                 <Container maxWidth="lg" sx={{ py: 0 }}>
                   {unavailable ? (
-                    <UnavailablePlayer notice={unavailable} platforms={platforms} poster={data.cover} />
+                    <UnavailablePlayer
+                      notice={unavailable}
+                      platforms={lockedEpisode ? [{ site: 'origin', name: platforms[0]?.name || '原平台', url: active!.url! }] : platforms}
+                      poster={active?.cover || data.cover}
+                    />
                   ) : (
                   <VideoPlayer
                     key={active?.id ?? 'source'}

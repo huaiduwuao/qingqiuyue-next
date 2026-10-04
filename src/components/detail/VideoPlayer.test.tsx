@@ -13,6 +13,7 @@ const resolveStream = vi.fn();
 vi.mock('@/lib/localStream/engine', () => ({
   canResolveLocally: (url: string) => /bilibili\.com\/video\//.test(url),
   resolveStream: (...args: unknown[]) => resolveStream(...args),
+  webCannotFetchMedia: () => false,
 }));
 vi.mock('@/lib/localStream/rules', () => ({
   loadRules: async () => ({ schema: 1, version: 'test', providers: [] }),

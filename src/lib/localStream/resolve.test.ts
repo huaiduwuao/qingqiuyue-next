@@ -136,7 +136,7 @@ describe('resolveLocalStream', () => {
   });
 
   it('没有规则的地址直接报错', async () => {
-    await expect(resolveLocalStream('https://www.bilibili.com/bangumi/play/ep1')).rejects.toThrow('没有匹配的解析规则');
+    await expect(resolveLocalStream('https://www.iqiyi.com/v_19rrok4nt0.html')).rejects.toThrow('没有匹配的解析规则');
   });
 });
 

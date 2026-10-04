@@ -25,7 +25,7 @@ import { originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
 import { authPlatform, isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 import { createPortal } from 'react-dom';
 import { useBackClose } from '@/lib/backStack';
-import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
+import { canResolveLocally, resolveStream, webCannotFetchMedia } from '@/lib/localStream/engine';
 import { loadRules, matchProvider } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
 import { reportDiag } from '@/lib/clientDiag';
@@ -1636,7 +1636,9 @@ function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; 
       }}
     >
       <Box sx={{ fontSize: 15 }}>这条视频暂时没能加载出来</Box>
-      <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>{message}</Box>
+      <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>
+        {webCannotFetchMedia(pageUrl) ? `网页版拿不到这个片源（${label}要求在它自己的页面或 App 里取片），可以在清秋月 App 里看，或去${label}看` : message}
+      </Box>
       <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
         <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
           重试

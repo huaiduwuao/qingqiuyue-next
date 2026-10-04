@@ -238,6 +238,16 @@ export function canResolveLocally(pageUrl: string): boolean {
 }
 
 /**
+ * 网页端多半放不了:媒体地址要带源站 Referer(规则的 media.headers),浏览器设不了这个头,
+ * 只有客户端的原生请求能带(B 站番剧)。网页上偶尔分到不校验的节点还能放,所以仍然去试,
+ * 但失败是预期内的 —— 不当故障上报,提示去 App 或原站。
+ */
+export function webCannotFetchMedia(pageUrl: string): boolean {
+  if (nativeAvailable()) return false;
+  return !!matchProvider(pageUrl)?.rule.media?.headers?.Referer;
+}
+
+/**
  * 本地解析(只在客户端里可用)。失败抛错。同一条地址在 cacheSeconds 内复用结果。
  */
 export async function resolveLocalStream(pageUrl: string, opts: { signal?: AbortSignal; refresh?: boolean } = {}): Promise<LocalStream> {
