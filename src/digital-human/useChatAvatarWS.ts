@@ -340,6 +340,20 @@ async function playUtterance(job: Utterance) {
   }
 }
 
+// 每个 <audio> 当前挂着的 object URL。换下一句时先 revoke 上一句的:
+// 之前整段下载的 blob URL 从不释放,MediaSource 的只在 ended 时释放 ——
+// 被打断(barge-in)的句子永远等不到 ended,每句都漏一份音频 Blob。
+const audioObjectUrls = new WeakMap<HTMLAudioElement, string>();
+
+function setObjectSrc(audio: HTMLAudioElement, obj: Blob | MediaSource): string {
+  const prev = audioObjectUrls.get(audio);
+  if (prev) URL.revokeObjectURL(prev);
+  const url = URL.createObjectURL(obj);
+  audioObjectUrls.set(audio, url);
+  audio.src = url;
+  return url;
+}
+
 /**
  * 把一次合成响应喂给 <audio>。优先 MediaSource 边收边播(首包到了就出声),
  * 不支持时整段下载后再播。resolve 表示「已经开始喂了」,不等播完。
@@ -350,15 +364,14 @@ async function feedAudio(res: Response, audio: HTMLAudioElement): Promise<void> 
   if (!canStream || !res.body) {
     try {
       const blob = await res.blob();
-      audio.src = URL.createObjectURL(blob);
+      setObjectSrc(audio, blob);
       tryPlay();
     } catch { /* TTS 失败不影响文本 */ }
     return;
   }
 
   const ms = new MediaSource();
-  const url = URL.createObjectURL(ms);
-  audio.src = url;
+  const url = setObjectSrc(audio, ms);
   // 短句可能一个 chunk 就结束:光靠「追加后看 readyState」会错过开播时机,canplay 再补一次
   audio.addEventListener('canplay', tryPlay, { once: true });
   const reader = res.body.getReader();
@@ -405,7 +418,10 @@ async function feedAudio(res: Response, audio: HTMLAudioElement): Promise<void> 
     void pump();
   }, { once: true });
 
-  audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+  audio.addEventListener('ended', () => {
+    URL.revokeObjectURL(url);
+    if (audioObjectUrls.get(audio) === url) audioObjectUrls.delete(audio);
+  }, { once: true });
 }
 
 function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise<void> {
