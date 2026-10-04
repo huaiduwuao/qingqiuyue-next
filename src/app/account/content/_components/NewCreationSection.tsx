@@ -68,8 +68,8 @@ const TYPE_ICON: Record<WipType, React.ReactNode> = {
 
 const KIND_META: Record<WipKind, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover', icon: <EditRoundedIcon sx={{ fontSize: 13 }} /> },
-  uploading: { label: '上传中', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', icon: <CloudUploadRoundedIcon sx={{ fontSize: 13 }} /> },
-  scheduled: { label: '已定时', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <ScheduleRoundedIcon sx={{ fontSize: 13 }} /> },
+  uploading: { label: '上传中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', icon: <CloudUploadRoundedIcon sx={{ fontSize: 13 }} /> },
+  scheduled: { label: '已定时', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', icon: <ScheduleRoundedIcon sx={{ fontSize: 13 }} /> },
 };
 
 /** compact:手机工作台用 —— 没有进行中的作品就整块不显示;不放样式切换和「发布作品」(页顶已有大按钮) */
@@ -422,7 +422,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                             size="small"
                             variant="outlined"
                             onClick={() => handlePublishNow(item)}
-                            sx={{ textTransform: 'none', fontSize: 10, borderRadius: 1, minWidth: 0, py: 0.25, px: 1, borderColor: 'divider', color: '#FFB400' }}
+                            sx={{ textTransform: 'none', fontSize: 10, borderRadius: 1, minWidth: 0, py: 0.25, px: 1, borderColor: 'divider', color: 'var(--fg-amber)' }}
                           >
                             立即发布
                           </Button>

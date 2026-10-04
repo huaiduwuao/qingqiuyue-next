@@ -49,9 +49,9 @@ const TASK_COLOR: Record<RewardTaskStatus, string> = {
 const SOURCE_META: Record<string, { label: string; color: string; bg: string }> = {
   demand_settle: { label: '需求结算', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
   demand_complete: { label: '需求完成', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
-  task_approve: { label: '任务通过', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
+  task_approve: { label: '任务通过', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
   task_reward: { label: '任务奖励', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)' },
-  achievement: { label: '成就奖励', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  achievement: { label: '成就奖励', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   signup_bonus: { label: '注册奖励', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)' },
   '': { label: '系统', color: 'text.secondary', bg: 'action.hover' },
 };

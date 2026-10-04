@@ -17,6 +17,11 @@
   --text-secondary: rgba(0, 0, 0, 0.65);
   --text-muted: rgba(0, 0, 0, 0.45);
   --text-disabled: rgba(0, 0, 0, 0.3);
+  /* 状态/强调文字色:品牌亮青、亮绿、亮黄在白底上几乎看不见,浅色取深一档;深色保持原亮色。
+     只用于文字/边框 —— 要配 alpha() 或 ${color}1A 拼透明度的地方仍写 hex */
+  --fg-cyan: #0E7490;
+  --fg-green: #15803D;
+  --fg-amber: #B45309;
 
   /* Safe Area 变量 - iOS/Android 全面屏适配。
      安卓 WebView 的 env(safe-area-inset-*) 只含刘海/挖孔,不含状态栏和手势条,没刘海的机器上
@@ -84,6 +89,9 @@ html[data-theme='dark'] {
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-muted: rgba(255, 255, 255, 0.4);
   --text-disabled: rgba(255, 255, 255, 0.25);
+  --fg-cyan: #25F4EE;
+  --fg-green: #5DDB96;
+  --fg-amber: #FFB400;
 }
 
 html {

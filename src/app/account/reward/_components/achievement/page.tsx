@@ -151,7 +151,7 @@ export default function AchievementPage() {
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{picked.info}</Typography>
               <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                 {picked.unlocked ? (
-                  <Chip icon={<CheckCircleIcon />} label="已解锁" size="small" sx={{ bgcolor: alpha('#5DDB96', 0.15), color: '#5DDB96', '& .MuiChip-icon': { color: '#5DDB96' } }} />
+                  <Chip icon={<CheckCircleIcon />} label="已解锁" size="small" sx={{ bgcolor: alpha('#5DDB96', 0.15), color: 'var(--fg-green)', '& .MuiChip-icon': { color: 'var(--fg-green)' } }} />
                 ) : (
                   <Chip icon={<LockIcon />} label="未解锁" size="small" />
                 )}
@@ -306,8 +306,8 @@ export default function AchievementPage() {
                         size="small"
                         sx={{
                           bgcolor: alpha('#5DDB96', 0.15),
-                          color: '#5DDB96',
-                          '& .MuiChip-icon': { color: '#5DDB96' },
+                          color: 'var(--fg-green)',
+                          '& .MuiChip-icon': { color: 'var(--fg-green)' },
                         }}
                       />
                     ) : (

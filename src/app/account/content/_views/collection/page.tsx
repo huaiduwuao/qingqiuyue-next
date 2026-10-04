@@ -421,8 +421,8 @@ export default function CollectionPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
           {[
             { label: '合集总数', value: String(collections.length), color: '#FE2C55' },
-            { label: '收录作品', value: formatNum(totalWorks), color: '#25F4EE' },
-            { label: '公开合集', value: String(counts.pub), color: '#5DDB96' },
+            { label: '收录作品', value: formatNum(totalWorks), color: 'var(--fg-cyan)' },
+            { label: '公开合集', value: String(counts.pub), color: 'var(--fg-green)' },
           ].map((s) => (
             <Box key={s.label} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{s.label}</Typography>

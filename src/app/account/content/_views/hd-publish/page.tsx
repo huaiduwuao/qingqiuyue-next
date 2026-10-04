@@ -120,19 +120,19 @@ const QUALITY_PRESETS: { id: HdResolution; label: string; bitrate: string; size:
 ];
 
 const STATUS_META: Record<HdStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  transcoding: { label: '转码中', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} /> },
-  reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <RateReviewRoundedIcon sx={{ fontSize: 12 }} /> },
+  transcoding: { label: '转码中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} /> },
+  reviewing: { label: '审核中', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', icon: <RateReviewRoundedIcon sx={{ fontSize: 12 }} /> },
   review_failed: { label: '审核未通过', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', icon: <GavelRoundedIcon sx={{ fontSize: 12 }} /> },
-  published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
+  published: { label: '已发布', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
   failed: { label: '转码失败', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} /> },
   scheduled: { label: '已定时', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: <RocketLaunchRoundedIcon sx={{ fontSize: 12 }} /> },
 };
 
 const RESOLUTION_META: Record<HdResolution, { color: string; bg: string; label: string }> = {
   '4K': { color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', label: '4K' },
-  '2K': { color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', label: '2K' },
-  '1080P': { color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', label: '1080P' },
-  '720P': { color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', label: '720P' },
+  '2K': { color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', label: '2K' },
+  '1080P': { color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', label: '1080P' },
+  '720P': { color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)', label: '720P' },
 };
 
 // SEED_REVIEWERS, SEED, and shared constants are imported from ./data
@@ -847,7 +847,7 @@ export default function HdPublishPage() {
         >
           {[
             { label: '今日上传', value: String(stats.todayUploads), suffix: '个', icon: <CloudUploadRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-            { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+            { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
           ].map((s) => (
             <Box
               key={s.label}
@@ -1230,7 +1230,7 @@ export default function HdPublishPage() {
                         height: 16,
                         fontSize: 9,
                         bgcolor: 'rgba(93, 219, 150, 0.12)',
-                        color: '#5DDB96',
+                        color: 'var(--fg-green)',
                         '& .MuiChip-label': { px: 0.5 },
                       }}
                     />
@@ -1463,7 +1463,7 @@ export default function HdPublishPage() {
                         py: 0.1,
                         borderRadius: 0.5,
                         bgcolor: 'rgba(255, 180, 0, 0.12)',
-                        color: '#FFB400',
+                        color: 'var(--fg-amber)',
                         fontSize: 9,
                         fontWeight: 700,
                       }}
@@ -1508,7 +1508,7 @@ export default function HdPublishPage() {
                     </Box>
                     <Box>
                       <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>点赞率</Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#5DDB96' }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-green)' }}>
                         {detail.views ? `${((detail.likes ?? 0) / detail.views * 100).toFixed(1)}%` : '-'}
                       </Typography>
                     </Box>
@@ -1659,7 +1659,7 @@ export default function HdPublishPage() {
                             <Box sx={{ textAlign: 'right' }}>
                               {detail.review.queuePosition !== undefined ? (
                                 <>
-                                  <Typography sx={{ fontSize: 10, color: '#FFB400', fontWeight: 600 }}>
+                                  <Typography sx={{ fontSize: 10, color: 'var(--fg-amber)', fontWeight: 600 }}>
                                     队列第 {detail.review.queuePosition} 位
                                   </Typography>
                                   {detail.review.estimatedWaitMin !== undefined && (
@@ -1669,7 +1669,7 @@ export default function HdPublishPage() {
                                   )}
                                 </>
                               ) : (
-                                <Typography sx={{ fontSize: 10, color: '#25F4EE', fontWeight: 600 }}>
+                                <Typography sx={{ fontSize: 10, color: 'var(--fg-cyan)', fontWeight: 600 }}>
                                   正在审核
                                 </Typography>
                               )}
@@ -1712,11 +1712,11 @@ export default function HdPublishPage() {
                       const isLast = i === detail.review!.checks.length - 1;
                       const node: { bg: string | ((t: any) => string); color: string | ((t: any) => string); icon: React.ReactNode } =
                         c.status === 'passed'
-                          ? { bg: 'rgba(93, 219, 150, 0.18)', color: '#5DDB96', icon: <VerifiedRoundedIcon sx={{ fontSize: 12 }} /> }
+                          ? { bg: 'rgba(93, 219, 150, 0.18)', color: 'var(--fg-green)', icon: <VerifiedRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'failed'
                           ? { bg: 'rgba(254, 44, 85, 0.18)', color: '#FE2C55', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'running'
-                          ? { bg: 'rgba(37, 244, 238, 0.18)', color: '#25F4EE', icon: <AutorenewRoundedIcon sx={{ fontSize: 12 }} /> }
+                          ? { bg: 'rgba(37, 244, 238, 0.18)', color: 'var(--fg-cyan)', icon: <AutorenewRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'skipped'
                           ? { bg: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', color: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>—</Box> }
                           : { bg: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', color: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>{i + 1}</Box> };
@@ -1753,7 +1753,7 @@ export default function HdPublishPage() {
                                 </Typography>
                               )}
                               {c.status === 'running' && (
-                                <Typography sx={{ fontSize: 9, color: '#25F4EE', fontWeight: 600 }}>
+                                <Typography sx={{ fontSize: 9, color: 'var(--fg-cyan)', fontWeight: 600 }}>
                                   进行中
                                 </Typography>
                               )}
@@ -1836,8 +1836,8 @@ export default function HdPublishPage() {
                         <Box sx={{ flex: 1 }} />
                         {detail.review.result === 'pass' && detail.review.reviewerVerdict && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <VerifiedRoundedIcon sx={{ fontSize: 12, color: '#5DDB96' }} />
-                            <Typography sx={{ fontSize: 9, color: '#5DDB96', fontWeight: 600 }}>
+                            <VerifiedRoundedIcon sx={{ fontSize: 12, color: 'var(--fg-green)' }} />
+                            <Typography sx={{ fontSize: 9, color: 'var(--fg-green)', fontWeight: 600 }}>
                               {getReviewer(detail.review.reviewerVerdict.reviewerId)?.name ?? '审核员'} 已签字
                             </Typography>
                           </Box>
@@ -1930,7 +1930,7 @@ export default function HdPublishPage() {
                                   height: 14,
                                   fontSize: 9,
                                   bgcolor: 'rgba(93, 219, 150, 0.12)',
-                                  color: '#5DDB96',
+                                  color: 'var(--fg-green)',
                                   '& .MuiChip-label': { px: 0.5 },
                                 }}
                               />

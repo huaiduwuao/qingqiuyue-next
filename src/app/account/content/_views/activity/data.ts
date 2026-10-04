@@ -32,10 +32,10 @@ export type CategoryMeta = {
 
 export const CATEGORY_META: Record<ActivityCategory, CategoryMeta> = {
   official:  { label: '平台官方', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.14)' },
-  topic:     { label: '话题挑战', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.14)' },
+  topic:     { label: '话题挑战', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.14)' },
   challenge: { label: '创作挑战', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.14)' },
-  brand:     { label: '品牌联名', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.14)' },
-  support:   { label: '扶持计划', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.14)' },
+  brand:     { label: '品牌联名', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.14)' },
+  support:   { label: '扶持计划', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.14)' },
 };
 
 export type StatusMeta = {
@@ -46,9 +46,9 @@ export type StatusMeta = {
 
 export const STATUS_META: Record<ActivityStatus, StatusMeta> = {
   upcoming: { label: '即将开始', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.14)' },
-  signup:   { label: '报名中',   color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.14)' },
+  signup:   { label: '报名中',   color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.14)' },
   active:   { label: '进行中',   color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.14)' },
-  judging:  { label: '评审中',   color: '#FFB400', bg: 'rgba(255, 180, 0, 0.14)' },
+  judging:  { label: '评审中',   color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.14)' },
   ended:    { label: '已结束',   color: '#9CA3AF', bg: 'rgba(156, 163, 175, 0.14)' },
 };
 
@@ -60,9 +60,9 @@ export type PartMeta = {
 
 export const PART_META: Record<ParticipationStatus, PartMeta> = {
   none:      { label: '未报名',   color: '#9CA3AF', bg: 'rgba(156, 163, 175, 0.14)' },
-  signed:    { label: '已报名',   color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.14)' },
-  submitted: { label: '已投稿',   color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.14)' },
-  shortlist: { label: '已入围',   color: '#FFB400', bg: 'rgba(255, 180, 0, 0.14)' },
+  signed:    { label: '已报名',   color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.14)' },
+  submitted: { label: '已投稿',   color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.14)' },
+  shortlist: { label: '已入围',   color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.14)' },
   won:       { label: '已获奖',   color: '#FFD700', bg: 'rgba(255, 215, 0, 0.18)' },
   lost:      { label: '未获奖',   color: '#9CA3AF', bg: 'rgba(156, 163, 175, 0.14)' },
 };

@@ -123,7 +123,7 @@ function TipsTab() {
                   height: 40,
                   borderRadius: '50%',
                   bgcolor: '#5DDB9620',
-                  color: '#5DDB96',
+                  color: 'var(--fg-green)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -324,7 +324,7 @@ function PaidContentsTab() {
               <Chip
                 size="small"
                 label={`💎 ${content.price}`}
-                sx={{ bgcolor: '#5DDB9620', color: '#5DDB96' }}
+                sx={{ bgcolor: '#5DDB9620', color: 'var(--fg-green)' }}
               />
             </Box>
           ))}

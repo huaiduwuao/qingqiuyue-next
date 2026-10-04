@@ -127,6 +127,6 @@ export const FAST_CHANNEL_MONTHLY = 10;
 
 export const REVIEWER_LEVEL_META: Record<ReviewerLevel, { label: string; color: string; bg: string }> = {
   1: { label: '初级', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
-  2: { label: '中级', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  2: { label: '中级', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   3: { label: '高级', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
 };

@@ -100,13 +100,13 @@ export default function MiniCalendar({ highlightDays = [1, 2, 3, 4, 5, 6] }: Pro
                   borderRadius: 0.75,
                   position: 'relative',
                   bgcolor: isToday ? 'primary.main' : isHighlight ? 'rgba(254, 44, 85, 0.15)' : 'transparent',
-                  color: isToday ? 'text.primary' : isHighlight ? 'primary.main' : 'text.tertiary',
+                  color: isToday ? '#fff' : isHighlight ? 'primary.main' : 'text.tertiary',
                   fontSize: { xs: 10, md: 12 },
                   fontWeight: isToday || isHighlight ? 600 : 400,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease-in-out',
                   '&:hover': {
-                    bgcolor: isToday ? 'primary.main' : 'rgba(255, 255, 255, 0.08)',
+                    bgcolor: isToday ? 'primary.main' : 'action.hover',
                   },
                 }}
               >

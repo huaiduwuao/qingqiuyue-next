@@ -395,7 +395,7 @@ export default function ActivityPage() {
                 <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'secondary.main', mb: 0.5 }}>投稿要求</Typography>
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                   {submitTarget.requirements.map((r) => (
-                    <Chip key={r} label={r} size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(37, 244, 238, 0.16)', color: '#25F4EE' }} />
+                    <Chip key={r} label={r} size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(37, 244, 238, 0.16)', color: 'var(--fg-cyan)' }} />
                   ))}
                 </Box>
               </Box>
@@ -459,7 +459,7 @@ export default function ActivityPage() {
                             </Box>
                           ))}
                           {alreadySubmitted && (
-                            <Box sx={{ fontSize: 9, px: 0.4, color: '#FFB400', fontWeight: 600 }}>已投稿</Box>
+                            <Box sx={{ fontSize: 9, px: 0.4, color: 'var(--fg-amber)', fontWeight: 600 }}>已投稿</Box>
                           )}
                         </Box>
                       </Box>

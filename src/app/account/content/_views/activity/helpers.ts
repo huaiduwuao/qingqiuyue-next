@@ -11,7 +11,7 @@ import type { Activity } from './data';
 export function getCountdownLabel(a: Activity): { text: string; color: string } {
   const now = Date.now();
   if (a.status === 'ended') return { text: '已结束', color: '#9CA3AF' };
-  if (a.status === 'judging') return { text: '评审中', color: '#FFB400' };
+  if (a.status === 'judging') return { text: '评审中', color: 'var(--fg-amber)' };
   if (a.status === 'upcoming') {
     const diff = a.startAt - now;
     const d = Math.floor(diff / 86400000);
@@ -22,7 +22,7 @@ export function getCountdownLabel(a: Activity): { text: string; color: string } 
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   if (d > 7) return { text: `还剩 ${d} 天`, color: '#9CA3AF' };
-  if (d > 0) return { text: `仅剩 ${d} 天`, color: '#FFB400' };
+  if (d > 0) return { text: `仅剩 ${d} 天`, color: 'var(--fg-amber)' };
   return { text: `仅剩 ${h} 小时`, color: '#FE2C55' };
 }
 

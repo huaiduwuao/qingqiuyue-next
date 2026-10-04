@@ -117,8 +117,8 @@ function computeRiskLevel(video: HdVideo): RiskLevel {
 }
 
 const RISK_META: Record<RiskLevel, { label: string; color: string; bg: string }> = {
-  low: { label: '低风险', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  medium: { label: '中风险', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  low: { label: '低风险', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  medium: { label: '中风险', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   high: { label: '高风险', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
 };
 
@@ -466,7 +466,7 @@ export default function HdReviewPage() {
           {[
             { label: '今日已审', value: stats.todayDone, suffix: '部', color: '#5B8DEF' },
             { label: '今日通过率', value: stats.todayDone > 0 ? `${stats.passRate.toFixed(0)}%` : '—', suffix: stats.todayDone > 0 ? `(${stats.todayPass}/${stats.todayDone})` : '', color: stats.passRate >= 80 ? '#5DDB96' : stats.passRate >= 50 ? '#FFB400' : '#FE2C55' },
-            { label: '平均用时', value: stats.avgMin > 0 ? `${stats.avgMin}` : '—', suffix: stats.avgMin > 0 ? '分钟' : '', color: '#FFB400' },
+            { label: '平均用时', value: stats.avgMin > 0 ? `${stats.avgMin}` : '—', suffix: stats.avgMin > 0 ? '分钟' : '', color: 'var(--fg-amber)' },
             { label: '待审', value: queue.pending.length, suffix: '部', color: '#FE2C55' },
             { label: '历史总审核', value: formatCount(currentReviewer?.reviewCount ?? 0), suffix: '', color: '#8B5CF6' },
           ].map((s) => (
@@ -516,7 +516,7 @@ export default function HdReviewPage() {
             {tab === 'pending' && (
               queue.pending.length === 0 ? (
                 <EmptyQueueState
-                  icon={<AssignmentTurnedInRoundedIcon sx={{ fontSize: 32, color: '#5DDB96' }} />}
+                  icon={<AssignmentTurnedInRoundedIcon sx={{ fontSize: 32, color: 'var(--fg-green)' }} />}
                   title="队列已清空"
                   desc="暂无待审视频,稍后再来看看"
                 />
@@ -744,7 +744,7 @@ function QueueItem({
                   py: 0.05,
                   borderRadius: 0.4,
                   bgcolor: 'rgba(93, 219, 150, 0.12)',
-                  color: '#5DDB96',
+                  color: 'var(--fg-green)',
                   fontSize: 9,
                   fontWeight: 700,
                   display: 'inline-flex',
@@ -927,7 +927,7 @@ function ReviewPanel({
                     py: 0.05,
                     borderRadius: 0.4,
                     bgcolor: 'rgba(255, 180, 0, 0.12)',
-                    color: '#FFB400',
+                    color: 'var(--fg-amber)',
                     fontSize: 10,
                     fontWeight: 700,
                   }}
@@ -1038,13 +1038,13 @@ function ReviewPanel({
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <LightbulbRoundedIcon sx={{ fontSize: 14, color: '#FFB400' }} />
+            <LightbulbRoundedIcon sx={{ fontSize: 14, color: 'var(--fg-amber)' }} />
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>
               AI 审核报告
             </Typography>
             <Box sx={{ flex: 1 }} />
             <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-              <Box component="span" sx={{ color: '#5DDB96', fontWeight: 700 }}>{passed}</Box> 通过 ·{' '}
+              <Box component="span" sx={{ color: 'var(--fg-green)', fontWeight: 700 }}>{passed}</Box> 通过 ·{' '}
               <Box component="span" sx={{ color: failed > 0 ? '#FE2C55' : 'text.disabled', fontWeight: 700 }}>{failed}</Box> 失败 ·{' '}
               <Box component="span" sx={{ color: running > 0 ? '#25F4EE' : 'text.disabled', fontWeight: 700 }}>{running}</Box> 进行中
             </Typography>
@@ -1053,11 +1053,11 @@ function ReviewPanel({
             {checks.map((c) => {
               const meta =
                 c.status === 'passed'
-                  ? { color: '#5DDB96', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} />, label: '通过' }
+                  ? { color: 'var(--fg-green)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} />, label: '通过' }
                   : c.status === 'failed'
                   ? { color: '#FE2C55', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} />, label: '失败' }
                   : c.status === 'running'
-                  ? { color: '#25F4EE', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} />, label: '进行中' }
+                  ? { color: 'var(--fg-cyan)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} />, label: '进行中' }
                   : c.status === 'skipped'
                   ? { color: 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>—</Box>, label: '跳过' }
                   : { color: 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>○</Box>, label: '等待' };
@@ -1106,7 +1106,7 @@ function ReviewPanel({
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               {verdict.decision === 'pass' ? (
-                <VerifiedRoundedIcon sx={{ fontSize: 16, color: '#5DDB96' }} />
+                <VerifiedRoundedIcon sx={{ fontSize: 16, color: 'var(--fg-green)' }} />
               ) : (
                 <FlagRoundedIcon sx={{ fontSize: 16, color: '#FE2C55' }} />
               )}
@@ -1275,7 +1275,7 @@ function ReviewPanel({
                 fontSize: 13,
                 py: 1,
                 borderColor: 'rgba(255, 180, 0, 0.4)',
-                color: '#FFB400',
+                color: 'var(--fg-amber)',
                 '&:hover': { borderColor: '#FFB400', bgcolor: 'rgba(255, 180, 0, 0.08)' },
               }}
             >

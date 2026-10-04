@@ -111,7 +111,7 @@ export function DetailDrawer({
             }}
           />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-            <LocalFireDepartmentIcon sx={{ fontSize: 12, color: '#FFB400' }} />
+            <LocalFireDepartmentIcon sx={{ fontSize: 12, color: 'var(--fg-amber)' }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
               {formatBigNumber(a.heat)}
             </Typography>
@@ -366,7 +366,7 @@ function DetailTabContent({ activity }: { activity: Activity }) {
                 height: 22,
                 fontSize: 11,
                 bgcolor: 'rgba(37, 244, 238, 0.12)',
-                color: '#25F4EE',
+                color: 'var(--fg-cyan)',
                 fontWeight: 600,
               }}
             />

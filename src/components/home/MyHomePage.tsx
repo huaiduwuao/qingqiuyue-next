@@ -1339,7 +1339,7 @@ function WorkGridView({
                   size="small"
                   checked={isSelected}
                   onClick={(e) => { e.stopPropagation(); onToggle(it.id); }}
-                  sx={{ color: 'text.secondary', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
+                  sx={{ color: 'rgba(255,255,255,0.85)', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
                 />
               </Box>
             )}
