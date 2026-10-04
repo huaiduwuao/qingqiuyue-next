@@ -18,6 +18,8 @@ export interface ContentItem {
   type?: string;
   /** 付费内容未解锁、超出免费试看范围的条目:没有正文和播放地址 */
   locked?: boolean;
+  /** 版权站目录行:'locked' = 这一话 / 章在源站要付费或会员才能读 */
+  info?: string;
 }
 
 /**

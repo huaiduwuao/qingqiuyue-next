@@ -38,6 +38,8 @@ import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
 import { stateTransition } from '@/lib/navTransition';
+import { openExternal } from '@/lib/safeUrl';
+import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
 import { backfillNotice, backfillPending, backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 
 interface Comics {
@@ -60,6 +62,23 @@ interface Comics {
   commentCount?: number;
   /** 站内能不能读(后端 internal/playability 阅读轴)。 */
   availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number; backfill?: BackfillState };
+  /** 正版平台收录的作品:站内只有目录,为什么读不了 + 去哪读(见 ExternalPlatforms)。 */
+  playNotice?: string;
+  platforms?: unknown;
+}
+
+/**
+ * 正版平台目录行(B 站漫画等):站内没有图,url 是平台的阅读页 —— 点开直接去平台读,
+ * 不进站内阅读器。判断依据是这一话的链接落在作品登记的平台域名上,所以 178 漫画这类
+ * 只是图还没抓下来的话仍走站内阅读器(补图中)。
+ */
+function isPlatformChapter(ch: ContentItem, platformHosts: Set<string>): boolean {
+  if (!ch.url || chapterImages(ch).length > 0) return false;
+  try {
+    return platformHosts.has(new URL(ch.url).host);
+  } catch {
+    return false;
+  }
 }
 
 const INTERNAL_STATUS = new Set(['active', 'PUBLISH', 'UN_PUBLISH', 'REVIEWING', 'REJECTED', 'DRAFT']);
@@ -116,7 +135,25 @@ function ComicsDetailContent() {
   });
   const backfilling = backfillPending(query.data);
   const chaptersQuery = useContentItems('comics', id, itemPage, { poll: backfilling });
-  const chapters = chaptersQuery.data?.items ?? [];
+  const platforms = useMemo(() => platformsOf(query.data), [query.data]);
+  const platformHosts = useMemo(() => {
+    const hosts = new Set<string>();
+    for (const p of platforms) {
+      try {
+        hosts.add(new URL(p.url).host);
+      } catch {
+        /* platformsOf 已滤掉非 http 链接 */
+      }
+    }
+    return hosts;
+  }, [platforms]);
+  // 平台目录里要付费的话也挂锁(和站内付费墙的 locked 同一个图标),点开仍是去平台。
+  const chapters = useMemo(
+    () => (chaptersQuery.data?.items ?? []).map((c) => (c.info === 'locked' && !c.locked ? { ...c, locked: true } : c)),
+    [chaptersQuery.data],
+  );
+  const platformChapters = chapters.filter((c) => isPlatformChapter(c, platformHosts));
+  const freePlatformChapters = platformChapters.filter((c) => c.info !== 'locked').length;
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
   useEffect(() => {
@@ -149,6 +186,11 @@ function ComicsDetailContent() {
 
   const openChapter = useCallback(
     (ch: ContentItem) => {
+      if (isPlatformChapter(ch, platformHosts)) {
+        if (!openExternal(ch.url)) notify('这一话的链接打不开', 'error');
+        else if (ch.info === 'locked') notify('这一话在原平台需要付费或会员', 'info');
+        return;
+      }
       if (ch.locked) {
         notify('该话需解锁后阅读', 'info');
         return;
@@ -163,7 +205,7 @@ function ComicsDetailContent() {
       else stateTransition('forward', apply);
       setTimeout(() => readerRef.current?.scrollTo({ top: 0, behavior: 'auto' }), 0);
     },
-    [notify, readerOpen],
+    [notify, readerOpen, platformHosts],
   );
   const closeReader = useCallback(() => stateTransition('back', () => setReaderOpen(false)), []);
 
@@ -290,13 +332,30 @@ function ComicsDetailContent() {
                       </Typography>
                     </Box>
                     {chapters.length > 0 && (
-                      <Button size="small" variant="contained" onClick={() => openChapter(chapters[0])} sx={{ borderRadius: 4 }}>
-                        开始阅读
+                      <Button
+                        size="small"
+                        variant="contained"
+                        // 平台目录:从第一话免费的开始(B 站漫画的第 0.5 话常是公告)
+                        onClick={() => openChapter(platformChapters.find((c) => c.info !== 'locked') ?? chapters[0])}
+                        endIcon={platformChapters.length > 0 ? <OpenInNewIcon sx={{ fontSize: 14 }} /> : undefined}
+                        sx={{ borderRadius: 4 }}
+                      >
+                        {platformChapters.length > 0 ? '去原平台阅读' : '开始阅读'}
                       </Button>
                     )}
                   </Box>
                 </Box>
               </Box>
+
+              {(playNoticeOf(data) || platforms.length > 0) && (
+                <Box sx={{ mb: 3, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                    {playNoticeOf(data) || '本站仅收录目录，请前往原平台阅读'}
+                    {platformChapters.length > 0 && `（共 ${platformChapters.length} 话，其中 ${freePlatformChapters} 话免费）`}
+                  </Typography>
+                  <PlatformLinks platforms={platforms} title="" dense />
+                </Box>
+              )}
 
               {intro && (
                 <>
