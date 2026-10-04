@@ -2,6 +2,7 @@
  * 客户端诊断上报 → POST /api/content/stream/rules/report,后端只写日志([client-diag])。
  * 用来拿真机现场:本地解析/播放为什么失败、滑动页面为什么没滚 —— 这些在模拟环境里复现不了。
  * 只在客户端里发;同一个 key 本次运行只发一次,不会刷屏。
+ * 例外:reportPlayFailure 网页端也发 —— 手机浏览器(小米 / 搜狗…)里放不了是什么原因,只能靠它看(后端日志带 UA)。
  */
 
 import { API_PREFIX } from '@/lib/api/prefix';
@@ -11,6 +12,16 @@ const sent = new Set<string>();
 
 export function reportDiag(kind: string, key: string, data: Record<string, unknown>): void {
   if (typeof window === 'undefined' || !isDesktopClient()) return;
+  send(kind, key, data);
+}
+
+/** 播放失败(客户端和网页端都报):kind = web_play_failed / client 的 local_play_failed 另走 reportDiag。 */
+export function reportPlayFailure(key: string, data: Record<string, unknown>): void {
+  if (typeof window === 'undefined') return;
+  send(isDesktopClient() ? 'client_play_failed' : 'web_play_failed', key, data);
+}
+
+function send(kind: string, key: string, data: Record<string, unknown>): void {
   const dedupe = `${kind}:${key}`;
   if (sent.has(dedupe)) return;
   sent.add(dedupe);

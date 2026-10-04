@@ -88,6 +88,25 @@ export async function startWechatLoginInBrowser(from: string, state: string): Pr
 }
 
 /** 订阅 deep link(Rust 侧 on_open_url 转发过来的)。返回取消订阅函数。 */
+/** App 冷启动时带进来的 qingqiuyue:// 链接(那时 deep-link://open 事件早于前端监听,收不到)。网页里返回空。 */
+export async function currentDeepLinks(): Promise<URL[]> {
+  const t = tauri();
+  if (!t?.core) return [];
+  try {
+    const raw = await t.core.invoke('plugin:deep-link|get_current');
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    return list.flatMap((item) => {
+      try {
+        return [new URL(String(item))];
+      } catch {
+        return [];
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function onDeepLink(cb: (url: URL) => void): Promise<() => void> {
   const t = tauri();
   if (!t?.event) return () => {};

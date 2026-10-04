@@ -212,6 +212,8 @@ export interface StreamAccess {
   direct: boolean;
   verdict: StreamAccessVerdict;
   notice?: string;
+  /** 后端探测拿到的 HTTP 状态码(0 = 没实测:已知平台短路 / 网络错误)。国内机房 403 = 片源拒绝大陆 IP */
+  status?: number;
   /** 后端真的答复了(false = 探测接口不可用,下面那个"按能直连处理"的兜底) */
   answered: boolean;
 }
@@ -229,7 +231,7 @@ export async function checkStreamAccess(url: string, opts: { refresh?: boolean }
       const data = await resp.json();
       const a = data?.data;
       if (a && typeof a.direct === 'boolean') {
-        return { direct: a.direct, verdict: a.verdict || (a.direct ? 'direct' : 'unreachable'), notice: a.notice || undefined, answered: true };
+        return { direct: a.direct, verdict: a.verdict || (a.direct ? 'direct' : 'unreachable'), notice: a.notice || undefined, status: Number(a.status) || 0, answered: true };
       }
     }
   } catch (e) {

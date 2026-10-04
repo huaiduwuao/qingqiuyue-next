@@ -28,7 +28,8 @@ import { useBackClose } from '@/lib/backStack';
 import { canResolveLocally, resolveStream, webCannotFetchMedia } from '@/lib/localStream/engine';
 import { loadRules, matchProvider } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
-import { reportDiag } from '@/lib/clientDiag';
+import { reportDiag, reportPlayFailure } from '@/lib/clientDiag';
+import { isHijackingBrowser, hijackBrowserName, appOpenUrl } from '@/lib/hijackBrowser';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -87,6 +88,8 @@ interface Props {
    * 第一帧记 ok,解析 / 加载失败记 fail。值是内容 id。
    */
   reportContentId?: string | number;
+  /** 在会接管视频的国产浏览器里改成「在 App 中观看」时,App 打开的站内路径(不传 = 当前页) */
+  appPath?: string;
 }
 
 export interface VideoPlayerHandle {
@@ -101,7 +104,14 @@ const MAX_RECOVER_ATTEMPTS = 2;
  * 片源本身是好的(后端从机房能直连),只是看的人这边到不了。采集站 CDN(非凡 / 暴风等)
  * 对海外 IP、走海外代理的访问一律 403/404 —— 这不是内容故障,不进举报队列。
  */
-const NETWORK_BLOCKED_NOTICE = '片源只对中国大陆网络开放，当前网络（海外 IP 或代理）被拒绝，关掉代理或换个网络再试';
+const NETWORK_BLOCKED_NOTICE = '这个片源只对中国大陆网络开放：当前是海外网络或开着 VPN / 代理，关掉后再试';
+/**
+ * 反过来:片源 CDN 拒绝中国大陆 IP(欧乐影院等海外资源站),后端从国内机房测也是 403。
+ * 国内用户要开 VPN(海外节点)才能看;后端体检会把这类内容换到国内能放的片源,换不到才会看到这句。
+ */
+const OVERSEAS_ONLY_NOTICE = '这个片源只对海外网络开放：它拒绝中国大陆 IP，需要开 VPN（海外节点）才能观看，国内片源正在补';
+/** 看的人这边的网络问题,不是片源坏了:原样显示,不说「已记录」 */
+const isNetworkNotice = (msg: string | null) => msg === NETWORK_BLOCKED_NOTICE || msg === OVERSEAS_ONLY_NOTICE;
 /** 恢复后正常播放超过这么久,重置重试计数(长视频两小时后签名再次过期时还能再救) */
 const RECOVER_RESET_MS = 30_000;
 /** 签名到期前多久主动换一条新直链 */
@@ -345,6 +355,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const fail = (msg: string) => {
     setStreamError(msg);
     onPlaybackError?.(msg);
+    reportPlayFailure(loadedUrlRef.current || dockKey, { url: (loadedUrlRef.current || dockKey).slice(0, 500), page: sourceUrl || refreshSource || '', error: msg.slice(0, 300) });
   };
 
   /**
@@ -362,6 +373,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     checkStreamAccess(url, { refresh: true }).then((res) => {
       if (seq !== accessSeq.current || !videoRef.current) return;
       if (res.answered && res.direct) setStreamError(NETWORK_BLOCKED_NOTICE);
+      // 国内机房也被 401/403(不是已知防盗链平台的短路结论,那种 status 为 0):片源拒绝大陆 IP
+      // 不进举报队列(海外用户能看):后端详情体检会把它换到国内片源
+      else if (res.answered && res.verdict === 'referer_required' && (res.status === 401 || res.status === 403)) {
+        setStreamError(OVERSEAS_ONLY_NOTICE);
+        reportPlayFailure(url, { url: url.slice(0, 500), error: 'overseas_only' });
+      }
       else fail(msg);
     });
   };
@@ -1288,7 +1305,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
               <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
               <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
-              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError === NETWORK_BLOCKED_NOTICE ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
+              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{isNetworkNotice(streamError) ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
               {originButton}
               {streams.length > 0 && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -1396,7 +1413,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         >
           <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main' }} />
           <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
-          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError === NETWORK_BLOCKED_NOTICE ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
+          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{isNetworkNotice(streamError) ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
           {originButton}
         </Box>
       )}
@@ -1713,6 +1730,48 @@ function PseudoFullscreen({
  * (2026-09-26 起全站不再嵌 iframe:吞手势、没进度、没小窗):就地给「重试」和「用 XX 打开」,
  * 客户端里把失败现场报给服务器(lib/clientDiag)。
  */
+/**
+ * 会接管 <video> 的安卓国产浏览器(lib/hijackBrowser)里不建播放器,给「在 App 中观看」。
+ * 外框跟播放器一样(详情 16:9 / 推荐流铺满),推荐流的上下滑照常 —— 只有两个按钮吃点击。
+ */
+function AppOnlyPlayer({ poster, fill, appPath }: { poster?: string; fill?: boolean; appPath?: string }) {
+  const path = appPath || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
+  const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', textDecoration: 'none' } as const;
+  return (
+    <Box
+      sx={{
+        position: fill ? 'absolute' : 'relative',
+        inset: fill ? 0 : undefined,
+        width: '100%',
+        aspectRatio: fill ? undefined : '16/9',
+        bgcolor: '#000',
+        background: poster ? `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.75)), url("${mediaUrl(poster)}") center/${fill ? 'contain' : 'cover'} no-repeat #000` : '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        color: 'rgba(255,255,255,0.9)',
+        textAlign: 'center',
+        px: 3,
+      }}
+    >
+      <Box sx={{ fontSize: 15 }}>请在清秋月 App 里观看</Box>
+      <Box sx={{ fontSize: 12, opacity: 0.7, maxWidth: 320 }}>
+        {hijackBrowserName()}会用它自己的播放器接管网页视频,常常报「视频不存在」,也会挡住上下滑动。用 App 播放更稳,也能选清晰度、小窗。
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+        <Box component="a" href={appOpenUrl(path)} data-no-drag sx={{ ...btn, bgcolor: 'primary.main', borderColor: 'transparent' }}>
+          打开 App
+        </Box>
+        <Box component="a" href="/download" data-no-drag sx={btn}>
+          下载 App
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
 function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
   const label = matchProvider(pageUrl)?.rule.label ?? '原站';
   const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
@@ -1785,6 +1844,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(ra
   // 没有规则的地址(站内直链、旧的通用解析)走原来的 NativeVideoPlayer 路径。
   // 播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
   const [local, setLocal] = useState(() => typeof window !== 'undefined' && canResolveLocally(pageUrl));
+  const [hijack] = useState(() => isHijackingBrowser());
   const [failure, setFailure] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -1800,6 +1860,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(ra
       alive = false;
     };
   }, [pageUrl]);
+  if (hijack) return <AppOnlyPlayer poster={props.poster} fill={props.fill} appPath={props.appPath} />;
   if (local && pageUrl) {
     if (failure) {
       return (

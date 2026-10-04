@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { onDeepLink } from '@/lib/clientAuth';
+import { currentDeepLinks, onDeepLink } from '@/lib/clientAuth';
 import { hasPendingOauthState } from '@/lib/auth/oauthState';
 
 /**
@@ -14,8 +14,21 @@ import { hasPendingOauthState } from '@/lib/auth/oauthState';
  *   qingqiuyue://social-login?action=login&code=<一次性 code>&from=...
  * 系统把它交给 App,Rust 侧转成 deep-link://open 事件,这里把人送到对应页面。
  *
+ * qingqiuyue://open?path=/detail/...:网页在会接管视频的国产浏览器里(lib/hijackBrowser)给的「打开 App」,
+ * 只接受站内路径。
+ *
  * 网页里 window.__TAURI__ 不存在,onDeepLink 直接返回空订阅,什么都不做。
  */
+function sessionFlag(key: string): boolean {
+  try {
+    if (sessionStorage.getItem(key)) return true;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    /* 存不了就当第一次 */
+  }
+  return false;
+}
+
 export default function DeepLinkBridge() {
   const router = useRouter();
   // 回跳被拒(state 没有 / 过期 / 链接不是本 App 发起的)时给个提示,别让用户在系统浏览器授权完回来什么都没发生
@@ -25,9 +38,15 @@ export default function DeepLinkBridge() {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
 
-    onDeepLink((url) => {
+    const handle = (url: URL) => {
       // qingqiuyue://social-login?... —— 自定义协议下 host 是 social-login
       const route = (url.host || url.pathname.replace(/^\/+/, '')).toLowerCase();
+      if (route === 'open') {
+        const path = url.searchParams.get('path') || '';
+        // 只认站内路径:/xxx,不能是 //host 或 /\host
+        if (/^\/(?![/\\])/.test(path)) router.push(path);
+        return;
+      }
       if (route !== 'social-login') return;
 
       const from = url.searchParams.get('from') || '/home/recommend';
@@ -44,7 +63,14 @@ export default function DeepLinkBridge() {
       }
       const q = new URLSearchParams({ code, from });
       router.replace(`/user/social-login/wx?${q.toString()}`);
-    }).then((fn) => {
+    };
+    // App 没在运行时,链接随冷启动进来、早于这里的监听:补收一次(登录回跳不会冷启动,只补 open)
+    void currentDeepLinks().then((urls) => {
+      // get_current 整个进程里一直返回启动那条链接:只处理一次,页面重载 / 组件重挂不再跳
+      if (cancelled || sessionFlag('qq-cold-deeplink')) return;
+      for (const u of urls) if (u.host === 'open') handle(u);
+    });
+    onDeepLink(handle).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
     });

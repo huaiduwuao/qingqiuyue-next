@@ -861,6 +861,7 @@ export function RecommendVideoFeed() {
                         autoPlay={playing}
                         onPlaybackError={(message) => reportBrokenContent(v, message)}
                         reportContentId={v.id}
+                        appPath={getDetailRoute(v.contentType, v.idString || v.id) ?? undefined}
                       />
                     ) : (
                       <Box

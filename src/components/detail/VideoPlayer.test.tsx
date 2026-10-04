@@ -19,7 +19,7 @@ vi.mock('@/lib/localStream/rules', () => ({
   loadRules: async () => ({ schema: 1, version: 'test', providers: [] }),
   matchProvider: () => ({ rule: { label: '哔哩哔哩' }, groups: [] }),
 }));
-vi.mock('@/lib/clientDiag', () => ({ reportDiag: vi.fn() }));
+vi.mock('@/lib/clientDiag', () => ({ reportDiag: vi.fn(), reportPlayFailure: vi.fn() }));
 
 import VideoPlayer from './VideoPlayer';
 
@@ -156,5 +156,22 @@ describe('VideoPlayer · 键盘快捷键', () => {
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(v.currentTime).toBe(50);
     unmount();
+  });
+});
+
+describe('VideoPlayer · 会接管视频的国产浏览器', () => {
+  it('小米浏览器里不建 <video>,给「在 App 里观看」', () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Linux; U; Android 14; zh-cn; 23013RK75C Build/UKQ1) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/119.0 Mobile Safari/537.36 XiaoMi/MiuiBrowser/18.6',
+    );
+    try {
+      const { container } = render(<VideoPlayer sourceUrl={PAGE} autoPlay appPath="/detail/video-detail?id=1" />);
+      expect(container.querySelector('video')).toBeNull();
+      expect(screen.getByText('请在清秋月 App 里观看')).toBeInTheDocument();
+      expect(screen.getByText('打开 App').closest('a')!.getAttribute('href')).toBe('qingqiuyue://open?path=%2Fdetail%2Fvideo-detail%3Fid%3D1');
+      expect(resolveStream).not.toHaveBeenCalled();
+    } finally {
+      ua.mockRestore();
+    }
   });
 });
