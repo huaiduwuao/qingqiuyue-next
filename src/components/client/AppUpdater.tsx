@@ -270,7 +270,7 @@ export default function AppUpdater() {
           onClose={dismissNudge}
           action={
             <>
-              <Button color="inherit" size="small" onClick={openNudge} sx={{ fontWeight: 700 }}>
+              <Button variant="text" color="inherit" size="small" onClick={openNudge} sx={{ fontWeight: 700 }}>
                 更新
               </Button>
               <IconButton color="inherit" size="small" aria-label="关闭" onClick={dismissNudge}>

@@ -342,7 +342,7 @@ function AutomationBar({ state, onToggle }: { state?: st.Automation; onToggle: (
       severity={state.paused ? 'warning' : 'info'}
       variant="outlined"
       action={
-        <Button color="inherit" size="small" onClick={() => onToggle(!state.paused)}>
+        <Button variant="text" color="inherit" size="small" onClick={() => onToggle(!state.paused)}>
           {state.paused ? '恢复自动化' : '暂停自动化'}
         </Button>
       }

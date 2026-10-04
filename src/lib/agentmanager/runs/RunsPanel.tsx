@@ -343,7 +343,7 @@ function RunDetail({ token, runId, onChanged }: { token: string; runId: string; 
           severity="warning"
           action={
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button size="small" color="inherit" onClick={() => decide(a, 'reject')} disabled={busy}>
+              <Button variant="text" size="small" color="inherit" onClick={() => decide(a, 'reject')} disabled={busy}>
                 驳回
               </Button>
               <Button size="small" variant="contained" color="warning" onClick={() => decide(a, 'approve')} disabled={busy}>

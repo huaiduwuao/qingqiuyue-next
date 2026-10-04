@@ -229,12 +229,15 @@ const baseTheme: ThemeOptions = {
             transform: 'translateY(0)',
           },
         },
-        contained: {
+        // 只有主色按钮强制白字(用户可选的主色里有琥珀橙,MUI 会给它算黑字)。
+        // 以前对所有颜色都写死 #fff:color="inherit" 是浅灰底白字看不见,
+        // 深色模式的 warning/success/info/secondary 都是浅色,白字也看不清;这些交给 MUI 的 contrastText。
+        contained: ({ ownerState }) => ({
           boxShadow: 'none',
-          color: '#fff', // 主色按钮始终白字
+          ...(ownerState.color === 'primary' && { color: '#fff' }),
           '&:hover': {
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            color: '#fff',
+            ...(ownerState.color === 'primary' && { color: '#fff' }),
           },
           // styleOverrides 里写 'action.disabled' 这种 token 不会被解析(成了无效 CSS),
           // 以前白字 0.7 配浅灰底,浅色模式下禁用按钮的字看不见;用随 data-theme 切换的变量
@@ -242,7 +245,7 @@ const baseTheme: ThemeOptions = {
             color: 'var(--text-disabled)',
             backgroundColor: 'var(--bg-active)',
           },
-        },
+        }),
         outlined: {
           borderWidth: '1.5px',
           color: 'text.primary',

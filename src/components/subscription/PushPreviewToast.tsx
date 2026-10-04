@@ -64,7 +64,7 @@ export function PushPreviewToast() {
         variant="filled"
         action={
           data.module_content_id ? (
-            <Button color="inherit" size="small" onClick={handleClick}>
+            <Button variant="text" color="inherit" size="small" onClick={handleClick}>
               查看
             </Button>
           ) : undefined

@@ -309,7 +309,7 @@ function MusicDetailContent() {
                 sx={{ mb: 2 }}
                 action={
                   sourcePage ? (
-                    <Button color="inherit" size="small" href={sourcePage} target="_blank" rel="noopener noreferrer">
+                    <Button variant="text" color="inherit" size="small" href={sourcePage} target="_blank" rel="noopener noreferrer">
                       去原平台收听
                     </Button>
                   ) : undefined

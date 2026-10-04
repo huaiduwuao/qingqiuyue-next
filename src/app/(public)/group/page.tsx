@@ -247,7 +247,7 @@ function GroupDetailContent() {
           <Alert
             severity="info"
             action={
-              <Button color="inherit" size="small" onClick={() => router.push(loginHref(`/group/${gid}`))}>
+              <Button variant="text" color="inherit" size="small" onClick={() => router.push(loginHref(`/group/${gid}`))}>
                 登录
               </Button>
             }

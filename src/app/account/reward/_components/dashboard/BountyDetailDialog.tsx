@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -21,7 +21,9 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { alpha } from '@mui/material/styles';
 import { getBountyDetail } from '@/apis/dashboard';
 import { listTasks, claimTask } from '@/apis/reward-task';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { loginHref } from '@/lib/auth/redirect';
 import type { RewardTask } from '@/beans/reward';
 import { TaskDetailDialog } from '../taskboard/TaskDetailDialog';
 import {
@@ -52,6 +54,10 @@ export default function BountyDetailDialog({
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
   const qc = useQueryClient();
+  const router = useRouter();
+  // 游客也能看悬赏和任务;点「认领」时才提示登录
+  const [needLogin, setNeedLogin] = useState(false);
+  useEffect(() => setNeedLogin(false), [bountyId]);
   const [message, setMessage] = useState<{ text: string; severity: 'success' | 'error' } | null>(null);
   const [activeTask, setActiveTask] = useState<RewardTask | null>(null);
   const [claimingId, setClaimingId] = useState<number | null>(null);
@@ -81,6 +87,10 @@ export default function BountyDetailDialog({
   };
 
   const handleClaim = async (task: RewardTask) => {
+    if (!currentUserId) {
+      setNeedLogin(true);
+      return;
+    }
     setClaimingId(task.id!);
     try {
       const res: any = await claimTask(task.id!);
@@ -114,6 +124,26 @@ export default function BountyDetailDialog({
       </Box>
 
       <DialogContent sx={{ pt: 1 }}>
+        {needLogin && (
+          <Alert
+            severity="info"
+            onClose={() => setNeedLogin(false)}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                // 登录回来直接重新打开这张悬赏(赏金广场会读 ?demand=)
+                onClick={() => router.push(loginHref(`/account/reward?tab=square&demand=${bountyId}`))}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                去登录
+              </Button>
+            }
+            sx={{ mb: 1.5 }}
+          >
+            登录后才能认领任务
+          </Alert>
+        )}
         {message && (
           <Alert severity={message.severity} onClose={() => setMessage(null)} sx={{ mb: 1.5 }}>
             {message.text}
