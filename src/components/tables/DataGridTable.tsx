@@ -172,7 +172,12 @@ export function DataGridTable({
     }
   }, [rows, onSelectionChange]);
 
-  const actionColumn: GridColDef = {
+  // 操作列要随权限 / 回调变化重建:以前它被 useMemo([columns]) 冻结在首帧,列定义在模块级的页面里
+  // 权限异步加载完后编辑/删除按钮也不出现,onEdit / onDelete 也一直是首帧的旧闭包。
+  const canEdit = !actionPermissions?.edit || (hasPermission ? hasPermission(actionPermissions.edit) : true);
+  const canDelete = !actionPermissions?.delete || (hasPermission ? hasPermission(actionPermissions.delete) : true);
+
+  const actionColumn = useMemo<GridColDef>(() => ({
     field: 'actions',
     headerName: '操作',
     flex: 1,
@@ -182,8 +187,6 @@ export function DataGridTable({
     align: 'center',
     headerAlign: 'center',
     renderCell: (params) => {
-      const canEdit = !actionPermissions?.edit || (hasPermission ? hasPermission(actionPermissions.edit) : true);
-      const canDelete = !actionPermissions?.delete || (hasPermission ? hasPermission(actionPermissions.delete) : true);
       if (!canEdit && !canDelete) return null;
       return (
         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -215,7 +218,7 @@ export function DataGridTable({
         </Box>
       );
     },
-  };
+  }), [canEdit, canDelete, customActions, onEdit, onDelete]);
 
   const columnsWithActions = useMemo<GridColDef[]>(() => {
     if (columns.some((col) => col.field === 'actions')) {
@@ -227,7 +230,7 @@ export function DataGridTable({
       );
     }
     return [...columns, actionColumn];
-  }, [columns]);
+  }, [columns, actionColumn]);
 
   const centeredColumns = useMemo<GridColDef[]>(() => {
     return columnsWithActions.map((col) => ({
