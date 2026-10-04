@@ -1,8 +1,17 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { gsap } from 'gsap';
+import { keyframes } from '@mui/material/styles';
+
+/** 片段的起止状态(取代以前的 gsap.TweenVars;只支持这几项,够标题入场用) */
+export interface SplitTextState {
+  opacity?: number;
+  x?: number;
+  y?: number;
+  scale?: number;
+  filter?: string;
+}
 
 interface Props extends Omit<BoxProps, 'children'> {
   text: string;
@@ -10,18 +19,34 @@ interface Props extends Omit<BoxProps, 'children'> {
   splitType?: 'chars' | 'words';
   /** 每个片段的间隔(ms) */
   delay?: number;
+  /** 时长(秒) */
   duration?: number;
+  /** CSS 缓动函数;默认约等于 gsap 的 power3.out */
   ease?: string;
-  from?: gsap.TweenVars;
-  to?: gsap.TweenVars;
+  from?: SplitTextState;
+  to?: SplitTextState;
   /** 进入视口再播(默认 true) */
   onView?: boolean;
   onComplete?: () => void;
 }
 
+/** 起始状态经 CSS 变量传进来,一份 keyframes 覆盖所有 from 组合;终态就是片段自身的样式 */
+const pieceIn = keyframes`
+  from {
+    opacity: var(--rb-o0);
+    transform: translate(var(--rb-x0), var(--rb-y0)) scale(var(--rb-s0));
+    filter: var(--rb-f0);
+  }
+`;
+
+function transformOf(s: SplitTextState) {
+  return `translate(${s.x ?? 0}px, ${s.y ?? 0}px) scale(${s.scale ?? 1})`;
+}
+
 /**
  * SplitText(React Bits)—— 标题逐字/逐词飞入。
- * 不依赖 gsap SplitText 插件:这里自己按字切 span,中文标题按字切最自然。
+ * 自己按字切 span(中文标题按字切最自然),每个片段一条 CSS 动画、按下标错开 delay。
+ * 以前用 gsap 做补间,全站只有这一处用 gsap;CSS 动画效果相同,还省掉整个依赖。
  * 尊重 prefers-reduced-motion:直接显示不动画。
  */
 export default function SplitText({
@@ -29,7 +54,7 @@ export default function SplitText({
   splitType = 'chars',
   delay = 40,
   duration = 0.7,
-  ease = 'power3.out',
+  ease = 'cubic-bezier(0.215, 0.61, 0.355, 1)',
   from = { opacity: 0, y: 24, filter: 'blur(6px)' },
   to = { opacity: 1, y: 0, filter: 'blur(0px)' },
   onView = true,
@@ -42,63 +67,44 @@ export default function SplitText({
     () => (splitType === 'words' ? text.split(/(\s+)/) : Array.from(text)),
     [text, splitType],
   );
+  // 不等视口时直接播;否则先停在起始状态(动画 paused + fill backwards),滚进视口再放
+  const [running, setRunning] = useState(!onView);
 
   useEffect(() => {
+    if (running) return;
     const el = ref.current;
-    if (!el) return;
-    const targets = Array.from(el.querySelectorAll<HTMLElement>('[data-rb-piece]'));
-    if (targets.length === 0) return;
-    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      gsap.set(targets, { ...to, clearProps: 'filter' });
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setRunning(true);
       return;
-    }
-    let tween: gsap.core.Tween | null = null;
-    const play = () => {
-      tween = gsap.fromTo(targets, { ...from }, {
-        ...to,
-        duration,
-        ease,
-        stagger: delay / 1000,
-        onComplete: () => {
-          gsap.set(targets, { clearProps: 'filter,willChange' });
-          onComplete?.();
-        },
-      });
-    };
-    gsap.set(targets, { ...from, willChange: 'transform, opacity' });
-    // 兜底:标签页在后台加载时 rAF/IO 都不跑,标题不能一直停在 opacity:0;
-    // 超时后直接落到终态(只是少了一次入场动画)。
-    const budget = duration * 1000 + (delay * targets.length) + 2500;
-    const fallback = window.setTimeout(() => {
-      tween?.kill();
-      gsap.set(targets, { ...to, clearProps: 'filter,willChange' });
-    }, budget);
-    if (!onView || typeof IntersectionObserver === 'undefined') {
-      play();
-      return () => {
-        window.clearTimeout(fallback);
-        tween?.kill();
-      };
     }
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          play();
+          setRunning(true);
           io.disconnect();
         }
       },
       { threshold: 0.1 },
     );
     io.observe(el);
+    // 兜底:IO 在个别老 WebView / 隐藏标签页里不回调,标题不能一直停在 opacity:0
+    const fallback = window.setTimeout(() => setRunning(true), 2500);
     return () => {
-      window.clearTimeout(fallback);
       io.disconnect();
-      tween?.kill();
+      window.clearTimeout(fallback);
     };
-    // 文案变化时重播;其余参数视为静态配置
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  }, [running]);
+
+  const fromVars = {
+    '--rb-o0': String(from.opacity ?? to.opacity ?? 1),
+    '--rb-x0': `${from.x ?? 0}px`,
+    '--rb-y0': `${from.y ?? 0}px`,
+    '--rb-s0': String(from.scale ?? 1),
+    '--rb-f0': from.filter ?? 'none',
+  };
+  // 终态里的 blur(0px) 等同 none,不留 filter(以前 gsap 播完也会 clearProps filter)
+  const endFilter = to.filter && !/^blur\(0(px)?\)$/.test(to.filter.trim()) ? to.filter : undefined;
+  const last = pieces.length - 1;
 
   return (
     <Box
@@ -110,11 +116,22 @@ export default function SplitText({
     >
       {pieces.map((p, i) => (
         <Box
-          key={`${i}-${p}`}
+          // 文案变化时片段重新挂载,动画重播
+          key={`${text}-${i}-${p}`}
           component="span"
-          data-rb-piece
           aria-hidden
-          sx={{ display: 'inline-block', whiteSpace: p.trim() === '' ? 'pre' : 'normal' }}
+          onAnimationEnd={i === last && onComplete ? () => onComplete() : undefined}
+          style={fromVars as React.CSSProperties}
+          sx={{
+            display: 'inline-block',
+            whiteSpace: p.trim() === '' ? 'pre' : 'normal',
+            opacity: to.opacity ?? 1,
+            transform: transformOf(to),
+            filter: endFilter,
+            animation: `${pieceIn} ${duration}s ${ease} ${i * delay}ms both`,
+            animationPlayState: running ? 'running' : 'paused',
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          }}
         >
           {p}
         </Box>
