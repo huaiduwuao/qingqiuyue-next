@@ -60,6 +60,22 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_API_BASE_URL: https://qingqiuyue.com
         run: pnpm build:static
+      # 对刚导出的 out/ 跑静态冒烟(playwright.static.config.ts):接口全部 page.route 回 fixture,
+      # 不需要后端。runner 上没有预装浏览器,装一份与 @playwright/test 匹配的 Chromium。
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: E2E smoke (static export, mocked API)
+        timeout-minutes: 5
+        run: pnpm test:e2e:static
+      - name: Upload smoke report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-static-report
+          path: |
+            playwright-report-static/
+            test-results-static/
+          retention-days: 7
 
   # ==================== Windows ====================
   build-windows:
