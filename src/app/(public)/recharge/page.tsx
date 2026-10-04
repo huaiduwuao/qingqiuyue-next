@@ -108,12 +108,15 @@ function formatTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function useCountdown(target: string) {
+// enabled=false 时不走秒:这个 hook 挂在整页组件上,每秒 setState 会把上千行的充值页
+// (含支付弹窗)整页重渲染一遍。没有活动时根本不显示倒计时,没必要跳。
+function useCountdown(target: string, enabled = true) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!enabled) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [enabled]);
   return useMemo(() => {
     const diff = Math.max(0, new Date(target).getTime() - now);
     const day = Math.floor(diff / 86_400_000);
@@ -212,7 +215,7 @@ function RechargePageContent() {
     }
   }, [DIAMOND_PACKAGES, selectedPkg]);
 
-  const countdown = useCountdown(DIAMOND_ACTIVITY.endsAt);
+  const countdown = useCountdown(DIAMOND_ACTIVITY.endsAt, hasActivity);
 
   // 真接口:当前钱包余额
   const walletQ = useQuery({
