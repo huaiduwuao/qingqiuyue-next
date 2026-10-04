@@ -154,13 +154,25 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   // 离开 home 时把主滚动条位置存到 sessionStorage,回来时还原(无动画,即设即生效)
   useEffect(() => {
     const key = `home-scroll:${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-    const saved = sessionStorage.getItem(key);
+    // 存储被禁用时 sessionStorage 访问即抛 SecurityError:不接住首页布局直接崩,
+    // 滚动里的 setItem 也会每滚一下抛一次
+    let saved: string | null = null;
+    try {
+      saved = sessionStorage.getItem(key);
+    } catch {
+      /* 存储不可用:不还原滚动位置 */
+    }
     if (saved && mainRef.current) {
       mainRef.current.scrollTop = Number(saved);
     }
     const el = mainRef.current;
     const onScroll = () => {
-      if (el) sessionStorage.setItem(key, String(el.scrollTop));
+      if (!el) return;
+      try {
+        sessionStorage.setItem(key, String(el.scrollTop));
+      } catch {
+        /* 同上 */
+      }
     };
     el?.addEventListener('scroll', onScroll, { passive: true });
     return () => el?.removeEventListener('scroll', onScroll);

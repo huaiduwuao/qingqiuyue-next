@@ -65,7 +65,13 @@ export function useHomeSettings() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    // 存储被禁用(浏览器屏蔽所有 Cookie / 站点数据、旧版 Safari 无痕配额为 0)时 setItem 会抛;
+    // 这个 hook 挂在全局 RealtimeProvider 里,不接住就是整站白屏。存不了只是下次不记得设置。
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+      /* 只保留内存态 */
+    }
     // 降级动画:在 <html> 上挂 reduce-motion 标记
     document.documentElement.dataset.reduceMotion = settings.reduceMotion ? '1' : '0';
     document.documentElement.dataset.highContrast = settings.highContrast ? '1' : '0';
