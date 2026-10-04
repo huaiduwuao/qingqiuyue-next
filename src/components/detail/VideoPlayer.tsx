@@ -906,6 +906,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       v = document.createElement('video');
       v.playsInline = true;
       v.setAttribute('webkit-playsinline', '');
+      // 小米 / QQ / 微信(X5)等国产浏览器默认把 <video> 接管成原生播放层:画在所有网页元素之上,
+      // 触摸也归它(竖滑调亮度音量)—— 推荐流上滑翻不动、侧边栏被盖住。同层播放属性让视频留在网页层。
+      v.setAttribute('x5-playsinline', '');
+      v.setAttribute('x5-video-player-type', 'h5-page');
       v.preload = 'metadata';
       // 直连外站流时不带本站 Referer:后端判"能直连"用的就是不带 Referer 的探测,
       // 而不少 CDN 是"有 Referer 且不在白名单才拒",带上本站地址反而会被拒。
