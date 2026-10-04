@@ -680,53 +680,49 @@ function DmPanel() {
     }
   }, [messages.length, selectedId]);
 
+  // 会话 id 跟着 variables 走:回包时用户可能已经切到别的会话,用闭包里最新的 selectedId
+  // 会把这条消息塞进另一个会话的列表里(还清掉那边的草稿)。
+  const appendOptimistic = (sessionId: number, type: Message['type'], content: string) => {
+    qc.setQueryData(['dm-messages-page', sessionId], (old: any) => {
+      const list = old?.list || [];
+      const optimistic: Message = {
+        id: Date.now(),
+        sessionId,
+        fromUserId: myId,
+        type,
+        content,
+        time: new Date().toISOString(),
+        status: 'sent',
+      };
+      return { ...old, list: [...list, optimistic] };
+    });
+  };
+
   const sendMutation = useMutation({
-    mutationFn: async (text: string) =>
+    mutationFn: async ({ sessionId, text }: { sessionId: number; text: string }) =>
       await adminClient('/msg/message/send', {
         method: 'POST',
-        data: { sessionId: selectedId, content: text, type: 'text' },
+        data: { sessionId, content: text, type: 'text' },
       }),
-    onSuccess: (_data, variables) => {
-      qc.setQueryData(['dm-messages-page', selectedId], (old: any) => {
-        const list = old?.list || [];
-        const optimistic: Message = {
-          id: Date.now(),
-          sessionId: selectedId!,
-          fromUserId: myId,
-          type: 'text',
-          content: variables,
-          time: new Date().toISOString(),
-          status: 'sent',
-        };
-        return { ...old, list: [...list, optimistic] };
-      });
-      setDraft('');
-      setShowEmoji(false);
+    onSuccess: (_data, { sessionId, text }) => {
+      appendOptimistic(sessionId, 'text', text);
+      if (useMsgUi.getState().selectedId === sessionId) {
+        setDraft('');
+        setShowEmoji(false);
+      }
       setSnack({ open: true, msg: '已发送', severity: 'success' });
     },
     onError: () => setSnack({ open: true, msg: '发送失败', severity: 'error' }),
   });
 
   const sendImageMutation = useMutation({
-    mutationFn: async (url: string) =>
+    mutationFn: async ({ sessionId, url }: { sessionId: number; url: string }) =>
       await adminClient('/msg/message/send', {
         method: 'POST',
-        data: { sessionId: selectedId, content: url, type: 'image' },
+        data: { sessionId, content: url, type: 'image' },
       }),
-    onSuccess: (_data, variables) => {
-      qc.setQueryData(['dm-messages-page', selectedId], (old: any) => {
-        const list = old?.list || [];
-        const optimistic: Message = {
-          id: Date.now(),
-          sessionId: selectedId!,
-          fromUserId: myId,
-          type: 'image',
-          content: variables,
-          time: new Date().toISOString(),
-          status: 'sent',
-        };
-        return { ...old, list: [...list, optimistic] };
-      });
+    onSuccess: (_data, { sessionId, url }) => {
+      appendOptimistic(sessionId, 'image', url);
       setSnack({ open: true, msg: '图片已发送', severity: 'success' });
     },
     onError: () => setSnack({ open: true, msg: '图片发送失败', severity: 'error' }),
@@ -816,8 +812,9 @@ function DmPanel() {
 
   const handleSend = () => {
     const text = draft.trim();
-    if (!text || !selectedId) return;
-    sendMutation.mutate(text);
+    // 回车连按 / 双击发送键:上一条还没回包时不再发,否则同一句话发两遍
+    if (!text || !selectedId || sendMutation.isPending) return;
+    sendMutation.mutate({ sessionId: selectedId, text });
   };
 
   const handleReport = async () => {
@@ -858,13 +855,14 @@ function DmPanel() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedId) return;
+    const sessionId = selectedId;
     const formData = new FormData();
     formData.append('file', file);
     try {
       const res = (await fileUpload(formData as any)) as { url?: string };
       const url = res?.url;
       if (url) {
-        sendImageMutation.mutate(url);
+        sendImageMutation.mutate({ sessionId, url });
       } else {
         setSnack({ open: true, msg: '上传失败,未返回图片地址', severity: 'error' });
       }
