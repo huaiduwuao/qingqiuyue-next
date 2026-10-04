@@ -42,6 +42,7 @@ import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
+import ManageSearchRoundedIcon from '@mui/icons-material/ManageSearchRounded';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import SyncProblemRoundedIcon from '@mui/icons-material/SyncProblemRounded';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
@@ -234,6 +235,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       // 原来是一个「爬虫管理」页面里 8 个标签页,2026-09-25 拆成独立菜单(菜单表 2505–2513)。
       { id: 'spider', label: '爬虫总览', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-sources', label: '源管理', path: '/system/spider/sources', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-source-setup', label: '源搜集', path: '/system/spider/source-setup', icon: <ManageSearchRoundedIcon sx={{ fontSize: 18 }} />, accent: '#7c3aed', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-templates', label: '模板管理', path: '/system/spider/templates', icon: <ListAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-tasks', label: '抓取任务', path: '/system/spider/tasks', icon: <AssignmentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-batch', label: '批量任务', path: '/system/spider/batch', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },

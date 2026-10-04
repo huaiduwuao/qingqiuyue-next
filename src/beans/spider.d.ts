@@ -255,6 +255,31 @@ export interface ProxyStats {
   failCount: number;
 }
 
+// ─── 代理供应商(ProxyProvider) ───
+export interface ProxyProvider {
+  id: string;
+  name: string;
+  api_url: string;
+  type: 'http' | 'https' | 'socks5';
+  local_host: string;
+  local_port: number;
+  cache_seconds: number;
+  enabled: boolean;
+  last_ip?: string;
+  last_fetch_at?: string;
+  fetch_count: number;
+  error_count: number;
+  create_time: string;
+  update_time: string;
+}
+
+export interface ProxyProviderTestResult {
+  ok: boolean;
+  ip?: string;
+  latency_ms?: number;
+  error?: string;
+}
+
 // ─── 模板属性(TemplateAttr) ───
 export interface TemplateAttr {
   id: number;

@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -26,12 +26,25 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import Switch from '@mui/material/Switch';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { listProxies, addProxy, deleteProxy, toggleProxy, getProxyStats } from '@/apis/spider';
+import {
+  listProxies,
+  addProxy,
+  deleteProxy,
+  toggleProxy,
+  getProxyStats,
+  listProxyProviders,
+  addProxyProvider,
+  deleteProxyProvider,
+  testProxyProvider,
+} from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
-import type { Proxy } from '@/beans/spider';
+import type { Proxy, ProxyProvider } from '@/beans/spider';
 
 const LIST_KEY = ['spider', 'proxies'];
 
@@ -43,13 +56,32 @@ const TYPE_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success'> = 
 
 export default function SpiderProxiesPage() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<'proxies' | 'providers'>('proxies');
   const [writeVisible, setWriteVisible] = useState(false);
+  const [providerWriteVisible, setProviderWriteVisible] = useState(false);
   const [form, setForm] = useState({ url: '', type: 'http' as 'http' | 'https' | 'socks5' });
+  const [providerForm, setProviderForm] = useState({
+    name: '快代理',
+    api_url: '',
+    type: 'http' as 'http' | 'https' | 'socks5',
+    local_host: '0.0.0.0',
+    local_port: 8888,
+    cache_seconds: 30,
+  });
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [stats, setStats] = useState<{ total: number; active: number; successRate: number; failCount: number } | null>(null);
 
+  const { data: providersData } = useQuery({
+    queryKey: ['spider', 'providers'],
+    queryFn: () => listProxyProviders(),
+  });
+  const providers: ProxyProvider[] = providersData?.list ?? [];
+
   const showMsg = (m: string, s: 'success' | 'error' = 'success') => setSnack({ open: true, message: m, severity: s });
-  const refresh = () => qc.invalidateQueries({ queryKey: LIST_KEY });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: LIST_KEY });
+    qc.invalidateQueries({ queryKey: ['spider', 'providers'] });
+  };
 
   const addMutation = useMutation({
     mutationFn: (vals: typeof form) => addProxy(vals),
@@ -67,6 +99,32 @@ export default function SpiderProxiesPage() {
     mutationFn: (id: string) => deleteProxy(id),
     onSuccess: () => { showMsg('已删除'); refresh(); },
     onError: (err: any) => showMsg(err.message || '删除失败', 'error'),
+  });
+
+  const addProviderMutation = useMutation({
+    mutationFn: (vals: typeof providerForm) => addProxyProvider(vals),
+    onSuccess: () => {
+      showMsg('供应商已新增,本地需启动代理转发器');
+      setProviderWriteVisible(false);
+      setProviderForm({ name: '快代理', api_url: '', type: 'http', local_host: '0.0.0.0', local_port: 8888, cache_seconds: 30 });
+      refresh();
+    },
+    onError: (err: any) => showMsg(err.message || '新增失败', 'error'),
+  });
+
+  const deleteProviderMutation = useMutation({
+    mutationFn: (id: string) => deleteProxyProvider(id),
+    onSuccess: () => { showMsg('供应商已删除'); refresh(); },
+    onError: (err: any) => showMsg(err.message || '删除失败', 'error'),
+  });
+
+  const testProviderMutation = useMutation({
+    mutationFn: (id: string) => testProxyProvider(id),
+    onSuccess: (data: any) => {
+      if (data.ok) showMsg(`连接成功,IP=${data.ip},延迟=${data.latency_ms}ms`, 'success');
+      else showMsg(`失败:${data.error || 'empty ip'}`, 'error');
+    },
+    onError: (err: any) => showMsg(err.message || '测试失败', 'error'),
   });
 
   const handleAdd = () => {
@@ -135,11 +193,35 @@ export default function SpiderProxiesPage() {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h6">代理池</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>
-          新增代理
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<RefreshIcon />}
+            onClick={refresh}
+          >
+            刷新
+          </Button>
+          {tab === 'proxies' && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>
+              新增代理
+            </Button>
+          )}
+          {tab === 'providers' && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setProviderWriteVisible(true)}>
+              新增供应商
+            </Button>
+          )}
+        </Box>
       </Box>
 
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="proxies" label="代理池" />
+        <Tab value="providers" label="供应商(快代理等)" />
+      </Tabs>
+
+      {tab === 'proxies' && (
+      <>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
         {[
           { l: '代理总数', v: stats?.total ?? 0, c: 'primary' },
@@ -165,8 +247,8 @@ export default function SpiderProxiesPage() {
               const statsRes = await getProxyStats();
               setStats(statsRes);
               return {
-                data: { records: res.list || [], totalRow: res.total || 0 },
-                success: true,
+                records: res.list || [],
+                totalRow: res.total || 0,
               };
             } catch {
               return { records: [], totalRow: 0 };
@@ -174,6 +256,96 @@ export default function SpiderProxiesPage() {
           }}
         />
       </Paper>
+      </>
+      )}
+
+      {tab === 'providers' && (
+      <Paper sx={{ p: 2 }}>
+        <DataGridTable
+          columns={[
+            { field: 'name', headerName: '名称', width: 140 },
+            {
+              field: 'api_url',
+              headerName: 'API 提取链接',
+              width: 360,
+              renderCell: (p) => (
+                <Typography sx={{ fontFamily: 'monospace', fontSize: 10, wordBreak: 'break-all' }}>
+                  {p.value}
+                </Typography>
+              ),
+            },
+            {
+              field: 'local_host',
+              headerName: '本地 host',
+              width: 130,
+              renderCell: (p) => <Typography sx={{ fontFamily: 'monospace', fontSize: 11 }}>{p.value}</Typography>,
+            },
+            {
+              field: 'local_port',
+              headerName: '本地端口',
+              width: 100,
+              type: 'number',
+              renderCell: (p) => <Typography sx={{ fontFamily: 'monospace', fontSize: 11 }}>{p.value}</Typography>,
+            },
+            {
+              field: 'cache_seconds',
+              headerName: '缓存(秒)',
+              width: 100,
+              type: 'number',
+            },
+            {
+              field: 'last_ip',
+              headerName: '最近 IP',
+              width: 180,
+              renderCell: (p) => <Typography sx={{ fontFamily: 'monospace', fontSize: 10 }}>{p.value || '—'}</Typography>,
+            },
+            {
+              field: 'enabled',
+              headerName: '启用',
+              width: 80,
+              renderCell: (p) => <Switch size="small" checked={!!p.value} disabled />,
+            },
+            {
+              field: 'actions',
+              headerName: '操作',
+              width: 240,
+              sortable: false,
+              renderCell: (p) => (
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Tooltip title="测试(调 API 提取一个 IP,验证连通)">
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={() => testProviderMutation.mutate((p.row as ProxyProvider).id)}
+                      disabled={testProviderMutation.isPending}
+                    >
+                      <RefreshIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="删除">
+                    <IconButton size="small" color="error" onClick={() => {
+                      if (confirm(`确定要删除供应商 ${(p.row as ProxyProvider).name}?`)) {
+                        deleteProviderMutation.mutate((p.row as ProxyProvider).id);
+                      }
+                    }}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              ),
+            },
+          ]}
+          fetchData={async () => ({
+            records: providers,
+            totalRow: providers.length,
+          })}
+        />
+        <Alert severity="info" sx={{ mt: 2 }}>
+          供应商 API 配置由本地代理转发器(cmd/proxy-forwarder)读取,通过环境变量 PROXY_API_URL 注入。
+          CloakBrowser 启动时加 <code>--proxy-server=http://host:8888</code> 连本地转发器,转发器每次新连接提取一个新 IP。
+        </Alert>
+      </Paper>
+      )}
 
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="sm" fullWidth>
         <DialogTitle>新增代理</DialogTitle>
@@ -200,6 +372,65 @@ export default function SpiderProxiesPage() {
         <DialogActions>
           <Button onClick={() => setWriteVisible(false)}>取消</Button>
           <Button variant="contained" onClick={handleAdd} disabled={addMutation.isPending}>新增</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={providerWriteVisible} onClose={() => setProviderWriteVisible(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>新增供应商(快代理等)</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="名称"
+            value={providerForm.name}
+            onChange={(e) => setProviderForm({ ...providerForm, name: e.target.value })}
+            fullWidth size="small"
+            sx={{ mt: 1, mb: 1.5 }}
+            placeholder="快代理"
+          />
+          <TextField
+            label="API 提取链接"
+            value={providerForm.api_url}
+            onChange={(e) => setProviderForm({ ...providerForm, api_url: e.target.value })}
+            fullWidth size="small"
+            multiline
+            rows={3}
+            sx={{ mb: 1.5 }}
+            placeholder="https://dps.kdlapi.com/api/getdps/?secret_id=...&signature=...&num=1"
+          />
+          <TextField
+            label="本地 host"
+            value={providerForm.local_host}
+            onChange={(e) => setProviderForm({ ...providerForm, local_host: e.target.value })}
+            fullWidth size="small"
+            sx={{ mb: 1.5 }}
+            placeholder="0.0.0.0"
+          />
+          <TextField
+            label="本地端口"
+            type="number"
+            value={providerForm.local_port}
+            onChange={(e) => setProviderForm({ ...providerForm, local_port: parseInt(e.target.value, 10) || 8888 })}
+            fullWidth size="small"
+            sx={{ mb: 1.5 }}
+          />
+          <TextField
+            label="IP 缓存(秒)"
+            type="number"
+            value={providerForm.cache_seconds}
+            onChange={(e) => setProviderForm({ ...providerForm, cache_seconds: parseInt(e.target.value, 10) || 30 })}
+            fullWidth size="small"
+            sx={{ mb: 1.5 }}
+            helperText="30 秒内复用同一 IP,超过重新提取"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setProviderWriteVisible(false)}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={() => addProviderMutation.mutate(providerForm)}
+            disabled={addProviderMutation.isPending || !providerForm.name || !providerForm.api_url}
+          >
+            新增
+          </Button>
         </DialogActions>
       </Dialog>
 

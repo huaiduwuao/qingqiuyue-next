@@ -2,6 +2,8 @@ import type {
   CrawlTaskDetail,
   Proxy,
   ProxyStats,
+  ProxyProvider,
+  ProxyProviderTestResult,
   TemplateDetail,
   AutoTemplateResult,
   CrawlStats,
@@ -98,6 +100,84 @@ export async function deleteBatch(id: number): Promise<any> {
 export async function getBatchStats(id: number): Promise<any> {
   return spiderClient(`/batch/${id}/stats`, { method: 'GET' });
 }
+
+// ─── 全网内容源搜集 + 一键入库(source-setup 接入助手)───
+// 后端:internal/crawler/source_discovery.go / source_draft_batch.go
+export interface DiscoverSeed {
+  keyword: string;
+  type: string;
+}
+export interface DiscoverStats {
+  searched: number;
+  found: number;
+  scored: number;
+  new: number;
+  blocked: number;
+  existing: number;
+  skipped: number;
+  errors?: string[];
+}
+export interface SourceCandidate {
+  id: string;
+  domain: string;
+  home_url: string;
+  category: string;
+  cms_hint: string;
+  has_cms_api: boolean;
+  blocked: boolean;
+  score: number;
+  reason: string;
+  keyword: string;
+  status: 'new' | 'drafted' | 'skipped' | 'existing';
+  draft_id: string;
+  create_time?: string;
+}
+export interface SourceDraft {
+  id: string;
+  url: string;
+  domain: string;
+  category: string;
+  kind: 'book' | 'video';
+  ok: boolean;
+  status: 'draft' | 'applied' | 'discarded';
+  sample_title: string;
+  report?: any;
+  source_id: string;
+  template_id: string;
+  create_time?: string;
+}
+export interface DraftBatchStats {
+  picked: number;
+  drafted: number;
+  failed: number;
+  skipped: number;
+  per_error?: Record<string, string>;
+}
+
+export async function discoverSites(params: { seeds?: DiscoverSeed[]; max_per_seed?: number; concurrency?: number }): Promise<DiscoverStats> {
+  return spiderClient('/source-setup/discover', { method: 'POST', data: params });
+}
+
+export async function listCandidates(params?: { status?: string; category?: string; limit?: number }): Promise<{ list: SourceCandidate[]; count: number }> {
+  return spiderClient('/source-setup/candidates', { method: 'GET', params });
+}
+
+export async function draftBatch(params: { candidate_ids?: number[]; limit?: number }): Promise<DraftBatchStats> {
+  return spiderClient('/source-setup/draft-batch', { method: 'POST', data: params });
+}
+
+export async function listSourceDrafts(params?: { status?: string; category?: string; ok?: string; limit?: number }): Promise<{ list: SourceDraft[]; count: number }> {
+  return spiderClient('/source-setup/drafts', { method: 'GET', params });
+}
+
+export async function applyDraftsBatch(ids: Array<string | number>): Promise<{ applied: number; failed: number; results: any[] }> {
+  return spiderClient('/source-setup/drafts/apply-batch', { method: 'POST', data: { ids: ids.map((x) => Number(x)) } });
+}
+
+export async function discardSourceDraft(id: string | number): Promise<any> {
+  return spiderClient(`/source-setup/drafts/${id}/discard`, { method: 'POST' });
+}
+
 
 // ─── Worker 池(crawl_worker 表,跨进程)───
 export async function listWorkers(): Promise<{ list: Worker[]; total: number }> {
@@ -291,6 +371,42 @@ export async function toggleProxy(id: string, active: boolean): Promise<any> {
 
 export async function deleteProxy(id: string): Promise<any> {
   return spiderClient(`/proxies/${id}`, { method: 'DELETE' });
+}
+
+// ─── 代理供应商(ProxyProvider,快代理等 API 配置) ───
+export async function listProxyProviders(): Promise<{ list: ProxyProvider[]; total: number }> {
+  const res = await spiderClient('/proxies/providers', { method: 'GET' });
+  return res;
+}
+
+export async function getProxyProvider(id: string): Promise<ProxyProvider> {
+  return spiderClient(`/proxies/providers/${id}`, { method: 'GET' });
+}
+
+export async function addProxyProvider(params: {
+  name: string;
+  api_url: string;
+  type?: 'http' | 'https' | 'socks5';
+  local_host?: string;
+  local_port?: number;
+  cache_seconds?: number;
+}): Promise<ProxyProvider> {
+  return spiderClient('/proxies/providers', { method: 'POST', data: params });
+}
+
+export async function updateProxyProvider(
+  id: string,
+  params: Partial<ProxyProvider>,
+): Promise<{ id: string; status: string }> {
+  return spiderClient(`/proxies/providers/${id}`, { method: 'PUT', data: params });
+}
+
+export async function deleteProxyProvider(id: string): Promise<{ id: string; status: string }> {
+  return spiderClient(`/proxies/providers/${id}`, { method: 'DELETE' });
+}
+
+export async function testProxyProvider(id: string): Promise<ProxyProviderTestResult> {
+  return spiderClient(`/proxies/providers/${id}/test`, { method: 'POST' });
 }
 
 // ─── Template Attrs ───
