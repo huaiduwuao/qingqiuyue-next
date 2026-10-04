@@ -43,12 +43,11 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 // ─────────────────────────────────────────────────────────────────────────────
 // 导出目录瘦身:out/ 会被 Tauri 整个压进二进制,而且是每个 ABI 一份。
 //
-// public/ort-wasm/ 放着 8 个 ONNX Runtime 运行时(136 MB),但真正会被加载的只有一个:
-// 装在 node_modules 里的是 onnxruntime-web 1.18,它按 (simd, threaded) 选文件 ——
+// public/ort-wasm/ 只放 onnxruntime-web 1.18 会请求的两个运行时(scripts/copy-ort-runtime.sh 同步):
 //   simd ? (threaded ? ort-wasm-simd-threaded.wasm : ort-wasm-simd.wasm) : …
 // wake-word.ts 里 numThreads = 1,所以取的是 ort-wasm-simd.wasm。
-// 另外那 6 个(jsep/jspi/asyncify 变体,以及 .mjs —— 那是更新版 ORT 的文件名)在 1.18
-// 下永远不会被请求。网站照旧全都留着,只有客户端包不带。
+// 以前这里还躺着更新版 ORT 的 jsep/jspi/asyncify 变体和 .mjs(1.18 永远不会请求),已从仓库删掉;
+// 这道过滤留作兜底,万一有人手动拷进来也不会进客户端包。
 const KEEP_WASM = new Set(['ort-wasm-simd.wasm', 'ort-wasm-simd-threaded.wasm']);
 const out = path.resolve('out');
 

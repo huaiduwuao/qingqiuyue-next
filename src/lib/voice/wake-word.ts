@@ -315,11 +315,12 @@ export function getDefaultWakeWordConfig(): WakeWordConfig {
 
 /**
  * ONNX Runtime WASM 路径: Next.js 不会 bundle onnxruntime-web 的 WASM,
- * 整个 ORT runtime 复制在 public/ort-wasm/。
+ * 由 scripts/copy-ort-runtime.sh 从已装的 onnxruntime-web 复制到 public/ort-wasm/。
+ * 1.18 的 JS 胶水已打进 bundle,只会按 numThreads = 1 去拉 ort-wasm-simd.wasm,所以探测它。
  */
 async function resolveWasmPaths(): Promise<string> {
   const localPath = '/ort-wasm/'
-  for (const probe of ['ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.jsep.wasm', 'ort.mjs']) {
+  for (const probe of ['ort-wasm-simd.wasm', 'ort-wasm-simd-threaded.wasm']) {
     try {
       const r = await fetch(localPath + probe, { method: 'HEAD' })
       if (r.ok) return localPath
