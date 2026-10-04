@@ -423,8 +423,7 @@ function SearchPageContent() {
       },
       { threshold: 0.5 },
     );
-    // 监听后续渲染:每 1.5s 扫描一次 data-cid
-    const tick = setInterval(() => {
+    const scan = () => {
       document.querySelectorAll('[data-cid]').forEach((el) => {
         if (observed.has(el)) return;
         if (!seen.has((el as HTMLElement).dataset['cid'] || '')) {
@@ -432,9 +431,22 @@ function SearchPageContent() {
           observer.observe(el);
         }
       });
-    }, 1500);
+    };
+    // 只在 DOM 有变化(结果渲染 / 翻页追加)时扫描,同一帧内的多次变化合并成一次;
+    // 之前是常驻 setInterval,页面开多久就每 1.5 秒全文档 querySelectorAll 多久。
+    let raf = 0;
+    const mo = new MutationObserver(() => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        scan();
+      });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+    scan();
     return () => {
-      clearInterval(tick);
+      mo.disconnect();
+      if (raf) cancelAnimationFrame(raf);
       observer.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
