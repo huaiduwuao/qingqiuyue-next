@@ -115,6 +115,9 @@ next-env.d.ts
 /e2e/scene-preview.png
 /test-results/
 /playwright-report/
+# 静态冒烟(playwright.static.config.ts)的产物
+/test-results-static/
+/playwright-report-static/
 
 # Tauri 构建产物
 # gen/android、gen/apple 是要入库的原生工程(Manifest、签名配置、TV banner 都改在里面),
