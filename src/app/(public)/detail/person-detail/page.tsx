@@ -1,15 +1,17 @@
 'use client';
 
-// 人物详情 —— 主播(以及以后的演员/歌手/作者)的目录页。
+// 人物详情 —— 主播、演员、导演、歌手、作者的目录页。
 //
-// 人物和作品都是 module_content 里的条目。作品分两层:
-//   - works:后端按 metadata.streamer_id 精确关联到这个人的(TA 的直播间)
+// 人物和作品都是 module_content 里的条目。作品分三层:
+//   - works:后端明确关联到这个人的 —— 主播的直播间(metadata.streamer_id),以及人物收录
+//     (spider-api internal/personindex)写进 person_work 的作品(带角色、年份);
+//   - filmography:维基数据作品年表,含站内还没收录的(点了去搜);
 //   - 相关内容:按名字全站检索的近似结果(切片、回放、提到 TA 的文章……),
 //     不保证都是 TA 本人 —— 索引的目标是「找得到」,近似相关就够用。
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -42,6 +44,29 @@ interface PersonWork {
   isLive?: boolean;
   /** 搜索结果(相关内容)自带的 playability 状态;直播间列表没有,PlayTag 自己去问 */
   availability?: string;
+  /** 在作品里的角色(导演,演员……)与年份,来自 person_work */
+  role?: string;
+  year?: number;
+}
+
+/** 维基数据人物资料(后端 attachPersonProfile) */
+interface PersonProfile {
+  kind?: string;
+  roles?: string[];
+  occupations?: string[];
+  aliases?: string[];
+  enName?: string;
+  birth?: string;
+  death?: string;
+  wikidataId?: string;
+}
+
+interface FilmographyItem {
+  title: string;
+  year?: number;
+  kind: string;
+  roles?: string[];
+  contentId?: string;
 }
 
 interface PersonMeta {
@@ -61,6 +86,8 @@ interface PersonDetail {
   sourceUrl?: string;
   metadata?: PersonMeta;
   works?: PersonWork[];
+  person?: PersonProfile;
+  filmography?: FilmographyItem[];
   commentCount?: number;
 }
 
@@ -117,9 +144,14 @@ function WorkGrid({ items, onOpen }: { items: PersonWork[]; onOpen: (w: PersonWo
             <PlayTag id={w.id} contentType={w.contentType} status={w.availability} variant="overlay" top={6} right={6} />
           </Box>
           <Box sx={{ minWidth: 0, [LIST_ROW]: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
-            <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>
+            <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, pb: w.role || w.year ? 0 : 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>
               {w.title}
             </Typography>
+            {(w.role || w.year) && (
+              <Typography sx={{ fontSize: 11.5, color: 'text.secondary', px: 1, pb: 1, [LIST_ROW]: { px: 1.5 } }} noWrap>
+                {[w.year || '', w.role || ''].filter(Boolean).join(' · ')}
+              </Typography>
+            )}
           </Box>
         </Box>
       ))}
@@ -131,6 +163,9 @@ function PersonDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   const navigate = useContentNavigate();
+  const router = useRouter();
+  const [kind, setKind] = React.useState('');
+  const [showAllFilm, setShowAllFilm] = React.useState(false);
   const [snack, setSnack] = React.useState<{ open: boolean; message: string }>({ open: false, message: '' });
 
   const query = useQuery({
@@ -174,6 +209,20 @@ function PersonDetailContent() {
           const platform = md.platformLabel || '';
           const roomUrl = httpLink(md.room_url, data.sourceUrl, data.source);
           const works = data.works || [];
+          const profile = data.person || {};
+          const filmography = data.filmography || [];
+          const kindCounts = works.reduce<Record<string, number>>((m, w) => {
+            m[w.contentType] = (m[w.contentType] || 0) + 1;
+            return m;
+          }, {});
+          const kinds = Object.entries(kindCounts).sort((a, b) => b[1] - a[1]);
+          const shownWorks = kind ? works.filter((w) => w.contentType === kind) : works;
+          const film = showAllFilm ? filmography : filmography.slice(0, 30);
+          const facts = [
+            profile.enName,
+            profile.birth && (profile.death ? `${profile.birth} — ${profile.death}` : `${profile.birth} 出生`),
+            profile.occupations?.slice(0, 5).join(' / '),
+          ].filter(Boolean) as string[];
           const linked = new Set([String(data.id), ...works.map((w) => String(w.id))]);
           const relatedHits = (related.data || []).filter((h) => !linked.has(String(h.id)));
           const isStreamer = roles.includes('streamer');
@@ -220,9 +269,17 @@ function PersonDetailContent() {
                 )}
               </Box>
 
+              {facts.length > 0 && (
+                <Typography sx={{ color: 'text.secondary', fontSize: 13, mb: 1 }}>{facts.join(' · ')}</Typography>
+              )}
               {intro && (
                 <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                   {intro}
+                </Typography>
+              )}
+              {!!profile.aliases?.length && (
+                <Typography sx={{ color: 'text.secondary', fontSize: 12, mt: 1 }}>
+                  又名:{profile.aliases.slice(0, 8).join('、')}
                 </Typography>
               )}
 
@@ -234,10 +291,86 @@ function PersonDetailContent() {
                   {works.length}
                 </Box>
               </Typography>
+              {kinds.length > 1 && (
+                <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+                  <Chip
+                    label={`全部 ${works.length}`}
+                    size="small"
+                    color={kind ? 'default' : 'primary'}
+                    variant={kind ? 'outlined' : 'filled'}
+                    onClick={() => setKind('')}
+                  />
+                  {kinds.map(([t, n]) => (
+                    <Chip
+                      key={t}
+                      label={`${TYPE_LABEL[t] || t} ${n}`}
+                      size="small"
+                      color={kind === t ? 'primary' : 'default'}
+                      variant={kind === t ? 'filled' : 'outlined'}
+                      onClick={() => setKind(kind === t ? '' : t)}
+                    />
+                  ))}
+                </Box>
+              )}
               {works.length > 0 ? (
-                <WorkGrid items={works} onOpen={open} />
+                <WorkGrid items={shownWorks} onOpen={open} />
               ) : (
                 <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>暂无收录</Typography>
+              )}
+
+              {filmography.length > 0 && (
+                <>
+                  <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700, mt: 4, mb: 0.5 }}>
+                    作品年表
+                    <Box component="span" sx={{ fontSize: 13, color: 'text.secondary', ml: 1, fontWeight: 400 }}>
+                      {filmography.length}
+                    </Box>
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+                    来自维基数据;站内还没收录的点一下去搜
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    {film.map((f, i) => (
+                      <Box
+                        key={`${f.title}-${f.year}-${i}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          f.contentId ? navigate(f.kind, f.contentId) : router.push(`/search?q=${encodeURIComponent(f.title)}`)
+                        }
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: 1.5,
+                          py: 0.75,
+                          px: 0.5,
+                          cursor: 'pointer',
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                      >
+                        <Typography sx={{ width: 40, flexShrink: 0, fontSize: 12, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                          {f.year || '—'}
+                        </Typography>
+                        <Typography sx={{ flex: 1, minWidth: 0, fontSize: 14, color: 'text.primary' }} noWrap>
+                          {f.title}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0, display: { xs: 'none', sm: 'block' } }} noWrap>
+                          {[TYPE_LABEL[f.kind] || f.kind, ...(f.roles || []).slice(0, 2)].join(' · ')}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, flexShrink: 0, color: f.contentId ? 'primary.main' : 'text.disabled' }}>
+                          {f.contentId ? '已收录' : '去搜'}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                  {filmography.length > film.length && (
+                    <Button size="small" onClick={() => setShowAllFilm(true)} sx={{ mt: 1, textTransform: 'none' }}>
+                      展开全部 {filmography.length} 部
+                    </Button>
+                  )}
+                </>
               )}
 
               <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700, mt: 4, mb: 0.5 }}>

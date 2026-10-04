@@ -30,6 +30,21 @@ export interface DiscoverState {
   at: string;
 }
 
+// 搜人名时后端带的人物卡片(content-api recommendapp/search_person.go):有同名人物条目时才有。
+export interface SearchPersonCard {
+  id: string;
+  name: string;
+  cover?: string;
+  intro?: string;
+  roles?: string[];
+  occupations?: string[];
+  birth?: string;
+  aliases?: string[];
+  workCount: number;
+  /** 关联作品按类型计数:{ FILM: 23, MUSIC: 120 } */
+  kindCounts?: Record<string, number>;
+}
+
 export const isDiscoverPending = (d?: DiscoverState | null) => d?.status === 'queued' || d?.status === 'running';
 
 // 类型猜测(用户没选分类时,后端按搜索点击回流/站内高热/关键词特征猜他想找的类型,
