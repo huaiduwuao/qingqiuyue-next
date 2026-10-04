@@ -39,6 +39,10 @@ import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import VerifiedIcon from '@mui/icons-material/Verified';
+import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
+import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined';
+import { startCall } from '@/lib/call/controller';
+import { callRecordText, type CallMedia, type CallRecord } from '@/apis/call';
 import { adminClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
@@ -67,7 +71,7 @@ interface Session {
   isOfficial?: boolean;
   unread: number;
   lastMessage: string;
-  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty' | 'card';
+  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty' | 'card' | 'call';
   lastTime: string;
   pinned: boolean;
 }
@@ -78,7 +82,8 @@ interface Message {
   fromUserId: number;
   /** bounty:悬赏任务流转卡片,content 是 JSON(后端 service.BountyCard),只能由服务端写入 */
   /** card:用户分享的站内内容,content 是 JSON(后端 msgapp.ShareCard),标题封面由服务端快照 */
-  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty' | 'card';
+  /** call:通话记录,content 是 JSON(后端 msgapp.CallRecord),只由 callapp 在通话结束时写入 */
+  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty' | 'card' | 'call';
   content: string;
   time: string;
   status?: 'sent' | 'delivered' | 'read';
@@ -643,6 +648,13 @@ function DmPanel() {
   }, [filteredSessions]);
 
   const selected = useMemo(() => sessions.find((s) => s.id === selectedId), [sessions, selectedId]);
+  /** 发起通话。媒体点对点直连(见 lib/call/controller),这里只负责入口和报错。 */
+  const dial = (media: CallMedia) => {
+    if (!selected) return;
+    startCall({ userId: String(selected.userId), nickname: selected.nickname, avatar: selected.avatar }, media).catch((e) =>
+      setSnack({ open: true, msg: (e as Error)?.message || '呼叫失败', severity: 'error' }),
+    );
+  };
 
   const { data: msgData, isLoading: loadingMsgs } = useQuery({
     queryKey: ['dm-messages-page', selectedId],
@@ -988,6 +1000,20 @@ function DmPanel() {
                     </Typography>
                   )}
                 </Box>
+                {!selected.isOfficial && !selected.isBlocked && (
+                  <>
+                    <Tooltip title="语音通话">
+                      <IconButton size="small" aria-label="语音通话" sx={{ color: 'text.secondary' }} onClick={() => dial('audio')}>
+                        <CallOutlinedIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="视频通话">
+                      <IconButton size="small" aria-label="视频通话" sx={{ color: 'text.secondary' }} onClick={() => dial('video')}>
+                        <VideocamOutlinedIcon sx={{ fontSize: 19 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
                 <Tooltip title={selected.isFollowed ? '点击取消关注' : '关注'}>
                   <Box
                     onClick={() => !followMutation.isPending && !selected.isBlocked && followMutation.mutate()}
@@ -1439,6 +1465,36 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
     return (
       <Box sx={{ alignSelf: 'center', py: 0.5 }}>
         <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{message.content}</Typography>
+      </Box>
+    );
+  }
+  if (message.type === 'call') {
+    let rec: CallRecord = { media: 'audio', result: 'failed', seconds: 0 };
+    try {
+      rec = { ...rec, ...JSON.parse(message.content) };
+    } catch {
+      /* 老数据 / 坏数据按「未接通」显示 */
+    }
+    const missed = !isMine && (rec.result === 'missed' || rec.result === 'busy');
+    return (
+      <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
+        {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+        <Box
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 1,
+            borderRadius: 2,
+            bgcolor: isMine ? 'primary.main' : 'action.hover',
+            color: missed ? 'error.main' : isMine ? 'primary.contrastText' : 'text.primary',
+            fontSize: 13,
+          }}
+        >
+          {rec.media === 'video' ? <VideocamOutlinedIcon sx={{ fontSize: 16 }} /> : <CallOutlinedIcon sx={{ fontSize: 16 }} />}
+          {callRecordText(rec, isMine)}
+        </Box>
       </Box>
     );
   }

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 语音 / 视频通话、创世房间语音:网页里 getUserMedia 时,wry 的 WebChromeClient.onPermissionRequest 按这里声明的
+         权限弹系统授权框;没声明就直接拒绝,页面上表现为「没有麦克风权限」。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- Android 11+ 包可见性:不声明就查不到有没有装微信(isWXAppInstalled 恒为 false),也拉不起微信授权 -->
     <queries>
@@ -10,6 +15,9 @@
     <!-- AndroidTV support:leanback 可选 + 不强制触屏,否则 Google Play 不会把应用分发给电视 -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <!-- 声明了 CAMERA 权限后商店会默认要求设备有摄像头;电视和没有摄像头的平板也要能装 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:banner="@drawable/tv_banner"

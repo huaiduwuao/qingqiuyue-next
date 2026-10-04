@@ -18,6 +18,7 @@ import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import EmbedBridge from '@/components/layout/EmbedBridge';
 import RealtimeProvider from '@/components/realtime/RealtimeProvider';
+import CallLayer from '@/components/call/CallLayer';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -94,6 +95,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <EmbedBridge />
               {/* 全站唯一一条通知长连接:私信 / 互动消息 / 系统公告 / 客服都从这里下来 */}
               <RealtimeProvider />
+              {/* 一对一语音 / 视频通话(来电 / 去电 / 通话中的全屏层),信令走上面那条长连接 */}
+              <CallLayer />
               {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
               <ViewportFix />
               {/* 客户端:接住系统浏览器授权完成后的 qingqiuyue:// 回跳(网页里是空组件) */}

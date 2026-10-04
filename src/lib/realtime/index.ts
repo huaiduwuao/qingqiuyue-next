@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { realtime, type RealtimeEvent, type RealtimeStatus } from './client';
 
-export { realtime } from './client';
+export { realtime, deviceId } from './client';
 export type {
   RealtimeEvent,
   RealtimeEventType,
