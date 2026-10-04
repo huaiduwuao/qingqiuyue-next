@@ -272,6 +272,7 @@ export default function HdPublishPage() {
   const [coverTargetId, setCoverTargetId] = useState<string | null>(null);
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealReason, setAppealReason] = useState('');
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
 
   const router = useRouter();
   const navigateToContent = useContentNavigate();
@@ -568,7 +569,7 @@ export default function HdPublishPage() {
   };
 
   const handleSubmitAppeal = async () => {
-    if (!detail) return;
+    if (!detail || appealSubmitting) return;
     if (!appealReason.trim()) {
       setSnack('请输入申诉理由');
       return;
@@ -578,6 +579,7 @@ export default function HdPublishPage() {
       setSnack('作品还没有有效的内容编号,无法提交申诉');
       return;
     }
+    setAppealSubmitting(true);
     try {
       // 申诉 = 带着说明重新提交审核,进入内容运营的待审队列
       await submitReview({
@@ -591,6 +593,8 @@ export default function HdPublishPage() {
       setAppealOpen(false);
     } catch (e) {
       setSnack(`申诉提交失败:${formatApiError(e)}`);
+    } finally {
+      setAppealSubmitting(false);
     }
   };
 
@@ -2219,7 +2223,7 @@ export default function HdPublishPage() {
           </Button>
           <Button
             variant="contained"
-            disabled={!appealReason.trim()}
+            disabled={!appealReason.trim() || appealSubmitting}
             onClick={handleSubmitAppeal}
             sx={{
               textTransform: 'none',
