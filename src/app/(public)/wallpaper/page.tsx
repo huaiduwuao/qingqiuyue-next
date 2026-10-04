@@ -29,7 +29,7 @@ import StarIcon from '@mui/icons-material/Star';
 import { ThemeProvider } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { useApp } from '@/contexts/AppContext';
-import { updateUser } from '@/apis/account';
+import { loadWallpaperPrefs, saveWallpaperPrefs } from '@/lib/wallpaperPrefs';
 import { adminClient, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
@@ -172,6 +172,20 @@ function WallpaperPageContent() {
   // 之前这里预置了 w006 / w009 两个并不存在的 id,页面一打开就有两颗心是亮的。
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [myWallpapers, setMyWallpapers] = useState<MyWallpaper[]>(MY_WALLPAPERS);
+  // 收藏 / 我的壁纸只存本机(见 wallpaperPrefs:后端 /user/profile 不保存这些字段)。
+  // 登录用户就绪或切换账号时在渲染期载入一次,不再每次进页面都是空的。
+  const userId = currentUser?.id ?? null;
+  const [prefsLoadedFor, setPrefsLoadedFor] = useState<string | number | null | undefined>(undefined);
+  if (prefsLoadedFor !== userId) {
+    setPrefsLoadedFor(userId);
+    const prefs = loadWallpaperPrefs(userId);
+    setFavorites(new Set(prefs.favorites));
+    setMyWallpapers(prefs.mine);
+  }
+  const persist = (nextFavorites: Set<string>, nextMine: MyWallpaper[]) => {
+    if (userId == null) return;
+    saveWallpaperPrefs(userId, { favorites: Array.from(nextFavorites), mine: nextMine });
+  };
   const [detail, setDetail] = useState<Wallpaper | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
 
@@ -262,7 +276,7 @@ function WallpaperPageContent() {
     else next.delete(id);
     setFavorites(next);
     try {
-      await updateUser({ favoriteWallpapers: Array.from(next) });
+      persist(next, myWallpapers);
       setToast({ open: true, msg: adding ? '已收藏' : '已取消收藏' });
     } catch (err) {
       setFavorites(prev);
@@ -281,9 +295,10 @@ function WallpaperPageContent() {
       return;
     }
     const prev = myWallpapers;
-    setMyWallpapers([updated, ...cleared]);
+    const nextMine = [updated, ...cleared];
+    setMyWallpapers(nextMine);
     try {
-      await updateUser({ [target === 'home' ? 'homeWallpaper' : 'profileWallpaper']: wp.id });
+      persist(favorites, nextMine);
       setToast({ open: true, msg: `已设为${target === 'home' ? '主页' : '个人中心'}背景` });
     } catch (err) {
       setMyWallpapers(prev);
@@ -304,7 +319,7 @@ function WallpaperPageContent() {
     const next: MyWallpaper[] = [{ id: wp.id, appliedTo: 'none', setAt: new Date().toISOString() }, ...myWallpapers];
     setMyWallpapers(next);
     try {
-      await updateUser({ savedWallpapers: next.map((m) => m.id) });
+      persist(favorites, next);
       setToast({ open: true, msg: `已收藏《${wp.title}》` });
     } catch (err) {
       setMyWallpapers(prev);
