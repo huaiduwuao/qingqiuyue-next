@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -150,18 +151,16 @@ function toggled<T extends CommentReply>(c: T, action: CommentActionType): T {
 
 const emptyThread: Thread = { open: false, loading: false, loaded: false, replies: [] };
 
+type CommentPage = { list: CommentItem[]; total: number; hasMore: boolean };
+type CommentPages = InfiniteData<CommentPage, number>;
+
+/** 评论列表的 query key;id 统一成字符串,'123' 和 123 是同一个作品。 */
+export const commentsQueryKey = (contentId: string | number) => ['detail-comments', String(contentId)] as const;
+
 export function DetailComments({ contentId, initialCount = 0, compact = false, commentCount, onTotalChange }: DetailCommentsProps) {
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [total, setTotal] = useState(initialCount);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  // 自动翻页失败后停下,等用户点「重试」,免得哨兵还在可视区就无限重试
-  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
-  const [threads, setThreads] = useState<Record<string, Thread>>({});
+  const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [threads, setThreads] = useState<Record<string, Thread>>({});
   const [commentText, setCommentText] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
@@ -179,6 +178,46 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
     setSnack({ open: true, message, severity });
   }, []);
 
+  // 页面底部模式直接加载;紧凑模式在打开弹窗时才加载。
+  // key 带作品 id:?id= 变了组件不卸载时,上一个作品的慢响应只会落进它自己的缓存,
+  // 不会覆盖新列表,翻页也不会把旧作品的第 2 页拼进来(原先靠手写的请求代次兜)。
+  const queryKey = commentsQueryKey(contentId);
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: async ({ pageParam }): Promise<CommentPage> =>
+      unwrapPage<CommentItem>(await getComments(contentId, { page: pageParam, page_size: PAGE_SIZE })),
+    initialPageParam: 1,
+    getNextPageParam: (last, _all, lastParam) => (last.hasMore ? lastParam + 1 : undefined),
+    enabled: !compact || dialogOpen,
+    staleTime: 30_000,
+  });
+  const { data, isLoading, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = query;
+
+  const comments = useMemo(() => {
+    const seen = new Set<string>();
+    const out: CommentItem[] = [];
+    for (const pg of data?.pages ?? []) {
+      for (const c of pg.list) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        out.push(c);
+      }
+    }
+    return out;
+  }, [data]);
+  const loaded = !!data;
+  // 详情数据晚于组件挂载到达;评论列表加载后以列表接口的总数为准。
+  const total = data ? data.pages[0]?.total ?? 0 : initialCount;
+
+  // 首屏加载失败 / 翻页失败都弹一条提示(翻页失败后哨兵停下,等用户点「重试」)
+  // (渲染期按 errorUpdatedAt 对账,每次失败只提示一次)
+  const errorAt = query.errorUpdatedAt;
+  const [shownErrorAt, setShownErrorAt] = useState(errorAt);
+  if (errorAt !== shownErrorAt) {
+    setShownErrorAt(errorAt);
+    if (query.error) setSnack({ open: true, message: formatApiError(query.error), severity: 'error' });
+  }
+
   // 只在列表真正加载过之后回报,免得把外层传进来的 initialCount 原样回传
   const onTotalChangeRef = useRef(onTotalChange);
   useEffect(() => {
@@ -188,80 +227,39 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
     if (loaded) onTotalChangeRef.current?.(total);
   }, [loaded, total]);
 
-  // 详情数据晚于组件挂载到达;评论列表加载后以列表接口的总数为准。
-  useEffect(() => {
-    if (!loaded) setTotal(initialCount);
-  }, [initialCount, loaded]);
+  // 换作品时楼中楼展开状态清空(渲染期对账,不多渲染一轮旧作品的楼中楼)
+  const [threadsFor, setThreadsFor] = useState(contentId);
+  if (threadsFor !== contentId) {
+    setThreadsFor(contentId);
+    setThreads({});
+  }
 
-  const loadPage = useCallback(
-    async (p: number) => unwrapPage<CommentItem>(await getComments(contentId, { page: p, page_size: PAGE_SIZE })),
-    [contentId],
+  /** 改缓存里某一条一级评论 */
+  const patchComment = useCallback(
+    (id: string, fn: (c: CommentItem) => CommentItem) => {
+      qc.setQueryData<CommentPages>(commentsQueryKey(contentId), (d) =>
+        d && { ...d, pages: d.pages.map((pg) => ({ ...pg, list: pg.list.map((c) => (c.id === id ? fn(c) : c)) })) },
+      );
+    },
+    [qc, contentId],
   );
 
-  // 请求代次:?id= 变了组件不卸载,上一个作品的慢响应后到会覆盖新列表,
-  // loadMore 也会把旧作品的第 2 页拼进来。每次换作品 / 重载 +1,回来的响应代次不对就丢掉。
-  const genRef = useRef(0);
-  useEffect(() => {
-    genRef.current += 1;
-    setComments([]);
-    setThreads({});
-    setPage(1);
-    setHasMore(false);
-    setLoaded(false);
-    setLoading(false);
-    setLoadingMore(false);
-  }, [contentId]);
+  /** 回到第一页重新拉(发评论 / 打开弹窗后):只留第一页再失效,不把已翻过的 N 页全部重拉一遍。 */
+  const reloadFirstPage = useCallback(async () => {
+    const key = commentsQueryKey(contentId);
+    qc.setQueryData<CommentPages>(key, (d) => d && { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) });
+    await qc.invalidateQueries({ queryKey: key });
+  }, [qc, contentId]);
 
-  const reload = useCallback(async () => {
-    const gen = ++genRef.current;
-    setLoading(true);
-    try {
-      const res = await loadPage(1);
-      if (gen !== genRef.current) return;
-      setComments(res.list);
-      setTotal(res.total);
-      setHasMore(res.hasMore);
-      setPage(1);
-      setLoaded(true);
-    } catch (err) {
-      if (gen === genRef.current) notify(formatApiError(err), 'error');
-    } finally {
-      if (gen === genRef.current) setLoading(false);
-    }
-  }, [loadPage, notify]);
-
-  // 页面底部模式直接加载;紧凑模式在打开弹窗时加载。
-  useEffect(() => {
-    if (!compact) void reload();
-  }, [compact, reload]);
-
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
-    const gen = genRef.current;
-    setLoadingMore(true);
-    setLoadMoreFailed(false);
-    try {
-      const res = await loadPage(page + 1);
-      if (gen !== genRef.current) return;
-      setComments((prev) => {
-        const seen = new Set(prev.map((c) => c.id));
-        return [...prev, ...res.list.filter((c) => !seen.has(c.id))];
-      });
-      setHasMore(res.hasMore);
-      setPage((p) => p + 1);
-    } catch (err) {
-      if (gen === genRef.current) {
-        notify(formatApiError(err), 'error');
-        setLoadMoreFailed(true);
-      }
-    } finally {
-      setLoadingMore(false);
-    }
+  const loadMore = () => {
+    if (isFetchingNextPage || !hasNextPage) return;
+    void fetchNextPage();
   };
 
   const handleOpenDialog = () => {
     setDialogOpen(true);
-    void reload();
+    // 首次打开由 enabled 翻转触发加载;再次打开时刷新一下
+    if (loaded) void reloadFirstPage();
   };
 
   const handleSendComment = async () => {
@@ -272,7 +270,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       await sendComment({ contentId, content: text });
       setCommentText('');
       notify('评论已发送');
-      await reload();
+      await reloadFirstPage();
     } catch (err) {
       notify(formatApiError(err), 'error');
     } finally {
@@ -286,15 +284,13 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       try {
         const replies = await fetchReplies(rootId);
         setThreads((t) => ({ ...t, [rootId]: { open: true, loading: false, loaded: true, replies } }));
-        setComments((prev) =>
-          prev.map((c) => (c.id === rootId && replies.length > (c.replyCount ?? 0) ? { ...c, replyCount: replies.length } : c)),
-        );
+        patchComment(rootId, (c) => (replies.length > (c.replyCount ?? 0) ? { ...c, replyCount: replies.length } : c));
       } catch (err) {
         setThreads((t) => ({ ...t, [rootId]: { ...(t[rootId] ?? emptyThread), loading: false } }));
         notify(formatApiError(err), 'error');
       }
     },
-    [notify],
+    [notify, patchComment],
   );
 
   const toggleThread = (rootId: string) => {
@@ -322,7 +318,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       await sendComment({ contentId, content: mention ? `回复 @${name}：${text}` : text, replyId: rootId });
       setReplyText('');
       setReplyTarget(null);
-      setComments((prev) => prev.map((c) => (c.id === rootId ? { ...c, replyCount: (c.replyCount ?? 0) + 1 } : c)));
+      patchComment(rootId, (c) => ({ ...c, replyCount: (c.replyCount ?? 0) + 1 }));
       notify('回复已发送');
       await loadThread(rootId);
     } catch (err) {
@@ -345,11 +341,14 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
           return { ...t, [rootId]: { ...th, replies: th.replies.map((r) => (r.id === id ? fn(r) : r)) } };
         });
       } else {
-        setComments((prev) => prev.map((c) => (c.id === id ? { ...c, ...fn(c) } : c)));
+        // 整条替换,不要 {...c, ...fn(c)}:回滚时快照里没有 liked 键(后端没给)的话,
+        // 合并会留下乐观写入的 liked:true,数字回去了图标却还亮着
+        patchComment(id, (c) => ({ ...fn(c), replyCount: c.replyCount }) as CommentItem);
       }
     };
+    if (!rootId) before = comments.find((c) => c.id === id);
     patch((c) => {
-      before = c;
+      if (rootId) before = c;
       return toggled(c, action);
     });
     try {
@@ -374,7 +373,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const list = (
     <CommentList
       comments={comments}
-      loading={loading && !loaded}
+      loading={isLoading}
       threads={threads}
       busy={busy}
       replyTarget={replyTarget}
@@ -387,10 +386,10 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       onToggleThread={toggleThread}
       onAction={(id, action, rootId) => void handleAction(id, action, rootId)}
       onReplyEmoji={(e) => setPicker({ kind: 'emoji', anchor: e.currentTarget, target: 'reply' })}
-      hasMore={hasMore}
-      loadingMore={loadingMore}
-      loadMoreFailed={loadMoreFailed}
-      onLoadMore={() => void loadMore()}
+      hasMore={!!hasNextPage}
+      loadingMore={isFetchingNextPage}
+      loadMoreFailed={isFetchNextPageError}
+      onLoadMore={loadMore}
       emptyText={compact ? '暂无评论' : '暂无评论，快来抢沙发'}
     />
   );
