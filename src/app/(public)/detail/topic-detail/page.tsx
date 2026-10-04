@@ -28,6 +28,7 @@ import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } fro
 import ShareButtons from '@/components/share/ShareButtons';
 import { TopicLiveSection } from '@/components/community/TopicLive';
 import { topicTrack } from '@/lib/topicTrack';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 import { useAuth, useAuthority } from '@/contexts/AuthContext';
 
 export default function TopicDetailPage() {
@@ -225,6 +226,7 @@ function TopicContents({ topicId }: { topicId: string | number }) {
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   const list: TopicContentItem[] = q.data?.pages.flatMap((p) => p.list) ?? [];
+  const sentinel = useAutoLoad(q.hasNextPage, q.isFetchingNextPage, q.fetchNextPage);
   if (q.isLoading) {
     return (
       <Box sx={gridSx}>
@@ -263,11 +265,12 @@ function TopicContents({ topicId }: { topicId: string | number }) {
           </Box>
         ))}
       </ListLayout>
-      {q.hasNextPage && (
-        <Box sx={{ textAlign: 'center', mt: 2 }}>
-          <Button size="small" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>加载更多</Button>
+      {q.isFetchingNextPage && (
+        <Box sx={{ ...gridSx, mt: 1.5 }}>
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={170} />)}
         </Box>
       )}
+      <Box ref={sentinel} sx={{ height: '1px' }} />
     </>
   );
 }

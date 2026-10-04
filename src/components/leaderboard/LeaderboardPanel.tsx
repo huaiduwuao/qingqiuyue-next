@@ -4,7 +4,7 @@ import React from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
@@ -401,11 +401,9 @@ export function LeaderboardPanel() {
                 ))}
               </Box>
             )}
-            {hasNextPage && (
-              <Box sx={{ textAlign: 'center', mt: 2 }}>
-                <Button variant="outlined" size="small" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                  {isFetchingNextPage ? '加载中…' : '加载更多'}
-                </Button>
+            {isFetchingNextPage && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <CircularProgress size={18} />
               </Box>
             )}
             {/* 滚动到底的哨兵:进入视口即由上面的 effect 触发 fetchNextPage */}

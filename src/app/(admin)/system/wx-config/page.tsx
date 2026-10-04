@@ -33,6 +33,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { wxClient } from '@/lib/api/client';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 
 interface WxConfig {
   id: number;
@@ -92,7 +93,7 @@ export default function WxConfigPage() {
     }, 300);
     return () => clearTimeout(t);
   }, [appIdInput]);
-  const { data: listData } = useQuery({
+  const { data: listData, isFetching: listFetching } = useQuery({
     queryKey: [...LIST_KEY, appIdFilter, typeFilter, statusFilter, limit],
     queryFn: () => wxClient<{ list?: WxConfig[]; total?: number }>('/wxConfig/list', {
       params: {
@@ -107,6 +108,8 @@ export default function WxConfigPage() {
   });
   const configs = listData?.list || [];
   const total = listData?.total || 0;
+  // 列表滚到底自动多拉一页(pageSize 递增),不放「加载更多」按钮
+  const sentinel = useAutoLoad(total > configs.length, listFetching, () => setLimit((n) => n + PAGE_SIZE));
   const [selected, setSelectedState] = useState<WxConfig | null>(null);
   const [formValues, setFormValues] = useState<Partial<WxConfig>>({});
   const [createOpen, setCreateOpen] = useState(false);
@@ -269,11 +272,7 @@ export default function WxConfigPage() {
                 </Box>
               );
             })}
-            {total > configs.length && (
-              <Button variant="text" size="small" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
-                加载更多({configs.length}/{total})
-              </Button>
-            )}
+            <Box ref={sentinel} sx={{ height: '1px', flexShrink: 0 }} />
           </Box>
         </Box>
 

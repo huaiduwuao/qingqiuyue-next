@@ -11,16 +11,43 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import RealmDemandList from './RealmDemandList';
 import RealizationList from './RealizationList';
 import { listRealizations, listRealmDemands, listTeams, centsAsDiamonds } from '@/apis/team';
 import type { EntityId } from '@/lib/id';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
+
+const PAGE_SIZE = 20;
+
+/** 三个页签共用的分页:滚到底自动拉下一页,没有「加载更多」。后端空页回 {"list": null},按空数组算。 */
+function usePagedList<T>(key: string, topicId: EntityId, fetchPage: (page: number) => Promise<{ list: T[] | null; total: number }>) {
+  const q = useInfiniteQuery({
+    queryKey: ['realm', key, topicId],
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => (all.length * PAGE_SIZE < last.total && (last.list?.length ?? 0) > 0 ? all.length + 1 : undefined),
+  });
+  const list = q.data?.pages.flatMap((p) => p.list ?? []) ?? [];
+  const sentinel = useAutoLoad(q.hasNextPage, q.isFetchingNextPage, q.fetchNextPage);
+  const tail = (
+    <>
+      {q.isFetchingNextPage && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 1.5 }}>
+          <CircularProgress size={20} />
+        </Box>
+      )}
+      <Box ref={sentinel} sx={{ height: '1px' }} />
+    </>
+  );
+  return { list, isLoading: q.isLoading, tail };
+}
 
 export type RealmCollabTab = 'demands' | 'realizations' | 'teams';
 
@@ -31,7 +58,7 @@ export default function RealmCollab({ topicId, tab }: { topicId: EntityId; tab: 
 }
 
 function Demands({ topicId }: { topicId: EntityId }) {
-  const q = useQuery({ queryKey: ['realm', 'demands', topicId], queryFn: () => listRealmDemands({ topicId, status: 'all', pageSize: 30 }) });
+  const q = usePagedList('demands', topicId, (page) => listRealmDemands({ topicId, status: 'all', page, pageSize: PAGE_SIZE }));
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -42,19 +69,25 @@ function Demands({ topicId }: { topicId: EntityId }) {
           提一个需求
         </Button>
       </Box>
-      <RealmDemandList items={q.data?.list || []} empty={q.isLoading ? '加载中…' : '这个意境里还没有需求,来提第一个'} />
+      <RealmDemandList items={q.list} empty={q.isLoading ? '加载中…' : '这个意境里还没有需求,来提第一个'} />
+      {q.tail}
     </Box>
   );
 }
 
 function Realizations({ topicId }: { topicId: EntityId }) {
-  const q = useQuery({ queryKey: ['realm', 'realizations', topicId], queryFn: () => listRealizations({ topicId, pageSize: 30 }) });
-  return <RealizationList items={q.data?.list || []} empty={q.isLoading ? '加载中…' : '这个意境里的需求还没有验收通过的交付'} />;
+  const q = usePagedList('realizations', topicId, (page) => listRealizations({ topicId, page, pageSize: PAGE_SIZE }));
+  return (
+    <>
+      <RealizationList items={q.list} empty={q.isLoading ? '加载中…' : '这个意境里的需求还没有验收通过的交付'} />
+      {q.tail}
+    </>
+  );
 }
 
 function Teams({ topicId }: { topicId: EntityId }) {
-  const q = useQuery({ queryKey: ['realm', 'teams', topicId], queryFn: () => listTeams({ topicId, pageSize: 30 }) });
-  const list = q.data?.list || [];
+  const q = usePagedList('teams', topicId, (page) => listTeams({ topicId, page, pageSize: PAGE_SIZE }));
+  const list = q.list;
   if (list.length === 0) {
     return (
       <Box sx={{ py: 3, textAlign: 'center' }}>
@@ -68,6 +101,7 @@ function Teams({ topicId }: { topicId: EntityId }) {
     );
   }
   return (
+    <>
     <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
       {list.map((t) => (
         <Box
@@ -103,5 +137,7 @@ function Teams({ topicId }: { topicId: EntityId }) {
         </Box>
       ))}
     </Box>
+    {q.tail}
+    </>
   );
 }

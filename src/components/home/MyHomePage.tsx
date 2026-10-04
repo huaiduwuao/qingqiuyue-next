@@ -1238,15 +1238,9 @@ function MyHomePageAuthed() {
         {!listQuery.isLoading && loadedList.length > 0 && (
           <>
             <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
-            {listQuery.isFetchingNextPage ? (
+            {listQuery.isFetchingNextPage || listQuery.hasNextPage ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={18} />
-              </Box>
-            ) : listQuery.hasNextPage ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <Button size="small" variant="text" onClick={() => listQuery.fetchNextPage()}>
-                  加载更多
-                </Button>
+                {listQuery.isFetchingNextPage && <CircularProgress size={18} />}
               </Box>
             ) : (
               <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>

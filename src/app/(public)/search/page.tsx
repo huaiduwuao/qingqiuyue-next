@@ -44,6 +44,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -442,7 +443,7 @@ function SearchPageContent() {
   const q = query.trim();
   const hasQuery = q.length > 0;
 
-  // 「加载更多」翻出来的后续页;换关键词/筛选(searchKey 变)就作废。
+  // 滚到底自动翻出来的后续页;换关键词/筛选(searchKey 变)就作废。
   const [more, setMore] = useState<{ key: string; items: SearchContentItem[]; page: number; hasMore: boolean }>({
     key: '',
     items: [],
@@ -450,6 +451,8 @@ function SearchPageContent() {
     hasMore: false,
   });
   const [loadingMore, setLoadingMore] = useState(false);
+  // 自动翻页失败时记下是哪次搜索,停下等用户点重试,免得哨兵还在可视区就无限重试
+  const [moreFailedKey, setMoreFailedKey] = useState<string | null>(null);
   const firstPage = searchQuery.data?.items ?? [];
   const extra = more.key === searchKey ? more.items : [];
   const contents = extra.length
@@ -462,6 +465,7 @@ function SearchPageContent() {
     if (loadingMore) return;
     const page = (more.key === searchKey ? more.page : 1) + 1;
     setLoadingMore(true);
+    setMoreFailedKey(null);
     try {
       const res = (await searchContent(query.trim(), {
         page,
@@ -480,11 +484,14 @@ function SearchPageContent() {
         hasMore: Boolean(res?.hasMore),
       }));
     } catch {
+      setMoreFailedKey(searchKey);
       setSnack({ open: true, message: '加载更多失败，请稍后再试', severity: 'error' });
     } finally {
       setLoadingMore(false);
     }
   };
+  const moreFailed = moreFailedKey === searchKey;
+  const contentSentinel = useAutoLoad(tab === 'content' && contentHasMore && !moreFailed, loadingMore, () => void loadMoreContents());
   const discover = searchQuery.data?.discover ?? null;
   // 类型猜测:仅在用户没手动选分类时展示(选了就不必提示)。
   const guess = searchQuery.data?.guess ?? null;
@@ -940,17 +947,13 @@ function SearchPageContent() {
                         />
                       ))}
                     {tab === 'content' && contentHasMore && (
-                      <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={loadingMore}
-                          onClick={() => void loadMoreContents()}
-                          startIcon={loadingMore ? <CircularProgress size={14} /> : undefined}
-                          sx={{ borderRadius: 999, px: 3 }}
-                        >
-                          {loadingMore ? '加载中…' : `加载更多（已显示 ${contents.length} / ${contentTotal}）`}
-                        </Button>
+                      <Box ref={contentSentinel} sx={{ display: 'flex', justifyContent: 'center', pt: 1, minHeight: 24 }}>
+                        {loadingMore && <CircularProgress size={18} />}
+                        {moreFailed && !loadingMore && (
+                          <Button size="small" onClick={() => void loadMoreContents()} sx={{ color: 'text.secondary' }}>
+                            加载失败,点此重试
+                          </Button>
+                        )}
                       </Box>
                     )}
                   </Section>
