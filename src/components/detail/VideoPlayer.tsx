@@ -97,6 +97,11 @@ export interface VideoPlayerHandle {
 
 /** 同一段播放里,直链失效后最多自动重新解析几次(防止解析出来的地址本身就坏,来回打转) */
 const MAX_RECOVER_ATTEMPTS = 2;
+/**
+ * 片源本身是好的(后端从机房能直连),只是看的人这边到不了。采集站 CDN(非凡 / 暴风等)
+ * 对海外 IP、走海外代理的访问一律 403/404 —— 这不是内容故障,不进举报队列。
+ */
+const NETWORK_BLOCKED_NOTICE = '片源只对中国大陆网络开放，当前网络（海外 IP 或代理）被拒绝，关掉代理或换个网络再试';
 /** 恢复后正常播放超过这么久,重置重试计数(长视频两小时后签名再次过期时还能再救) */
 const RECOVER_RESET_MS = 30_000;
 /** 签名到期前多久主动换一条新直链 */
@@ -323,6 +328,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const [bandwidthLimited, setBandwidthLimited] = useState<string | null>(null);
   /** 直连判定是异步的;切换内容/清晰度后忽略上一条的结论 */
   const accessSeq = useRef(0);
+  /** 最近一次真正喂给 <video>/hls.js 的地址,换链也救不回来时拿它去问后端 */
+  const loadedUrlRef = useRef('');
 
   // 直链失效恢复:重新解析后从断点、按原播放状态接着播
   const reparseUrl = sourceUrl || refreshSource || '';
@@ -341,18 +348,37 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   };
 
   /**
+   * 片源(清单 / 分片 / 直链)换链后还是拉不下来:先让后端从机房再测一次同一个地址。
+   * 后端能直连 → 是当前网络到不了片源(见 NETWORK_BLOCKED_NOTICE),只提示、不上报;
+   * 后端也拿不到、或探测接口不可用,才按片源失效上报。
+   */
+  const failLoad = (msg: string) => {
+    const url = loadedUrlRef.current;
+    if (!url || !isExternalStreamUrl(url)) {
+      fail(msg);
+      return;
+    }
+    const seq = accessSeq.current;
+    checkStreamAccess(url, { refresh: true }).then((res) => {
+      if (seq !== accessSeq.current || !videoRef.current) return;
+      if (res.answered && res.direct) setStreamError(NETWORK_BLOCKED_NOTICE);
+      else fail(msg);
+    });
+  };
+
+  /**
    * 直链失效(签名过期、源站 403、分片加载失败)时带 refresh=1 重新解析,换上新地址
    * 并从断点继续。以前这里直接显示「视频地址已失效」—— 缓存里的签名直链过期后,
    * 同一条内容在缓存失效前谁点都放不了。proactive = 签名到期前主动换链,不计入重试次数。
    */
   const recover = (reason: string, proactive = false) => {
     if (!reparseUrl || refreshingRef.current) {
-      if (!proactive && !refreshingRef.current) fail(reason);
+      if (!proactive && !refreshingRef.current) failLoad(reason);
       return;
     }
     if (!proactive) {
       if (recoverAttempts.current >= MAX_RECOVER_ATTEMPTS) {
-        fail(reason);
+        failLoad(reason);
         return;
       }
       recoverAttempts.current += 1;
@@ -374,11 +400,11 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           setCurrentStream((i) => (i < list.length ? i : 0));
           setStreams(list); // 新数组 → 下面的 streams effect 重新 playStream
         } else if (!proactive) {
-          fail(data?.msg || reason);
+          failLoad(data?.msg || reason);
         }
       })
       .catch(() => {
-        if (!proactive) fail(reason);
+        if (!proactive) failLoad(reason);
       })
       .finally(() => {
         refreshingRef.current = false;
@@ -494,6 +520,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const seq = ++loadSeqRef.current;
     // 原地址直接播:视频不经本站带宽,不再包成 /api/proxy?url=(见 playStream)。
     const playUrl = url;
+    loadedUrlRef.current = url;
     // 换链恢复时按原播放状态继续,否则按 autoPlay
     const shouldPlay = resumeAt.current > 0 ? resumePlaying.current : autoPlay;
 
@@ -549,7 +576,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               url: data.context?.url,
             });
             const msg = data.details === 'manifestLoadError'
-              ? '清单加载失败（代理可能被防火墙拦截）'
+              ? '片源清单拉取失败'
               : data.details === 'manifestParsingError'
               ? '清单解析失败'
               : data.details === 'levelLoadError'
@@ -1261,7 +1288,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
               <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
               <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
-              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError} · 已记录,尽快修复</Box>
+              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError === NETWORK_BLOCKED_NOTICE ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
               {originButton}
               {streams.length > 0 && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -1369,7 +1396,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         >
           <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main' }} />
           <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
-          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError} · 已记录,尽快修复</Box>
+          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError === NETWORK_BLOCKED_NOTICE ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
           {originButton}
         </Box>
       )}

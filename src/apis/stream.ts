@@ -212,21 +212,24 @@ export interface StreamAccess {
   direct: boolean;
   verdict: StreamAccessVerdict;
   notice?: string;
+  /** 后端真的答复了(false = 探测接口不可用,下面那个"按能直连处理"的兜底) */
+  answered: boolean;
 }
 
 /** 面向用户的带宽提示;后端 notice 缺失时的兜底文案,与 streamaccess.BandwidthNotice 一致。 */
 export const BANDWIDTH_NOTICE = '因带宽成本，该视频暂不支持站内播放，可前往原站观看';
 
-export async function checkStreamAccess(url: string): Promise<StreamAccess> {
+export async function checkStreamAccess(url: string, opts: { refresh?: boolean } = {}): Promise<StreamAccess> {
   try {
-    const resp = await fetch(`${BACKEND}/api/proxy/check?url=${encodeURIComponent(url)}`, {
+    const refresh = opts.refresh ? '&refresh=1' : '';
+    const resp = await fetch(`${BACKEND}/api/proxy/check?url=${encodeURIComponent(url)}${refresh}`, {
       signal: AbortSignal.timeout(8000),
     });
     if (resp.ok) {
       const data = await resp.json();
       const a = data?.data;
       if (a && typeof a.direct === 'boolean') {
-        return { direct: a.direct, verdict: a.verdict || (a.direct ? 'direct' : 'unreachable'), notice: a.notice || undefined };
+        return { direct: a.direct, verdict: a.verdict || (a.direct ? 'direct' : 'unreachable'), notice: a.notice || undefined, answered: true };
       }
     }
   } catch (e) {
@@ -234,7 +237,7 @@ export async function checkStreamAccess(url: string): Promise<StreamAccess> {
   }
   // 探测接口本身不可用(老后端 / 网络抖动)时不拦着用户:按能直连处理,
   // 真播不了会走播放器原有的出错路径。
-  return { direct: true, verdict: 'direct' };
+  return { direct: true, verdict: 'direct', answered: false };
 }
 
 export async function parseStream(url: string, opts: { refresh?: boolean } = {}) {
