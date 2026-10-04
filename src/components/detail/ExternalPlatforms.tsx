@@ -21,6 +21,8 @@ export interface ExternalPlatform {
   name?: string;
   url: string;
   vip?: boolean;
+  /** 平台明确标了免费(爱奇艺免费片单等);vip=false 只是没标会员,不等于免费 */
+  free?: boolean;
 }
 
 interface WithPlatforms {
@@ -112,6 +114,14 @@ export function PlatformLinks({
                 会员/付费
               </Box>
             )}
+            {!p.vip && p.free && (
+              <Box
+                component="span"
+                sx={{ ml: 0.75, px: 0.5, borderRadius: 0.5, fontSize: 10, lineHeight: '16px', bgcolor: 'success.main', color: '#fff' }}
+              >
+                免费
+              </Box>
+            )}
           </Button>
         ))}
       </Box>
@@ -179,7 +189,7 @@ export function UnavailablePlayer({
               endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
               sx={{ textTransform: 'none', borderRadius: 2 }}
             >
-              去{p.name || hostOf(p.url)}观看
+              去{p.name || hostOf(p.url)}{!p.vip && p.free ? '免费' : ''}观看
             </Button>
           ))}
         </Box>
