@@ -22,7 +22,7 @@ import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import { CTA_GRADIENT, gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { CoverImage } from '@/components/common/CoverImage';
+import { QrCodeImage } from '@/components/common/QrCodeImage';
 import { isAuthError, formatApiError, accountClient } from '@/lib/api/client';
 import {
   createOrder,
@@ -305,9 +305,10 @@ export default function VipPage() {
               <Box sx={{ pt: 1, textAlign: 'center' }}>
                 {payment.codeUrl ? (
                   <>
-                    <CoverImage
+                    <QrCodeImage
                       alt="支付二维码"
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(payment.codeUrl)}`}
+                      value={payment.codeUrl}
+                      size={220}
                       sx={{ width: 220, height: 220, borderRadius: 1, bgcolor: '#fff', p: 1 }}
                     />
                     <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>

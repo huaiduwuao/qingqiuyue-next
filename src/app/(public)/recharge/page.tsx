@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Aurora from '@/components/reactbits/Aurora';
-import { CoverImage } from '@/components/common/CoverImage';
+import { QrCodeImage } from '@/components/common/QrCodeImage';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -268,7 +268,7 @@ function RechargePageContent() {
   //
   // 这里原来有三层假货,全部删掉了:
   //   1. 下单打的是 /wallet/recharge —— 一个没有任何验签的自助充值端点(已从后端删除)。
-  //   2. 二维码是拿订单 JSON 去 api.qrserver.com 现画的图片。它长得像收款码,
+  //   2. 二维码是拿订单 JSON 去第三方二维码服务现画的图片。它长得像收款码,
   //      但任何支付 App 扫出来都只是一段 JSON,永远付不了款。
   //   3. 网络失败时伪造一个本地订单号继续弹出二维码,提示「已切换到本地二维码演示」。
   //
@@ -1211,8 +1211,9 @@ function RechargePageContent() {
                 }
                 return (
                   <Box sx={{ textAlign: 'center' }}>
-                    <CoverImage
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(codeUrl)}`}
+                    <QrCodeImage
+                      value={codeUrl}
+                      size={220}
                       alt="支付二维码"
                       sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
                     />

@@ -5,6 +5,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQrDataUrl } from '@/components/common/QrCodeImage';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -1989,7 +1990,8 @@ function QrCodeDialog({
   const avatarSrc = user?.avatar || currentUser?.avatar;
   // 主页路由是 /u?id=<uid>(静态导出没有动态段);二维码里编 uid 而不是抖音号
   const profileUrl = `https://qingqiuyue.com/u?id=${encodeURIComponent(String(user?.id || currentUser?.id || douyinId))}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(profileUrl)}`;
+  // 本地生成(不再把主页链接发给第三方 api.qrserver.com,大陆也常加载失败)
+  const qrSrc = useQrDataUrl(profileUrl, 240, 2);
   const [refreshing, setRefreshing] = useState(false);
   const [qrKey, setQrKey] = useState(0);
 
@@ -2000,17 +2002,15 @@ function QrCodeDialog({
   };
 
   const handleSave = async () => {
+    if (!qrSrc) return;
     try {
-      const res = await fetch(qrSrc);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      // qrSrc 已是本地 data URL,直接作为下载链接,无需再 fetch(CSP connect-src 不含 data:)
       const a = document.createElement('a');
-      a.href = url;
+      a.href = qrSrc;
       a.download = `清秋月-${nickname}-${douyinId}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
       onMessage('已保存到下载文件夹');
     } catch {
       onMessage('保存失败,请长按二维码图片保存');
@@ -2103,7 +2103,7 @@ function QrCodeDialog({
             <Box
               component="img"
               key={qrKey}
-              src={qrSrc}
+              src={qrSrc ?? undefined}
               alt={`${nickname} 的二维码`}
               sx={{ display: 'block', width: 220, height: 220, opacity: refreshing ? 0.3 : 1, transition: 'opacity 0.3s' }}
             />
