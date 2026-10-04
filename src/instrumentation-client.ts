@@ -4,9 +4,8 @@
 // 不用 withSentryConfig 包装 next.config.ts —— 本项目是 output:'export' 静态导出,
 // 走 webpack 插件会引入构建期依赖和 sourcemap 上传逻辑,而这里只需要运行时错误捕获。
 //
-// DSN 缺失时静默跳过,Sentry 完全不影响产品(空字符串会 disable SDK)。
-
-import * as Sentry from '@sentry/nextjs'
+// DSN 缺失时静默跳过,Sentry 完全不影响产品。
+// SDK 按需 import():没配 DSN 的构建(目前生产就是)不再把整个 Sentry SDK 打进首屏包。
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? ''
 
@@ -20,7 +19,7 @@ function scrubUrl<T>(v: T): T {
 }
 
 if (dsn) {
-  Sentry.init({
+  void import('@sentry/nextjs').then((Sentry) => Sentry.init({
     dsn,
     environment: process.env.NEXT_PUBLIC_SENTRY_ENV ?? process.env.NODE_ENV ?? 'development',
     // 10% 性能追踪(避免打爆配额)
@@ -56,5 +55,5 @@ if (dsn) {
       if (crumb.message) crumb.message = scrubUrl(crumb.message)
       return crumb
     },
-  })
+  }))
 }

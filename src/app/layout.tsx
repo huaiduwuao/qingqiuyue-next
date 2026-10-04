@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { DeferredFonts } from '@/components/common/DeferredFonts';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://qingqiuyue.com';
 
@@ -48,12 +49,9 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Long+Cang&family=ZCOOL+XiaoWei&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body suppressHydrationWarning>
+        <DeferredFonts />
         <ErrorBoundary>
           <Providers>{children}</Providers>
         </ErrorBoundary>

@@ -3,7 +3,6 @@
  * 提供统一的错误日志和错误处理函数
  */
 
-import * as Sentry from '@sentry/nextjs'
 import { API_PREFIX } from '@/lib/api/prefix'
 
 // 开发环境是否开启详细日志
@@ -12,7 +11,8 @@ const ENABLE_ERROR_LOG = process.env.NODE_ENV === 'development'
 // §15.5 前端监控:Sentry(有 DSN 时)+ 自建 /behavior 上报(兜底)。
 //
 // Sentry 的 init 在 instrumentation-client.ts 里;这里只负责 capture。
-// 没配 DSN 时 Sentry 是 no-op,仍然走 /behavior 上报,监控不丢。
+// 没配 DSN 时不加载 Sentry,仍然走 /behavior 上报,监控不丢。
+// SDK 按需 import(),没配 DSN 的构建不打包它。
 const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN ?? ''
 
 // 采样:每分钟最多 10 条 /behavior 上报,避免报错风暴打爆后端。
@@ -37,17 +37,19 @@ export function reportClientError(context: string, error: unknown, extra?: Recor
 
   // 1) Sentry
   if (SENTRY_DSN) {
-    try {
-      Sentry.withScope((scope) => {
-        scope.setTag('context', context)
-        if (extra) {
-          scope.setExtras(extra)
-        }
-        Sentry.captureException(error)
+    void import('@sentry/nextjs')
+      .then((Sentry) => {
+        Sentry.withScope((scope) => {
+          scope.setTag('context', context)
+          if (extra) {
+            scope.setExtras(extra)
+          }
+          Sentry.captureException(error)
+        })
       })
-    } catch {
-      /* Sentry 上报失败不影响业务 */
-    }
+      .catch(() => {
+        /* Sentry 上报失败不影响业务 */
+      })
   }
 
   // 2) 自建 /behavior 兜底(限流)
