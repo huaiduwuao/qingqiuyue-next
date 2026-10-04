@@ -290,6 +290,14 @@ html[data-touch] body {
   }
 }
 
+/* ==================== 手机浏览器:弹层背后的视频 ====================
+   小米等安卓浏览器会把 <video> 接管成原生播放层,画在所有网页元素之上,z-index 管不住:
+   推荐页的沉浸视频因此盖住侧边栏 / 对话框。弹层(挂在 body 下的 Drawer / Dialog)打开期间
+   把弹层之外的视频藏起来,关上即恢复;弹层里自己的视频不受影响。 */
+html[data-touch] body:has(> :is(.MuiDrawer-root, .MuiDialog-root):not(.MuiModal-hidden)) > :not(.MuiModal-root) video {
+  visibility: hidden;
+}
+
 /* ==================== 页面转场(网页 + 客户端) ====================
    components/client/NativeTransitions 在导航时打上 html[data-vt=forward|back] 并调 View Transitions API
    (小说详情 ⇄ 阅读器这类同页换屏走 lib/navTransition 的 stateTransition,同一套样式)。
