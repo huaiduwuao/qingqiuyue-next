@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { reportPlay } from '@/lib/playReport';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
@@ -190,6 +190,89 @@ function seekBarSx(thick: boolean) {
   } as const;
 }
 
+/** 推荐流贴底进度条:桌面上再粗一点(模块级常量,memo 的进度条不因 sx 新对象重渲染) */
+const FILL_SEEK_SX = {
+  ...seekBarSx(true),
+  '@media (min-width: 900px)': {
+    height: 6,
+    '&:hover, &:has(.Mui-active)': { height: 10 },
+    '& .MuiSlider-thumb': { width: 14, height: 14 },
+  },
+};
+const BAR_SEEK_SX = seekBarSx(false);
+
+/**
+ * 播放进度的小订阅源。timeupdate 每秒 ~4 次,以前每次 setCurrentTime 都让整个播放器(连同
+ * 几百行控制条 JSX)重渲染;现在只有订阅它的进度条 / 时间文字两个小组件跟着刷新。
+ * 播放器本身的逻辑(断点续播、快进快退、小窗交接)都直接读 <video>.currentTime,不依赖这里。
+ */
+type TimeStore = { get: () => number; set: (t: number) => void; subscribe: (fn: () => void) => () => void };
+function createTimeStore(): TimeStore {
+  let t = 0;
+  const subs = new Set<() => void>();
+  return {
+    get: () => t,
+    set: (n) => {
+      if (n === t) return;
+      t = n;
+      subs.forEach((f) => f());
+    },
+    subscribe: (fn) => {
+      subs.add(fn);
+      return () => {
+        subs.delete(fn);
+      };
+    },
+  };
+}
+
+type ScrubHandler = (e: Event, v: number | number[]) => void;
+type ScrubEndHandler = (e: unknown, v: number | number[]) => void;
+
+/** 进度条:自己订阅播放进度;拖动中(scrub 非 null)显示拖动位置,松手才 seek */
+const SeekSlider = memo(function SeekSlider({
+  time,
+  scrub,
+  duration,
+  onScrub,
+  onScrubEnd,
+  sx,
+  valueLabel = false,
+}: {
+  time: TimeStore;
+  scrub: number | null;
+  duration: number;
+  onScrub: ScrubHandler;
+  onScrubEnd: ScrubEndHandler;
+  sx: object;
+  valueLabel?: boolean;
+}) {
+  const t = useSyncExternalStore(time.subscribe, time.get, time.get);
+  return (
+    <Slider
+      aria-label="播放进度"
+      value={scrub ?? t}
+      max={duration || 100}
+      onChange={onScrub}
+      onChangeCommitted={onScrubEnd}
+      valueLabelDisplay={valueLabel ? 'auto' : undefined}
+      valueLabelFormat={valueLabel ? fmt : undefined}
+      sx={sx}
+    />
+  );
+});
+
+/** 「当前 / 总时长」文字:只订阅到整秒,一秒最多刷新一次 */
+const PlayTime = memo(function PlayTime({ time, scrub, duration }: { time: TimeStore; scrub: number | null; duration: number }) {
+  const getSec = useCallback(() => Math.floor(time.get()), [time]);
+  const sec = useSyncExternalStore(time.subscribe, getSec, getSec);
+  return (
+    <>
+      {fmt(scrub ?? sec)} / {fmt(duration)}
+    </>
+  );
+});
+
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
   { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh, onFirstFrame },
   ref,
@@ -211,7 +294,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const v = videoRef.current;
     if (v && v.videoWidth > 0 && v.videoHeight > 0) setVideoRatio(v.videoWidth / v.videoHeight);
   };
-  const [currentTime, setCurrentTime] = useState(0);
+  /** 播放进度不进 state(见 createTimeStore):进度条/时间文字自己订阅 */
+  const [timeStore] = useState(createTimeStore);
   const [duration, setDuration] = useState(initialDuration);
   const [volume, setVolume] = useState(readVolume);
   const volumeRef = useRef(volume);
@@ -614,7 +698,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
+    timeStore.set(videoRef.current.currentTime);
     if (recoverAttempts.current > 0 && Date.now() - lastRecoverAt.current > RECOVER_RESET_MS) {
       recoverAttempts.current = 0;
     }
@@ -633,18 +717,18 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     }
   };
 
-  const handleSeek = (_: any, v: number | number[]) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = v as number;
-      setCurrentTime(v as number);
-    }
-  };
-
-  const onScrub = (_: Event, v: number | number[]) => setScrub(v as number);
-  const onScrubEnd = (_: unknown, v: number | number[]) => {
-    handleSeek(null, v);
-    setScrub(null);
-  };
+  // 只用到 ref / 稳定的 setter / timeStore,做成稳定回调:memo 的进度条不会因为父组件重渲染跟着刷
+  const onScrub = useCallback<ScrubHandler>((_, v) => setScrub(v as number), []);
+  const onScrubEnd = useCallback<ScrubEndHandler>(
+    (_, v) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = v as number;
+        timeStore.set(v as number);
+      }
+      setScrub(null);
+    },
+    [timeStore],
+  );
 
   const handleVolume = (_: unknown, v: number | number[]) => {
     const n = v as number;
@@ -665,7 +749,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     // duration 状态在元数据到之前是 initialDuration 猜的值,以元素自己的为准
     const end = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration;
     v.currentTime = Math.max(0, Math.min(end, v.currentTime + delta));
-    setCurrentTime(v.currentTime);
+    timeStore.set(v.currentTime);
   };
 
   /**
@@ -901,7 +985,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       }
       setLoading(false);
       setPlaying(!v.paused);
-      setCurrentTime(v.currentTime);
+      timeStore.set(v.currentTime);
       if (isFinite(v.duration)) setDuration(v.duration);
       setPip(inPip(v));
       setMuted(v.muted);
@@ -963,7 +1047,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       reclaimedKey.current = '';
       restoredStreams.current = null;
     };
-  }, [owner, attach]);
+  }, [owner, attach, timeStore]);
 
   // 封面(以前是 JSX 上的 poster 属性)
   useEffect(() => {
@@ -1417,21 +1501,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               px: { xs: 1.5, md: 2 },
             }}
           >
-            <Slider
-              aria-label="播放进度"
-              value={scrub ?? currentTime}
-              max={duration || 100}
-              onChange={onScrub}
-              onChangeCommitted={onScrubEnd}
-              sx={{
-                ...seekBarSx(true),
-                '@media (min-width: 900px)': {
-                  height: 6,
-                  '&:hover, &:has(.Mui-active)': { height: 10 },
-                  '& .MuiSlider-thumb': { width: 14, height: 14 },
-                },
-              }}
-            />
+            <SeekSlider time={timeStore} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={FILL_SEEK_SX} />
           </Box>
         </>
       )}
@@ -1441,7 +1511,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           <PseudoFullscreen
             hostRef={fsHostCallback}
             playing={playing}
-            currentTime={scrub ?? currentTime}
+            time={timeStore}
+            scrub={scrub}
             duration={duration}
             muted={muted || volume === 0}
             onTogglePlay={togglePlay}
@@ -1471,16 +1542,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             transition: 'opacity 0.2s',
           }}
         >
-          <Slider
-            aria-label="播放进度"
-            value={scrub ?? currentTime}
-            max={duration || 100}
-            onChange={onScrub}
-            onChangeCommitted={onScrubEnd}
-            valueLabelDisplay="auto"
-            valueLabelFormat={fmt}
-            sx={seekBarSx(false)}
-          />
+          <SeekSlider time={timeStore} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={BAR_SEEK_SX} valueLabel />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: compact ? 0.25 : 1, color: '#fff' }}>
             <IconButton onClick={togglePlay} size="small" aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
               {playing ? <PauseIcon /> : <PlayArrowIcon />}
@@ -1496,7 +1558,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               </>
             )}
             <Box sx={{ fontSize: compact ? 11 : 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-              {fmt(scrub ?? currentTime)} / {fmt(duration)}
+              <PlayTime time={timeStore} scrub={scrub} duration={duration} />
             </Box>
             <Box sx={{ flex: 1 }} />
             <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
@@ -1534,7 +1596,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 function PseudoFullscreen({
   hostRef,
   playing,
-  currentTime,
+  time,
+  scrub,
   duration,
   muted,
   onTogglePlay,
@@ -1545,12 +1608,13 @@ function PseudoFullscreen({
 }: {
   hostRef: (node: HTMLDivElement | null) => void;
   playing: boolean;
-  currentTime: number;
+  time: TimeStore;
+  scrub: number | null;
   duration: number;
   muted: boolean;
   onTogglePlay: () => void;
-  onScrub: (e: Event, v: number | number[]) => void;
-  onScrubEnd: (e: unknown, v: number | number[]) => void;
+  onScrub: ScrubHandler;
+  onScrubEnd: ScrubEndHandler;
   onToggleMute: () => void;
   onExit: () => void;
 }) {
@@ -1596,13 +1660,13 @@ function PseudoFullscreen({
           transition: 'opacity 0.2s',
         }}
       >
-        <Slider aria-label="播放进度" value={currentTime} max={duration || 100} onChange={onScrub} onChangeCommitted={onScrubEnd} sx={seekBarSx(false)} />
+        <SeekSlider time={time} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={BAR_SEEK_SX} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton onClick={onTogglePlay} aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
             {playing ? <PauseIcon /> : <PlayArrowIcon />}
           </IconButton>
           <Box sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
-            {fmt(currentTime)} / {fmt(duration)}
+            <PlayTime time={time} scrub={scrub} duration={duration} />
           </Box>
           <Box sx={{ flex: 1 }} />
           <IconButton onClick={onToggleMute} aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
