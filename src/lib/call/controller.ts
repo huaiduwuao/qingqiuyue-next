@@ -77,6 +77,8 @@ let keepTimer: ReturnType<typeof setInterval> | null = null;
 let discTimer: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let facing: 'user' | 'environment' = 'user';
+/** 每次 teardown 加一:异步动作 await 回来时据此判断「还是不是同一通」 */
+let session = 0;
 
 /** 这个环境能不能打电话。不能时返回原因。 */
 export function callUnsupportedReason(media: CallMedia): string | null {
@@ -105,6 +107,10 @@ async function openDevices(media: CallMedia): Promise<MediaStream> {
   }
 }
 
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((t) => t.stop());
+}
+
 function clearTimers() {
   for (const t of [ringTimer, discTimer, closeTimer]) if (t) clearTimeout(t);
   if (keepTimer) clearInterval(keepTimer);
@@ -113,6 +119,7 @@ function clearTimers() {
 
 /** 收拾干净:关设备、关连接、回到 idle(延迟一会儿让人看到结束提示)。 */
 function teardown(note: string, delay = 1800) {
+  session++;
   stopRing();
   clearTimers();
   if (pc) {
@@ -199,12 +206,24 @@ export async function startCall(peer: CallPeerInfo, media: CallMedia): Promise<v
   if (realtime.getStatus() !== 'open') throw new Error('实时连接未就绪,稍后再试');
   facing = 'user';
   const stream = await openDevices(media);
+  // 等权限弹窗期间可能又点了一次呼叫 / 来了电话:这条流没人管就会让麦克风一直亮着
+  if (get().phase !== 'idle') {
+    stopStream(stream);
+    throw new Error('正在通话中');
+  }
   set({ ...initial, phase: 'outgoing', media, peer, localStream: stream, cameraOff: false });
+  const mine = session;
   let res;
   try {
     res = await inviteCall(peer.userId, media, deviceId());
   } catch (e) {
-    teardown(formatApiError(e) || '呼叫失败', 2200);
+    if (session === mine) teardown(formatApiError(e) || '呼叫失败', 2200);
+    return;
+  }
+  // 邀请还在路上时已经点了「取消」:hangup 那会儿没有 callId,没通知服务端,
+  // 这里补一个 cancel;也不能再起回铃(否则嘟声每 4 秒响一次,永远停不下来)
+  if (session !== mine) {
+    void endCall(res.callId, 'cancel').catch(() => {});
     return;
   }
   iceServers = res.iceServers || [];
@@ -234,7 +253,12 @@ export async function accept(): Promise<void> {
     stream = st2;
     iceServers = ice;
   } catch (e) {
-    void hangup('failed', (e as Error).message);
+    if (get().phase === 'connecting' && get().callId === st.callId) void hangup('failed', (e as Error).message);
+    return;
+  }
+  // 授权弹窗期间对方取消 / 自己挂断:通话已结束,刚拿到的设备立刻关掉,别再建连接
+  if (get().phase !== 'connecting' || get().callId !== st.callId) {
+    stopStream(stream);
     return;
   }
   set({ localStream: stream });
@@ -284,9 +308,16 @@ export function toggleCamera() {
 export async function flipCamera() {
   const st = get();
   if (st.media !== 'video' || !st.localStream) return;
+  const mine = session;
   facing = facing === 'user' ? 'environment' : 'user';
+  let fresh: MediaStream | null = null;
   try {
-    const fresh = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    fresh = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    // 切换途中挂断了:teardown 已经关过旧设备,新开的摄像头也得关,否则指示灯一直亮
+    if (session !== mine) {
+      stopStream(fresh);
+      return;
+    }
     const track = fresh.getVideoTracks()[0];
     const sender = pc?.getSenders().find((s) => s.track?.kind === 'video');
     await sender?.replaceTrack(track);
@@ -298,6 +329,7 @@ export async function flipCamera() {
     st.localStream.addTrack(track);
     set({ localStream: new MediaStream(st.localStream.getTracks()) });
   } catch {
+    if (fresh) stopStream(fresh);
     facing = facing === 'user' ? 'environment' : 'user';
   }
 }
