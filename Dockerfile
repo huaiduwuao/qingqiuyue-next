@@ -11,7 +11,8 @@ ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 ENV HUSKY=0
 # 跳过 workspace 检测
 ENV PNPM_CONFIG_IGNORE_WORKSPACE=true
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# 与 package.json 的 packageManager 保持一致(corepack 实际也按它选版本,这里写 9 只会白下一份)
+RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
 
 # 先复制 lockfile 和 package.json，只安装依赖（利用 Docker 缓存）
 COPY package.json pnpm-lock.yaml ./

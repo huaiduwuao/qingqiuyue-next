@@ -15,3 +15,11 @@ Dockerfile
 
 # 本包非 workspace,该文件会让 pnpm 误判并报 packages field missing
 pnpm-workspace.yaml
+
+# ONNX Runtime 运行时只留 1.18 真正会加载的两个(见 scripts/app-frontend-build.mjs 的 KEEP_WASM,
+# 客户端包早就这么裁了);jsep / jspi / asyncify 变体和 .mjs 是更新版 ORT 的文件名,
+# 1.18 永远不会请求,之前每个 web 镜像白带约 117 MB。
+public/ort-wasm/*.jsep.*
+public/ort-wasm/*.jspi.*
+public/ort-wasm/*.asyncify.*
+public/ort-wasm/*.mjs
