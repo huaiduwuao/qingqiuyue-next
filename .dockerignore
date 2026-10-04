@@ -15,3 +15,15 @@ Dockerfile
 
 # 本包非 workspace,该文件会让 pnpm 误判并报 packages field missing
 pnpm-workspace.yaml
+
+# 构建用不到、体积又大的东西:不排除时每次 `COPY . .` 都把它们打进构建上下文,
+# 而且任何一个变动都会让 `COPY . .` 之后的层(pnpm run build)缓存失效。
+.git
+out
+.codegraph
+src-tauri/target
+src-tauri/gen/android/.gradle
+src-tauri/gen/android/app/build
+src-tauri/gen/android/build
+test-results
+playwright-report
