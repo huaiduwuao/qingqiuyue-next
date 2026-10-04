@@ -191,7 +191,7 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
             borderRadius: 1,
             bgcolor: 'rgba(0,0,0,0.5)',
             backdropFilter: 'blur(4px)',
-            color: 'text.primary',
+            color: '#fff',
             fontSize: 10,
             fontFamily: 'monospace',
           }}
@@ -244,7 +244,7 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
           sx={{
             fontSize: 12,
             fontWeight: 500,
-            color: 'text.primary',
+            color: '#fff',
             lineHeight: 1.3,
             display: '-webkit-box',
             WebkitLineClamp: 2,

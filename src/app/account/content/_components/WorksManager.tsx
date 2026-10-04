@@ -509,7 +509,7 @@ export default function WorksManager() {
                   }}
                 >
                   <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
-                  <Box sx={{ position: 'absolute', top: 4, left: 4, color: '#fff', opacity: 0.9 }}>{tm.icon}</Box>
+                  <Box sx={{ position: 'absolute', top: 4, left: 4, color: '#fff', opacity: 0.9, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>{tm.icon}</Box>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25, flexWrap: 'wrap' }}>

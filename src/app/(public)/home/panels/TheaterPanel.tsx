@@ -202,7 +202,7 @@ export function TheaterPanel() {
           p: { xs: 2, md: 3 },
           borderRadius: 3,
           background: SECTION_TINT.RED_PURPLE,
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid var(--border-color)',
           overflow: 'hidden',
         }}
       >
@@ -424,7 +424,7 @@ function FilterRow({
                 color: active ? 'primary.main' : 'var(--text-secondary, rgba(255,255,255,0.65))',
                 bgcolor: active ? 'rgba(254,44,85,0.12)' : 'transparent',
                 border: '1px solid',
-                borderColor: active ? 'rgba(254,44,85,0.4)' : 'rgba(255,255,255,0.06)',
+                borderColor: active ? 'rgba(254,44,85,0.4)' : 'var(--border-color)',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
               }}
@@ -500,7 +500,7 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
   const badgeBg = isTop3
     ? medal!.badge
     : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
-  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const badgeColor = isTop3 ? medal!.txt : '#fff';
   const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
   const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
 
@@ -578,7 +578,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
             '.MuiBox-root:hover > &': { opacity: 1 },
           }}
         >
-          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
+          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: '#fff' }} />
         </Box>
         {/* 评分缺失时不画一个 "0.0" 的角标 —— 线上 708 部电影里 372 部没有评分,
             画成 0.0 会让它们看起来是"被打了零分"。 */}
@@ -592,7 +592,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
           {typeLabel(item.contentType)}
         </Box>
         {!!item.durationMin && (
-          <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
+          <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10 }}>
             {item.durationMin} 分钟
           </Box>
         )}

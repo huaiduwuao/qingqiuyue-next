@@ -63,6 +63,9 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
         paddingTop: 'calc(8px + var(--sat, 0px))',
         // transparent ↔ solid 切换淡入，避免硬切突兀
         transition: 'background-color .25s ease, backdrop-filter .25s ease, border-color .25s ease',
+        // transparent 时叠到下方彩色 Hero 上,而不是在页面底色上单独占一行 ——
+        // 否则浅色模式下就是白箭头配白底,根本看不见。高度 = 上 8+安全区 + 按钮 44 + 下 8。
+        ...(variant === 'transparent' ? { mb: 'calc(-60px - var(--sat, 0px))' } : null),
       }}
     >
       <IconButton
@@ -70,11 +73,14 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
         aria-label="返回"
         sx={{
           color: isSolid ? 'text.tertiary' : '#fff',
+          // 透明态给一层半透明深色底:Hero 是浅色渐变(青、浅绿)或封面图偏亮时白箭头也看得清
+          bgcolor: isSolid ? 'transparent' : 'rgba(0,0,0,0.28)',
           minWidth: 44,
           minHeight: 44,
           p: 1,
-          borderRadius: 1.5,
-          '&:hover': { bgcolor: isSolid ? 'action.hover' : 'rgba(255,255,255,0.15)' },
+          borderRadius: isSolid ? 1.5 : '50%',
+          transition: 'background-color .25s ease, color .25s ease',
+          '&:hover': { bgcolor: isSolid ? 'action.hover' : 'rgba(0,0,0,0.42)' },
         }}
       >
         <ArrowBackIcon />
@@ -84,6 +90,9 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
           fontSize: { xs: 14, md: 15 },
           fontWeight: 600,
           color: isSolid ? 'text.primary' : '#fff',
+          // 透明态 Hero 里已有大标题,顶栏标题等滚出 Hero 变玻璃态后再淡入
+          opacity: isSolid ? 1 : 0,
+          transition: 'opacity .25s ease',
           ml: 1,
           flex: 1,
           // 不写 minWidth:0 的话 flex 子项最小宽度=整段标题,长标题会把右侧按钮挤出屏幕、撑宽整页

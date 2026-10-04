@@ -177,7 +177,7 @@ export default function CreatorProfileHeader() {
       </Box>
 
       {snack && (
-        <Box sx={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', bgcolor: 'rgba(0,0,0,0.85)', color: 'text.primary', px: 2, py: 1, borderRadius: 1, fontSize: 12 }}>
+        <Box sx={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', bgcolor: 'rgba(0,0,0,0.85)', color: '#fff', px: 2, py: 1, borderRadius: 1, fontSize: 12 }}>
           {snack}
         </Box>
       )}

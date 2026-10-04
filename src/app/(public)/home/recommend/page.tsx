@@ -453,7 +453,7 @@ export default function HomeRecommendPage() {
                           borderRadius: 1,
                           bgcolor: 'rgba(0,0,0,0.5)',
                           backdropFilter: 'blur(4px)',
-                          color: 'text.primary',
+                          color: '#fff',
                           fontSize: 10,
                           fontFamily: 'monospace',
                         }}
@@ -477,7 +477,7 @@ export default function HomeRecommendPage() {
                         sx={{
                           fontSize: 12,
                           fontWeight: 500,
-                          color: 'text.primary',
+                          color: '#fff',
                           lineHeight: 1.3,
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
@@ -885,7 +885,7 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
               justifyContent: 'center',
               fontSize: 11,
               fontWeight: 800,
-              color: 'text.primary',
+              color: '#fff',
               boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
             }}
           >
@@ -902,13 +902,13 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
               background: IMAGE_OVERLAY.TO_TOP,
             }}
           >
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, currentColor)', lineHeight: 1.2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
               {c.title}
             </Typography>
             <Typography
               sx={{
                 fontSize: 9,
-                color: 'var(--text-secondary, currentColor)',
+                color: 'rgba(255,255,255,0.75)',
                 mt: 0.25,
                 lineHeight: 1.2,
               }}

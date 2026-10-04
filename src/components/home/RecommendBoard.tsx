@@ -139,7 +139,7 @@ export default function RecommendBoard({
                     py: 0.1,
                     borderRadius: 0.5,
                     bgcolor: 'rgba(0,0,0,0.55)',
-                    color: 'text.primary',
+                    color: '#fff',
                     fontSize: 9,
                     fontFamily: 'monospace',
                   }}
@@ -161,7 +161,7 @@ export default function RecommendBoard({
                 <Typography
                   sx={{
                     fontSize: 11,
-                    color: 'text.primary',
+                    color: '#fff',
                     fontWeight: 500,
                     lineHeight: 1.2,
                     display: '-webkit-box',

@@ -880,10 +880,10 @@ function FeedCard({ item }: { item: FeedItem }) {
               left: 8,
               height: 20,
               bgcolor: 'var(--brand-color, #FE2C55)',
-              color: 'var(--text-primary, #ffffff)',
+              color: '#fff',
               fontSize: 10,
               fontWeight: 600,
-              '& .MuiChip-icon': { color: 'var(--text-primary, #ffffff)' },
+              '& .MuiChip-icon': { color: '#fff' },
             }}
           />
         ) : item.durationSec > 0 ? (
@@ -977,7 +977,7 @@ function FeedCard({ item }: { item: FeedItem }) {
                 </Tooltip>
               ) : item.isFollowing ? (
                 <Tooltip title="已关注">
-                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: 500, flexShrink: 0 }}>
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'var(--bg-active)', color: 'var(--text-secondary)', fontSize: 9, fontWeight: 500, flexShrink: 0 }}>
                     关注
                   </Box>
                 </Tooltip>
@@ -1050,8 +1050,8 @@ function EmptyHint({ tab, section }: { tab: PanelTab; section: HomeSection }) {
         mb: 2,
       }}
     >
-      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{title}</Typography>
-      <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', mt: 0.5 }}>{hint}</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</Typography>
+      <Typography sx={{ fontSize: 11, color: 'var(--text-muted)', mt: 0.5 }}>{hint}</Typography>
     </Box>
   );
 }

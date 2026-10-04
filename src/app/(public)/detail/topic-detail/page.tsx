@@ -76,6 +76,7 @@ function TopicDetail() {
   // 默认 heroVisible=true(transparent),与今天 Hero 内嵌返回按钮的视觉一致;水合后 IO 接管
   const heroSentinelRef = useRef<HTMLDivElement>(null);
   const [heroVisible, setHeroVisible] = useState(true);
+  const hasTopic = !!topic;
   useEffect(() => {
     const el = heroSentinelRef.current;
     if (!el) return;
@@ -85,7 +86,8 @@ function TopicDetail() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+    // 首次渲染还在 loading,sentinel 不存在;数据到了再挂,否则顶栏永远停在透明态
+  }, [hasTopic]);
 
   if (isLoading) {
     return (
@@ -167,8 +169,8 @@ function Hero({ topic, followers, onFollowChange, canManage }: { topic: Communit
   const bg = topic.cover ? `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.75)), center/cover url(${topic.cover})` : topicGradient(topic.title);
   return (
     <Box sx={{ background: bg, color: '#fff' }}>
-      {/* 这块彩色头图是页面第一个元素,客户端里会铺到状态栏下面,所以顶部要加安全区 */}
-      <Container maxWidth="md" sx={{ pt: 'calc(16px + var(--sat, 0px))', pb: 3 }}>
+      {/* 透明 DetailHeader 叠在这块头图上(60px + 安全区),内容从它下面开始 */}
+      <Container maxWidth="md" sx={{ pt: 'calc(64px + var(--sat, 0px))', pb: 3 }}>
         {/* 返回按钮已搬到页面顶部的 DetailHeader(Hero 内不再重复),滚动到任意位置都能一键返回 */}
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>

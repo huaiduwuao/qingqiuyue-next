@@ -882,7 +882,7 @@ function SearchPageContent() {
                     textTransform: 'none',
                     py: 1,
                   },
-                  '& .Mui-selected': { color: '#fff !important', fontWeight: 700 },
+                  '& .Mui-selected': { color: 'var(--text-primary) !important', fontWeight: 700 },
                   '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
                 }}
               >
@@ -1321,7 +1321,7 @@ function ContentResult({
             borderRadius: 0.5,
             bgcolor: 'rgba(0,0,0,0.45)',
             backdropFilter: 'blur(4px)',
-            color: 'var(--text-primary, #fff)',
+            color: '#fff',
             fontSize: 9,
             fontWeight: 700,
             letterSpacing: 0.3,
@@ -1341,7 +1341,7 @@ function ContentResult({
               borderRadius: 0.5,
               bgcolor: 'rgba(0,0,0,0.55)',
               backdropFilter: 'blur(4px)',
-              color: 'var(--text-primary, #fff)',
+              color: '#fff',
               fontSize: 9,
               fontWeight: 600,
               fontFamily: 'monospace',
@@ -1983,8 +1983,8 @@ function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggest
             overflowY: 'auto',
             borderRadius: 1.5,
             border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-            bgcolor: 'var(--bg-panel, rgba(20,20,26,0.98))',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            bgcolor: 'var(--bg-elevated)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
             backdropFilter: 'blur(12px)',
           }}
         >

@@ -85,7 +85,7 @@ function statusKey(s: string | undefined | null): DramaSeries['status'] | null {
 	if (v === 'HOT' || v === 'DONE' || v === 'EXCLUSIVE') return v;
 	return null;
 }
-const DEFAULT_STATUS_COLOR = { bg: 'rgba(255,255,255,0.06)', fg: 'text.secondary' } as const;
+const DEFAULT_STATUS_COLOR = { bg: 'var(--bg-active)', fg: 'text.secondary' } as const;
 const DEFAULT_GENRE_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
 
 // 题材标签的配色。按归一化题材码索引;词表新增题材时退回中性色,不会崩。
@@ -193,7 +193,7 @@ export function DramaPanel() {
           p: { xs: 2, md: 3 },
           borderRadius: 3,
           background: SECTION_TINT.RED_PURPLE_YELLOW,
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid var(--border-color)',
           overflow: 'hidden',
         }}
       >
@@ -413,7 +413,7 @@ function RankCard({ item }: { item: DramaSeries }) {
   const badgeBg = isTop3
     ? medal!.badge
     : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
-  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const badgeColor = isTop3 ? medal!.txt : '#fff';
   const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
   const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
   const sk = statusKey(item.status);
@@ -499,7 +499,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
             '.MuiBox-root:hover > &': { opacity: 1 },
           }}
         >
-          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
+          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: '#fff' }} />
         </Box>
         {/* 右上角是状态/评分一列,能不能播放左上 */}
         <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={6} />
@@ -538,7 +538,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
           {item.title}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'var(--bg-hover)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
             {item.genre || '其他'}
           </Box>
           <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatViews(item.views)} 播放</Typography>

@@ -1398,7 +1398,7 @@ export default function HdPublishPage() {
                   justifyContent: 'center',
                 }}
               >
-                <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />
+                <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.7)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45))' }} />
                 {detail.hasCover && (
                   <Typography
                     sx={{

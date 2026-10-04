@@ -111,7 +111,7 @@ function ContentRanking({ contents }: { contents: ContentStats[] }) {
                 width: 20,
                 height: 20,
                 borderRadius: '50%',
-                bgcolor: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : 'action.disabled',
+                bgcolor: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : 'text.disabled',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',

@@ -118,7 +118,7 @@ export default function ContentDetailDrawer({ open, payload, onClose, onNavigate
               justifyContent: 'center',
             }}
           >
-            {!payload.cover && <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.4)' }} />}
+            {!payload.cover && <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'text.disabled' }} />}
           </Box>
 
           {/* 标题 + 状态 + 计数 */}

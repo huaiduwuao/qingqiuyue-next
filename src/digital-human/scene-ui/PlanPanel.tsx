@@ -45,7 +45,7 @@ export default function PlanPanel({ steps }: { steps: ScenePlanStep[] }) {
           sx={{ flex: 1, height: 6, borderRadius: 3 }}
           aria-label="任务进度"
         />
-        <Typography variant="caption" color="text.secondary">{done}/{total}</Typography>
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>{done}/{total}</Typography>
       </Box>
       <Box component="ol" sx={{ m: 0, p: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         {steps.map((s) => (
@@ -61,7 +61,7 @@ export default function PlanPanel({ steps }: { steps: ScenePlanStep[] }) {
                 {s.title}
               </Typography>
               {s.detail && (
-                <Typography variant="caption" color={s.status === 'failed' ? 'error' : 'text.secondary'} sx={{ display: 'block' }}>
+                <Typography variant="caption" color={s.status === 'failed' ? 'error' : undefined} sx={{ display: 'block', ...(s.status === 'failed' ? null : { color: 'rgba(255,255,255,0.6)' }) }}>
                   {s.detail}
                 </Typography>
               )}
