@@ -1,7 +1,7 @@
 'use client';
 
 import { toEntityId } from '@/lib/id';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
@@ -428,14 +428,14 @@ function MyHomePageAuthed() {
     }
   }, [scroll.isNearBottom, listQuery.hasNextPage, listQuery.isFetchingNextPage, listQuery.fetchNextPage]);
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = useCallback((id: number) => {
     setSelected((s) => {
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const enterBatchMode = () => {
     setBatchMode(true);
@@ -523,6 +523,14 @@ function MyHomePageAuthed() {
       setToast(formatApiError(err));
     },
   });
+
+  // 下面这些列表视图是 memo 的:传进去的数组和回调要稳定,输入搜索词、开关弹窗、
+  // 刷徽标数据时整页重渲染,列表本身才不跟着重渲染
+  const itemList = useMemo(() => filteredList.filter(isMyItem), [filteredList]);
+  const groupList = useMemo(() => filteredList.filter(isMyGroup), [filteredList]);
+  const openItem = useCallback((it: MyItem) => navigate(it.contentType, it.id), [navigate]);
+  const openGroup = useCallback((g: MyCollectionGroup) => router.push(`/account/my-lists/detail?id=${g.id}`), [router]);
+  const { mutate: toggleWorkPrivacy } = workPrivacyMutation;
 
   const switchTab = (key: string) => {
     setMainTab(key);
@@ -1175,49 +1183,49 @@ function MyHomePageAuthed() {
           />
         ) : isGroupView ? (
           <CollectionGridView
-            list={filteredList.filter(isMyGroup)}
+            list={groupList}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
-            onOpen={(g) => router.push(`/account/my-lists/detail?id=${g.id}`)}
+            onOpen={openGroup}
           />
         ) : mainTab === 'history' ? (
           <HistoryListView
-            list={filteredList.filter(isMyItem)}
+            list={itemList}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
-            onClick={(it) => navigate(it.contentType, it.id)}
+            onClick={openItem}
           />
         ) : mainTab === 'later' ? (
           <LaterGridView
-            list={filteredList.filter(isMyItem)}
+            list={itemList}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
-            onClick={(it) => navigate(it.contentType, it.id)}
+            onClick={openItem}
           />
         ) : mainTab === 'order' ? (
           <AppointmentListView
-            list={filteredList.filter(isMyItem)}
-            onClick={(it) => navigate(it.contentType, it.id)}
-            onCancel={(it) => setCancelDialog(it)}
+            list={itemList}
+            onClick={openItem}
+            onCancel={setCancelDialog}
           />
         ) : mainTab === 'ai' ? (
           <AINoteListView
-            list={filteredList.filter(isMyItem)}
+            list={itemList}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
           />
         ) : (
           <WorkGridView
-            list={filteredList.filter(isMyItem)}
+            list={itemList}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
-            onClick={(it) => navigate(it.contentType, it.id)}
-            onTogglePrivate={(it) => workPrivacyMutation.mutate(it)}
+            onClick={openItem}
+            onTogglePrivate={toggleWorkPrivacy}
             showPrivacy={mainTab === 'works'}
           />
         )}
@@ -1293,7 +1301,7 @@ function MyHomePageAuthed() {
 }
 
 // ─── 子组件:作品网格 ───
-function WorkGridView({
+const WorkGridView = React.memo(function WorkGridView({
   list, batchMode, selected, onToggle, onClick, onTogglePrivate, showPrivacy,
 }: {
   list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void;
@@ -1382,10 +1390,10 @@ function WorkGridView({
       })}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:合集网格 ───
-function CollectionGridView({ list, batchMode, selected, onToggle, onOpen }: { list: MyCollectionGroup[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onOpen?: (g: MyCollectionGroup) => void }) {
+const CollectionGridView = React.memo(function CollectionGridView({ list, batchMode, selected, onToggle, onOpen }: { list: MyCollectionGroup[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onOpen?: (g: MyCollectionGroup) => void }) {
   return (
     <ListLayout rows minColumnWidth={260} gap={12}>
       {list.map((g) => {
@@ -1428,10 +1436,10 @@ function CollectionGridView({ list, batchMode, selected, onToggle, onOpen }: { l
       })}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:历史时间线 ───
-function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
+const HistoryListView = React.memo(function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
   return (
     <ListLayout rows minColumnWidth={420} gap={8}>
       {list.map((it) => {
@@ -1478,10 +1486,10 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
       })}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:稍后看网格 ───
-function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
+const LaterGridView = React.memo(function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
   return (
     <ListLayout minColumnWidth={200} gap={12}>
       {list.map((it) => {
@@ -1530,10 +1538,10 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
       })}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:预约直播 ───
-function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onClick: (it: MyItem) => void; onCancel: (it: MyItem) => void }) {
+const AppointmentListView = React.memo(function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onClick: (it: MyItem) => void; onCancel: (it: MyItem) => void }) {
   return (
     <ListLayout rows minColumnWidth={420} gap={8}>
       {list.map((it) => (
@@ -1586,10 +1594,10 @@ function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onCl
       ))}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:AI 笔记 ───
-function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void }) {
+const AINoteListView = React.memo(function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void }) {
   return (
     <ListLayout rows minColumnWidth={320} gap={8} packing="masonry">
       {list.map((it) => {
@@ -1640,7 +1648,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
       })}
     </ListLayout>
   );
-}
+});
 
 // ─── 子组件:空状态 ───
 function EmptyState({ tab, subTab, onPublish, filtered }: { tab: string; subTab: string; onPublish?: () => void; filtered?: boolean }) {

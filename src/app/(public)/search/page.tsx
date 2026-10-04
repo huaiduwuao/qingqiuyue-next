@@ -568,8 +568,12 @@ function SearchPageContent() {
   const handleRemoveHistory = (kw: string) =>
     setHistory((prev) => prev.filter((h) => h !== kw));
 
-  const handleFollowCreator = async (creator: SearchCreatorItem) => {
-    if (followBusyId === creator.id) return;
+  // 结果卡片是 memo 的:下面这几个回调做成稳定引用,改筛选/输入时卡片不跟着重渲染。
+  // 关注中的 id 用 ref 判重,回调就不用依赖 followBusyId 这个 state
+  const followBusyRef = React.useRef<number | null>(null);
+  const handleFollowCreator = useCallback(async (creator: SearchCreatorItem) => {
+    if (followBusyRef.current === creator.id) return;
+    followBusyRef.current = creator.id;
     setFollowBusyId(creator.id);
     try {
       await homeClient.post(`/follow/${creator.id}`);
@@ -577,17 +581,30 @@ function SearchPageContent() {
     } catch (err) {
       setSnack({ open: true, message: formatApiError(err) || '关注失败,请重试', severity: 'error' });
     } finally {
+      followBusyRef.current = null;
       setFollowBusyId(null);
     }
-  };
+  }, []);
 
-  const handleOpenTopic = (topic: SearchTopicItem) => {
-    // /search/topic 路由不存在(死链 404);话题详情页是 /detail/topic-detail,
-    // 与 TopicCard.tsx、home/recommend 处的跳转保持一致。
-    router.push(`/detail/topic-detail?id=${topic.id}`);
-  };
+  const handleOpenTopic = useCallback(
+    (topic: SearchTopicItem) => {
+      // /search/topic 路由不存在(死链 404);话题详情页是 /detail/topic-detail,
+      // 与 TopicCard.tsx、home/recommend 处的跳转保持一致。
+      router.push(`/detail/topic-detail?id=${topic.id}`);
+    },
+    [router],
+  );
 
-  const renderHighlight = (text: string) => {
+  const handleOpenContent = useCallback(
+    (c: SearchContentItem, i: number) => {
+      trackSearchClick(q, c.id, c.contentType, i);
+      navigateContent(c.contentType, c.id);
+    },
+    [q, navigateContent],
+  );
+
+  // 只随关键词变:关键词不变时(切筛选、翻页)高亮函数引用不变
+  const renderHighlight = useCallback((text: string) => {
     if (!q) return text;
     const idx = text.toLowerCase().indexOf(q.toLowerCase());
     if (idx < 0) return text;
@@ -609,7 +626,7 @@ function SearchPageContent() {
         {text.slice(idx + q.length)}
       </>
     );
-  };
+  }, [q]);
 
   return (
     <Box
@@ -965,10 +982,7 @@ function SearchPageContent() {
                         <ContentResult
                           key={c.id}
                           item={c}
-                          onClick={() => {
-                            trackSearchClick(q, c.id, c.contentType, i);
-                            navigateContent(c.contentType, c.id);
-                          }}
+                          onClick={handleOpenContent}
                           renderHL={renderHighlight}
                           positionForImpression={i}
                         />
@@ -1000,7 +1014,7 @@ function SearchPageContent() {
                           key={c.id}
                           item={c}
                           renderHL={renderHighlight}
-                          onFollow={() => handleFollowCreator(c)}
+                          onFollow={handleFollowCreator}
                           following={followBusyId === c.id}
                         />
                       ))}
@@ -1021,7 +1035,7 @@ function SearchPageContent() {
                           key={t.id}
                           item={t}
                           renderHL={renderHighlight}
-                          onClick={() => handleOpenTopic(t)}
+                          onClick={handleOpenTopic}
                         />
                       ))}
                   </Section>
@@ -1363,14 +1377,15 @@ function Section({
   );
 }
 
-function ContentResult({
+// memo:SearchPageContent 有十几个 state(筛选、输入、联想…),任何一个变都会重渲染整列结果
+const ContentResult = React.memo(function ContentResult({
   item,
   onClick,
   renderHL,
   positionForImpression = 0,
 }: {
   item: SearchContentItem;
-  onClick: () => void;
+  onClick: (item: SearchContentItem, position: number) => void;
   renderHL: (text: string) => React.ReactNode;
   positionForImpression?: number;
 }) {
@@ -1386,7 +1401,7 @@ function ContentResult({
     <Box
       data-cid={item.id}
       data-pos={positionForImpression}
-      onClick={onClick}
+      onClick={() => onClick(item, positionForImpression)}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -1600,9 +1615,9 @@ function ContentResult({
       </Box>
     </Box>
   );
-}
+});
 
-function CreatorResult({
+const CreatorResult = React.memo(function CreatorResult({
   item,
   renderHL,
   onFollow,
@@ -1610,7 +1625,7 @@ function CreatorResult({
 }: {
   item: SearchCreatorItem;
   renderHL: (text: string) => React.ReactNode;
-  onFollow: () => void;
+  onFollow: (item: SearchCreatorItem) => void;
   following?: boolean;
 }) {
   return (
@@ -1697,7 +1712,7 @@ function CreatorResult({
         variant="contained"
         disableElevation
         disabled={following}
-        onClick={onFollow}
+        onClick={() => onFollow(item)}
         sx={{
           minWidth: 56,
           fontSize: 11,
@@ -1714,20 +1729,20 @@ function CreatorResult({
       </Button>
     </Box>
   );
-}
+});
 
-function TopicResult({
+const TopicResult = React.memo(function TopicResult({
   item,
   renderHL,
   onClick,
 }: {
   item: SearchTopicItem;
   renderHL: (text: string) => React.ReactNode;
-  onClick: () => void;
+  onClick: (item: SearchTopicItem) => void;
 }) {
   return (
     <Box
-      onClick={onClick}
+      onClick={() => onClick(item)}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -1817,7 +1832,7 @@ function TopicResult({
       </Box>
     </Box>
   );
-}
+});
 
 function EmptyState({
   hotKeywords,

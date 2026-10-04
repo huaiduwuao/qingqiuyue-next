@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { navTransition } from '@/lib/navTransition';
 
@@ -69,12 +69,16 @@ export function getDetailRoute(contentType: string, id: number | string): string
 
 export function useContentNavigate() {
   const router = useRouter();
-  return (contentType: string, id: number | string, fallbackUrl?: string) => {
-    const route = getDetailRoute(contentType, id);
-    // 客户端里带前进转场(网页里 navTransition 直接调用 push)
-    if (route) navTransition('forward', () => router.push(route));
-    else if (fallbackUrl) openExternal(fallbackUrl);
-  };
+  // 稳定引用:列表把它传给 memo 的卡片时不会每次渲染都换一个新函数
+  return useCallback(
+    (contentType: string, id: number | string, fallbackUrl?: string) => {
+      const route = getDetailRoute(contentType, id);
+      // 客户端里带前进转场(网页里 navTransition 直接调用 push)
+      if (route) navTransition('forward', () => router.push(route));
+      else if (fallbackUrl) openExternal(fallbackUrl);
+    },
+    [router],
+  );
 }
 
 /** 这些内容类型会打开哪几个详情页路由(去重、去掉没有详情页的类型) */
