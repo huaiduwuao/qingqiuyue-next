@@ -58,14 +58,14 @@ const nextConfig: NextConfig = {
       ];
     },
   }),
-  // 禁用构建时的 ESLint 检查和类型检查
+  // 构建时跳过 ESLint:存量 2000+ 条 warning,lint 在 CI 里单独跑(pnpm lint)
   eslint: {
-    // 忽略 ESLint 警告，避免构建失败
     ignoreDuringBuilds: true,
   },
+  // 类型检查不再跳过:tsc --noEmit 已清零,构建(网站 build:static 和客户端 app:frontend
+  // 共用同一份 tsconfig)遇到类型错误直接失败,别再让带类型错误的包发出去
   typescript: {
-    // 忽略 TypeScript 错误，避免构建失败
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // 内存治理(5.37 GB dev server 反复泄漏的根因之一):
   // 1) 关闭客户端 source map(浏览器加载时不会再持有完整 sourcemap payload)
