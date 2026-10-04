@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
+import { useQuery } from '@tanstack/react-query';
 import { getComments } from '@/apis/home';
 
 /**
@@ -52,33 +53,30 @@ export function useFeedDanmaku(contentId: string | null, enabled: boolean) {
     setFlying([]);
   }, [contentId]);
 
-  // 拉取 + 轮询
+  // 拉取 + 轮询:交给 react-query。refetchInterval 默认在标签页隐藏时暂停 ——
+  // 以前的 setInterval 切到后台也每 15 秒拉一次评论;同一条内容滑回来时也有缓存可用。
+  const { data: latest } = useQuery({
+    queryKey: ['feed-danmaku', contentId],
+    queryFn: async () => commentList(await getComments(contentId!, { page: 1, page_size: 30 })),
+    enabled: !!contentId && enabled,
+    refetchInterval: POLL_MS,
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnWindowFocus: true, // 全局关了;回到前台立刻补一轮,别等满 15 秒
+    retry: false, // 弹幕拉不到不影响看视频,下一轮再说
+  });
+
+  // 新到的评论排队(接口按时间倒序,老的先飘)
   useEffect(() => {
-    if (!contentId || !enabled) return;
-    let cancelled = false;
-    const pull = async () => {
-      try {
-        const list = commentList(await getComments(contentId, { page: 1, page_size: 30 }));
-        if (cancelled) return;
-        // 接口按时间倒序,老的先飘
-        for (const c of [...list].reverse()) {
-          const id = String(c.id ?? '');
-          const text = (c.content || '').replace(/\s+/g, ' ').trim();
-          if (!id || !text || seen.current.has(id)) continue;
-          seen.current.add(id);
-          queue.current.push({ key: `c-${id}`, text: text.length > 40 ? `${text.slice(0, 40)}…` : text });
-        }
-      } catch {
-        /* 弹幕拉不到不影响看视频 */
-      }
-    };
-    void pull();
-    const t = setInterval(pull, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, [contentId, enabled]);
+    if (!latest || !enabled) return;
+    for (const c of [...latest].reverse()) {
+      const id = String(c.id ?? '');
+      const text = (c.content || '').replace(/\s+/g, ' ').trim();
+      if (!id || !text || seen.current.has(id)) continue;
+      seen.current.add(id);
+      queue.current.push({ key: `c-${id}`, text: text.length > 40 ? `${text.slice(0, 40)}…` : text });
+    }
+  }, [latest, enabled]);
 
   // 发射:每 450ms 看一眼队列,有空闲的道就放一条上去
   useEffect(() => {
