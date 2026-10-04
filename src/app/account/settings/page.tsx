@@ -192,8 +192,9 @@ export default function AccountSettingsPage() {
                 </Box>
                 <Box sx={{ textAlign: 'center', order: { xs: -1, md: 0 } }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>头像</Typography>
+                  {/* 没头像时交给 Avatar 自带的人像占位;public 下没有 no_avatar.webp,以前每次打开都 404 */}
                   <Avatar
-                    src={formValues.avatar || currentUser?.avatar || '/no_avatar.webp'}
+                    src={formValues.avatar || currentUser?.avatar || undefined}
                     sx={{ width: { xs: 80, md: 100 }, height: { xs: 80, md: 100 }, mb: 2 }}
                   />
                   <Button variant="outlined" component="label">
