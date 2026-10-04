@@ -25,7 +25,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import type { KanbanTask, KanbanBoard } from '../api-extended'
-import { API_PREFIX } from '@/lib/api/prefix'
+import { agentmanagerClient, formatApiError } from '@/lib/api/client'
 
 const COLUMNS: { id: KanbanTask['status']; label: string; color: string }[] = [
   { id: 'todo',      label: '◻ 待办',     color: '#6b7280' },
@@ -60,22 +60,23 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   // 可指派的员工:和数字人页面同一来源,含 builder 发布的自定义员工和短剧员工
   const [staff, setStaff] = useState<{ id: string; label: string }[]>(FALLBACK_STAFF)
   useEffect(() => {
-    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff')
-      .then(r => r.json())
+    // 员工列表是公开接口,但统一走 agentmanagerClient:带上网关前缀(客户端里是绝对地址)和会话头
+    agentmanagerClient.get<{ agents?: { agentId: string; name: string }[] }>('/multi-agent/staff')
       .then(d => {
-        const list = (d.agents || []).map((a: { agentId: string; name: string }) => ({ id: a.agentId, label: a.name || a.agentId }))
+        const list = (d?.agents || []).map(a => ({ id: a.agentId, label: a.name || a.agentId }))
         if (list.length) setStaff(list)
       })
       .catch(() => {})
   }, [])
 
+  // token 只用来在会话切换时触发重新加载;请求头由 agentmanagerClient 统一从会话里取
   const loadBoards = useCallback(async () => {
-    if (fixedBoardId != null) return
+    if (fixedBoardId != null || !token) return
     try {
-      const res = await fetch(API_PREFIX + '/api/agentmanager/kanban/boards', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
-      const list = res.list || []
+      const res = await agentmanagerClient.get<{ list?: { id: number; name: string; slug: string }[] }>('/kanban/boards')
+      const list = res?.list || []
       setBoards(list)
-      setPickedBoard(cur => (cur != null && list.some((b: { id: number }) => b.id === cur)) ? cur : (list[0]?.id ?? null))
+      setPickedBoard(cur => (cur != null && list.some(b => b.id === cur)) ? cur : (list[0]?.id ?? null))
     } catch { /* ignore */ }
   }, [fixedBoardId, token])
   useEffect(() => { loadBoards() }, [loadBoards])
@@ -83,15 +84,16 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   const createBoard = async () => {
     const name = prompt('新看板名称')?.trim()
     if (!name) return
-    const res = await fetch(API_PREFIX + '/api/agentmanager/kanban/boards', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name }),
-    })
-    if (!res.ok) { setRunError(`新建看板失败: HTTP ${res.status}`); return }
-    const b = await res.json().catch(() => null)
+    let b: { ID?: number; id?: number } | null = null
+    try {
+      b = await agentmanagerClient.post('/kanban/boards', { name })
+    } catch (e) {
+      setRunError(`新建看板失败: ${formatApiError(e)}`)
+      return
+    }
     await loadBoards()
-    if (b?.ID ?? b?.id) setPickedBoard(b.ID ?? b.id)
+    const newId = b?.ID ?? b?.id
+    if (newId) setPickedBoard(newId)
   }
 
   const [tasks, setTasks] = useState<KanbanTask[]>([])
@@ -108,13 +110,11 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   const [fPriority, setFPriority] = useState('')
 
   const load = useCallback(async () => {
-    if (boardId == null) { setTasks([]); return }
+    if (boardId == null || !token) { setTasks([]); return }
     setLoading(true)
     try {
-      const res = await fetch(API_PREFIX + `/api/agentmanager/kanban/boards/${boardId}/tasks`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.json())
-      setTasks(res.list || [])
+      const res = await agentmanagerClient.get<{ list?: KanbanTask[] }>(`/kanban/boards/${boardId}/tasks`)
+      setTasks(res?.list || [])
     } catch { /* ignore */ } finally { setLoading(false) }
   }, [boardId, token])
 
@@ -122,11 +122,12 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
 
   const createTask = async () => {
     if (!newTitle.trim()) return
-    await fetch(API_PREFIX + `/api/agentmanager/kanban/boards/${boardId}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: newTitle, body: newBody }),
-    })
+    try {
+      await agentmanagerClient.post(`/kanban/boards/${boardId}/tasks`, { title: newTitle, body: newBody })
+    } catch (e) {
+      setRunError(`新建任务失败: ${formatApiError(e)}`)
+      return
+    }
     setNewTitle('')
     setNewBody('')
     setCreateOpen(false)
@@ -134,34 +135,31 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   }
 
   const moveTask = async (taskId: number, status: KanbanTask['status']) => {
-    await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${taskId}/move`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status }),
-    })
+    try {
+      await agentmanagerClient.patch(`/kanban/tasks/${taskId}/move`, { status })
+    } catch (e) {
+      setRunError(`移动任务失败: ${formatApiError(e)}`)
+    }
     load()
   }
 
   const deleteTask = async (taskId: number) => {
     if (!confirm('确认删除?')) return
-    await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${taskId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    try {
+      await agentmanagerClient.delete(`/kanban/tasks/${taskId}`)
+    } catch (e) {
+      setRunError(`删除任务失败: ${formatApiError(e)}`)
+    }
     load()
   }
 
   // 交给数字员工:卡片变成一次后台运行,结束后由后端回写 done / blocked
   const runTask = async (task: KanbanTask) => {
     setRunError(null)
-    const res = await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${task.id}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ agent: agentFor[task.id] || 'worker' }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setRunError(body.error || `HTTP ${res.status}`)
+    try {
+      await agentmanagerClient.post(`/kanban/tasks/${task.id}/run`, { agent: agentFor[task.id] || 'worker' })
+    } catch (e) {
+      setRunError(formatApiError(e))
     }
     load()
   }
