@@ -19,6 +19,13 @@ import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import CopyrightRoundedIcon from '@mui/icons-material/CopyrightRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import IconButton from '@mui/material/IconButton';
+import Fab from '@mui/material/Fab';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection, MobileStatRow, MobileListRow, MoreLink } from '@/components/mobile/MobileSection';
 import { formatApiError } from '@/lib/api/client';
 import { coverBackgroundImage } from '@/lib/media';
 import { getMyWorks } from '@/apis/dashboard';
@@ -85,6 +92,12 @@ export default function OriginalPage() {
   const [appealTarget, setAppealTarget] = useState<OriginalCase | null>(null);
   const [appealReason, setAppealReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // 手机版:行尾「⋮」菜单 + 说明弹窗
+  const { isMobile } = useResponsive();
+  const [rowMenu, setRowMenu] = useState<
+    { el: HTMLElement; kind: 'cert'; cert: OriginalCert } | { el: HTMLElement; kind: 'case'; item: OriginalCase } | null
+  >(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const certsQ = useQuery({ queryKey: ['original', 'certs'], queryFn: listCerts, refetchOnMount: 'always' });
   const suspectsQ = useQuery({ queryKey: ['original', 'suspects'], queryFn: listSuspects, refetchOnMount: 'always' });
@@ -120,6 +133,353 @@ export default function OriginalPage() {
     { label: '待处理疑似侵权', value: suspects.length },
     { label: '申诉成立', value: (takedownsQ.data ?? []).filter((t) => t.status === 'takenDown').length },
   ];
+
+  const openAdd = () => {
+    setAddSelected([]);
+    setAddOpen(true);
+  };
+
+  const overlays = (
+    <>
+        {/* 登记作品 */}
+        <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>登记原创存证</DialogTitle>
+          <DialogContent>
+            {worksQ.isLoading ? (
+              <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+            ) : candidates.length === 0 ? (
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 2 }}>没有可以登记的已发布作品(已登记的不会重复显示)。</Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 360, overflowY: 'auto' }}>
+                {candidates.map((w: any) => {
+                  const id = String(w.id);
+                  const checked = addSelected.includes(id);
+                  return (
+                    <Box
+                      key={id}
+                      onClick={() => setAddSelected((p) => (checked ? p.filter((x) => x !== id) : [...p, id]))}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, cursor: 'pointer', border: '1px solid', borderColor: checked ? 'primary.main' : 'divider' }}
+                    >
+                      <Checkbox checked={checked} size="small" sx={{ p: 0 }} />
+                      <Typography sx={{ fontSize: 13, flex: 1 }}>{w.title}</Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>播放 {w.views ?? 0}</Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button variant="text" onClick={() => setAddOpen(false)}>取消</Button>
+            <Button
+              variant="contained"
+              disabled={busy || addSelected.length === 0}
+              onClick={async () => { if (await act(() => applyCerts(addSelected), `已登记 ${addSelected.length} 个作品`)) setAddOpen(false); }}
+            >
+              登记 {addSelected.length} 个作品
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 下架申诉 */}
+        <Dialog open={!!appealTarget} onClose={() => setAppealTarget(null)} maxWidth="sm" fullWidth>
+          <DialogTitle>申诉下架《{appealTarget?.suspectTitle}》</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+              申诉会提交给平台内容审核,并附上你的存证 {appealTarget?.certificateNo}。审核结论会显示在「维权记录」。
+            </Typography>
+            <TextField
+              label="申诉理由"
+              placeholder="说明作品为你原创,以及对方作品的问题"
+              value={appealReason}
+              onChange={(e) => setAppealReason(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button variant="text" onClick={() => setAppealTarget(null)}>取消</Button>
+            <Button
+              variant="contained"
+              disabled={busy || !appealReason.trim()}
+              onClick={async () => {
+                if (appealTarget && (await act(() => appealCase(appealTarget.id, appealReason.trim()), '申诉已提交,等待平台审核'))) setAppealTarget(null);
+              }}
+            >
+              提交申诉
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack(null)} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+    </>
+  );
+
+  if (isMobile) {
+    const tabs = [`我的存证 ${certs.length}`, `疑似侵权 ${suspects.length}`, '维权记录', '白名单'];
+    const takedowns = takedownsQ.data ?? [];
+    const whitelist = whitelistQ.data ?? [];
+    const closeMenu = () => setRowMenu(null);
+    const menuCert = rowMenu?.kind === 'cert' ? rowMenu.cert : null;
+    const menuCase = rowMenu?.kind === 'case' ? rowMenu.item : null;
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {/* 说明折成一行 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 0.5 }}>
+          <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12, color: 'text.secondary' }}>
+            登记后在站内比对同名作品,可申诉下架
+          </Typography>
+          <MoreLink label="说明" onClick={() => setHelpOpen(true)} />
+        </Box>
+
+        <MobileSection>
+          <Box sx={{ pt: 1.75 }}>
+            <MobileStatRow
+              items={[
+                { label: '已存证', value: stats[0].value, onClick: () => setTab(0) },
+                { label: '监测中', value: stats[1].value, onClick: () => setTab(0) },
+                { label: '待处理', value: stats[2].value, onClick: () => setTab(1) },
+                { label: '申诉成立', value: stats[3].value, onClick: () => setTab(2) },
+              ]}
+            />
+          </Box>
+        </MobileSection>
+
+        {/* 一行文字页签,横滑 */}
+        <Box sx={{ display: 'flex', gap: 2, px: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+          {tabs.map((label, i) => {
+            const active = tab === i;
+            return (
+              <Box
+                key={label}
+                component="button"
+                type="button"
+                onClick={() => setTab(i)}
+                sx={{
+                  all: 'unset',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  py: 0.5,
+                  fontSize: 14,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? 'text.primary' : 'text.secondary',
+                  borderBottom: '2px solid',
+                  borderColor: active ? 'primary.main' : 'transparent',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                {label}
+              </Box>
+            );
+          })}
+        </Box>
+
+        {tab === 0 && (
+          <MobileList loading={certsQ.isLoading} empty={certs.length === 0} emptyText="还没有登记存证的作品">
+            {certs.map((c, i) => (
+              <MobileListRow
+                key={c.id}
+                divider={i > 0}
+                leading={<Thumb cover={c.cover} />}
+                title={c.title}
+                subtitle={
+                  <>
+                    <Box component="span" sx={{ color: c.status === 'monitoring' ? 'info.main' : 'text.secondary', fontWeight: 600 }}>
+                      {c.status === 'monitoring' ? '监测中' : '已暂停'}
+                    </Box>
+                    {c.infringeCount > 0 && (
+                      <Box component="span" sx={{ color: 'warning.main' }}>{` · 疑似侵权 ${c.infringeCount}`}</Box>
+                    )}
+                    {` · ${new Date(c.registeredAt).toLocaleDateString('zh-CN')} 登记`}
+                  </>
+                }
+                trailing={
+                  <IconButton size="small" aria-label="更多操作" onClick={(e) => setRowMenu({ el: e.currentTarget, kind: 'cert', cert: c })}>
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                }
+              />
+            ))}
+          </MobileList>
+        )}
+
+        {tab === 1 && (
+          <MobileList loading={suspectsQ.isLoading} empty={suspects.length === 0} emptyText="没有发现站内同名作品">
+            {suspects.map((s, i) => (
+              <MobileListRow
+                key={s.id}
+                divider={i > 0}
+                leading={<Thumb cover={s.suspectCover} />}
+                title={s.suspectTitle || `作品 ${s.suspectContentId}`}
+                subtitle={`${s.infractorName} · 同名《${s.workTitle}》 · 播放 ${s.views}`}
+                trailing={
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      disabled={busy}
+                      onClick={() => { setAppealTarget(s); setAppealReason(''); }}
+                      sx={{ minWidth: 0, px: 1 }}
+                    >
+                      申诉
+                    </Button>
+                    <IconButton size="small" aria-label="更多操作" onClick={(e) => setRowMenu({ el: e.currentTarget, kind: 'case', item: s })}>
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                }
+              />
+            ))}
+          </MobileList>
+        )}
+
+        {tab === 2 && (
+          <MobileList loading={takedownsQ.isLoading} empty={takedowns.length === 0} emptyText="还没有发起过下架申诉">
+            {takedowns.map((t, i) => {
+              const st = CASE_STATUS[t.status];
+              return (
+                <MobileListRow
+                  key={t.id}
+                  divider={i > 0}
+                  leading={<Thumb cover={t.suspectCover} />}
+                  title={t.suspectTitle || `作品 ${t.suspectContentId}`}
+                  subtitle={t.reviewNote ? `审核意见:${t.reviewNote}` : `${t.infractorName} · ${fmtDate(t.updatedAt)}`}
+                  trailing={
+                    <Typography
+                      sx={{
+                        flexShrink: 0,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: st && st.color !== 'default' ? `${st.color}.main` : 'text.secondary',
+                      }}
+                    >
+                      {st?.label ?? t.status}
+                    </Typography>
+                  }
+                />
+              );
+            })}
+          </MobileList>
+        )}
+
+        {tab === 3 && (
+          <MobileList loading={whitelistQ.isLoading} empty={whitelist.length === 0} emptyText="白名单为空。白名单里的作者发布同名作品不会被提示。">
+            {whitelist.map((w, i) => (
+              <MobileListRow
+                key={w.userId}
+                divider={i > 0}
+                title={w.name}
+                trailing={
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={busy}
+                    onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}
+                    sx={{ minWidth: 0, flexShrink: 0 }}
+                  >
+                    移出
+                  </Button>
+                }
+              />
+            ))}
+          </MobileList>
+        )}
+
+        <Menu anchorEl={rowMenu?.el} open={!!rowMenu} onClose={closeMenu}>
+          {menuCert && [
+            <MenuItem
+              key="cert"
+              onClick={() => {
+                closeMenu();
+                if (!printCertificate(menuCert)) setSnack('浏览器拦截了弹窗,请允许后重试');
+              }}
+            >
+              查看证书
+            </MenuItem>,
+            <MenuItem
+              key="toggle"
+              disabled={busy}
+              onClick={() => {
+                closeMenu();
+                act(
+                  () => setCertStatus(menuCert.id, menuCert.status === 'monitoring' ? 'paused' : 'monitoring'),
+                  menuCert.status === 'monitoring' ? '已暂停比对' : '已恢复比对',
+                );
+              }}
+            >
+              {menuCert.status === 'monitoring' ? '暂停比对' : '恢复比对'}
+            </MenuItem>,
+            <MenuItem
+              key="remove"
+              disabled={busy}
+              sx={{ color: 'error.main' }}
+              onClick={() => {
+                closeMenu();
+                if (window.confirm(`撤销《${menuCert.title}》的存证?未处理的疑似侵权记录会一并清除。`)) act(() => removeCert(menuCert.id), '已撤销存证');
+              }}
+            >
+              撤销存证
+            </MenuItem>,
+          ]}
+          {menuCase && [
+            <MenuItem
+              key="ignore"
+              disabled={busy}
+              onClick={() => {
+                closeMenu();
+                act(() => caseAction(menuCase.id, 'ignore'), '已忽略');
+              }}
+            >
+              忽略
+            </MenuItem>,
+            <MenuItem
+              key="whitelist"
+              disabled={busy}
+              onClick={() => {
+                closeMenu();
+                act(() => caseAction(menuCase.id, 'whitelist'), `已把 ${menuCase.infractorName} 加入白名单`);
+              }}
+            >
+              把 {menuCase.infractorName} 加入白名单
+            </MenuItem>,
+          ]}
+        </Menu>
+
+        <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>原创保护说明</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              给已发布的作品登记原创存证后,平台会在站内比对同名作品:其他用户发布的同名内容会出现在「疑似侵权」。
+              发起下架申诉后由平台审核,结论会同步到「维权记录」。目前只比对本平台内容。
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button variant="text" onClick={() => setHelpOpen(false)}>
+              知道了
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Fab
+          variant="extended"
+          color="primary"
+          onClick={openAdd}
+          sx={{
+            position: 'fixed',
+            right: 16,
+            bottom: 'calc(16px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+            zIndex: 10,
+          }}
+        >
+          <AddRoundedIcon sx={{ mr: 0.5 }} />
+          登记作品
+        </Fab>
+
+        {overlays}
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -169,15 +529,15 @@ export default function OriginalPage() {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <Button size="small" onClick={() => { if (!printCertificate(c)) setSnack('浏览器拦截了弹窗,请允许后重试'); }}>证书</Button>
-                <Button
+                <Button variant="text" size="small" onClick={() => { if (!printCertificate(c)) setSnack('浏览器拦截了弹窗,请允许后重试'); }}>证书</Button>
+                <Button variant="text"
                   size="small"
                   disabled={busy}
                   onClick={() => act(() => setCertStatus(c.id, c.status === 'monitoring' ? 'paused' : 'monitoring'), c.status === 'monitoring' ? '已暂停比对' : '已恢复比对')}
                 >
                   {c.status === 'monitoring' ? '暂停' : '恢复'}
                 </Button>
-                <Button
+                <Button variant="text"
                   size="small"
                   color="error"
                   disabled={busy}
@@ -206,8 +566,8 @@ export default function OriginalPage() {
                 <Button size="small" variant="contained" disabled={busy} onClick={() => { setAppealTarget(s); setAppealReason(''); }} sx={{ textTransform: 'none' }}>
                   申诉下架
                 </Button>
-                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'ignore'), '已忽略')}>忽略</Button>
-                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'whitelist'), `已把 ${s.infractorName} 加入白名单`)}>
+                <Button variant="text" size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'ignore'), '已忽略')}>忽略</Button>
+                <Button variant="text" size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'whitelist'), `已把 ${s.infractorName} 加入白名单`)}>
                   加白名单
                 </Button>
               </Box>
@@ -242,7 +602,7 @@ export default function OriginalPage() {
           {(whitelistQ.data ?? []).map((w) => (
             <Row key={w.userId}>
               <Typography sx={{ flex: 1, fontSize: 14 }}>{w.name}</Typography>
-              <Button size="small" disabled={busy} onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}>
+              <Button variant="text" size="small" disabled={busy} onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}>
                 移出
               </Button>
             </Row>
@@ -250,78 +610,7 @@ export default function OriginalPage() {
         </Section>
       )}
 
-      {/* 登记作品 */}
-      <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>登记原创存证</DialogTitle>
-        <DialogContent>
-          {worksQ.isLoading ? (
-            <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={24} /></Box>
-          ) : candidates.length === 0 ? (
-            <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 2 }}>没有可以登记的已发布作品(已登记的不会重复显示)。</Typography>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 360, overflowY: 'auto' }}>
-              {candidates.map((w: any) => {
-                const id = String(w.id);
-                const checked = addSelected.includes(id);
-                return (
-                  <Box
-                    key={id}
-                    onClick={() => setAddSelected((p) => (checked ? p.filter((x) => x !== id) : [...p, id]))}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, cursor: 'pointer', border: '1px solid', borderColor: checked ? 'primary.main' : 'divider' }}
-                  >
-                    <Checkbox checked={checked} size="small" sx={{ p: 0 }} />
-                    <Typography sx={{ fontSize: 13, flex: 1 }}>{w.title}</Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>播放 {w.views ?? 0}</Typography>
-                  </Box>
-                );
-              })}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            disabled={busy || addSelected.length === 0}
-            onClick={async () => { if (await act(() => applyCerts(addSelected), `已登记 ${addSelected.length} 个作品`)) setAddOpen(false); }}
-          >
-            登记 {addSelected.length} 个作品
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* 下架申诉 */}
-      <Dialog open={!!appealTarget} onClose={() => setAppealTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>申诉下架《{appealTarget?.suspectTitle}》</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
-            申诉会提交给平台内容审核,并附上你的存证 {appealTarget?.certificateNo}。审核结论会显示在「维权记录」。
-          </Typography>
-          <TextField
-            label="申诉理由"
-            placeholder="说明作品为你原创,以及对方作品的问题"
-            value={appealReason}
-            onChange={(e) => setAppealReason(e.target.value)}
-            multiline
-            minRows={3}
-            fullWidth
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAppealTarget(null)}>取消</Button>
-          <Button
-            variant="contained"
-            disabled={busy || !appealReason.trim()}
-            onClick={async () => {
-              if (appealTarget && (await act(() => appealCase(appealTarget.id, appealReason.trim()), '申诉已提交,等待平台审核'))) setAppealTarget(null);
-            }}
-          >
-            提交申诉
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack(null)} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+      {overlays}
     </Box>
   );
 }
@@ -353,5 +642,39 @@ function Row({ cover, children }: { cover?: string; children: React.ReactNode })
       )}
       {children}
     </Box>
+  );
+}
+
+/** 手机版列表:整组放进一张 MobileSection 卡片,行贴边。 */
+function MobileList({ loading, empty, emptyText, children }: { loading: boolean; empty: boolean; emptyText: string; children: React.ReactNode }) {
+  return (
+    <MobileSection flush>
+      {loading ? (
+        <Box sx={{ textAlign: 'center', py: 3 }}>
+          <CircularProgress size={22} />
+        </Box>
+      ) : empty ? (
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 3, px: 2, textAlign: 'center' }}>{emptyText}</Typography>
+      ) : (
+        children
+      )}
+    </MobileSection>
+  );
+}
+
+function Thumb({ cover }: { cover?: string }) {
+  return (
+    <Box
+      sx={{
+        width: 44,
+        height: 44,
+        flexShrink: 0,
+        borderRadius: 1.5,
+        bgcolor: 'action.hover',
+        backgroundImage: coverBackgroundImage(cover),
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    />
   );
 }

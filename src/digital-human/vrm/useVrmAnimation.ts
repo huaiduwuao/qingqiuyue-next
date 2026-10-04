@@ -11,7 +11,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBone } from './vrmCompat';
+import { applySitPose, sitDrop } from './world/interact';
+import { loadActionClip, loadMocap, MOCAP_ACTIONS, MOCAP_BONES, MOCAP_UPPER, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
 import { buildLookups, safeEvalFormula } from './config/loader';
+import { relaxHands } from './handRest';
+
+/** 待机动捕里腿和脚用多少(其余骨骼 = 1) */
+const IDLE_LEG_WEIGHT: Record<string, number> = { leftUpperLeg: 0.35, rightUpperLeg: 0.35, leftLowerLeg: 0.25, rightLowerLeg: 0.25, leftFoot: 0.1, rightFoot: 0.1 };
 import type {
   ActionConfig,
   ConfigBundle,
@@ -66,13 +72,16 @@ export interface UseVrmAnimationOptions {
   configBundle: ConfigBundle;
   vrmRef: React.MutableRefObject<any>;
   audio: AudioHandle;
-  walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>;
-  /** 物理世界（用于 Foot IK 射线检测） */
-  physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
+  walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
+  /** 十期:坐着的座位(y = 座面离地多高);null = 站着 */
+  sitRef?: React.MutableRefObject<{ y: number } | null>;
 }
 
 export function useVrmAnimation(opts: UseVrmAnimationOptions) {
-  const { configBundle, vrmRef, audio, walkRef, physics } = opts;
+  const { configBundle, vrmRef, audio, walkRef, sitRef } = opts;
+  // 十期:坐姿的权重(0 站着 → 1 坐下),半秒过渡
+  const sitWRef = useRef(0);
+  const sitYRef = useRef(0.45);
   const smRef = useRef<AnimationStateMachine>(new AnimationStateMachine());
   const lookups = useMemo(() => buildLookups(configBundle), [configBundle]);
 
@@ -207,29 +216,201 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     }
   }
 
-  function applyFootIK(dt: number, H: (n: string) => any) {
-    if (!physics?.ready) return;
-    const footOffset = 0.05;
-    const speed = 8;
+  /**
+   * 落脚:这一刻的腿(待机微弯、走路的步子、跳舞、比划)让每个着地点(脚踝、脚尖)比站直时抬高了多少,
+   * 取最低的那个 —— 胯就沉这么多,最低的着地点正好踩在地上(模型原点 = 地面)。返回髋该挪多少(髋父节点的单位)。
+   * 规范化骨骼站直时转角全是 0,所以站直时髋到着地点的高度差就是这条链上各节点本地 y 之和。
+   * 以前是把脚踝骨头本身往地面拽(每帧累加、不复位,脚会脱离小腿悬着),换成这个。
+   */
+  const plantV = new THREE.Vector3();
+  const plantS = new THREE.Vector3();
+  const flatRoot = new THREE.Quaternion();
+  const flatQ = new THREE.Quaternion();
+  /** 站着时脚放平:小腿微弯会把脚带得脚尖上翘,把脚的朝向拧回站直时的样子(平放、朝前)。w = 站着的程度 */
+  function flattenFeet(H: (n: string) => any, root: any, w: number) {
+    if (w <= 0.001 || !root) return;
+    root.getWorldQuaternion(flatRoot);
     for (const side of ['left', 'right'] as const) {
-      const foot = H(`${side}Foot`);
-      if (!foot) continue;
-      const pos = new THREE.Vector3();
-      foot.getWorldPosition(pos);
-      const groundY = physics.raycastGround({ x: pos.x, y: pos.y + 1, z: pos.z }, 2);
-      if (groundY == null || !Number.isFinite(groundY)) continue;
-      const desiredY = groundY + footOffset;
-      const diff = desiredY - pos.y;
-      if (Math.abs(diff) > 0.005) {
-        // 限制单帧调整量，避免抖动
-        foot.position.y += Math.max(-0.08, Math.min(0.08, diff * dt * speed));
+      const ll = H(`${side}LowerLeg`), ft = H(`${side}Foot`);
+      if (!ll || !ft) continue;
+      ll.updateWorldMatrix(true, false);
+      ll.getWorldQuaternion(flatQ).invert().multiply(flatRoot); // 让脚的世界朝向 = 身体根的朝向
+      ft.quaternion.slerp(flatQ, w);
+    }
+  }
+  function plantDrop(H: (n: string) => any): number | null {
+    const hips = H('hips');
+    if (!hips?.parent) return null;
+    hips.updateWorldMatrix(false, true);
+    const scale = hips.parent.getWorldScale(plantS).y || 1;
+    const hipsY = hips.getWorldPosition(plantV).y;
+    let lowest = Infinity;
+    for (const side of ['left', 'right'] as const) {
+      const ul = H(`${side}UpperLeg`), ll = H(`${side}LowerLeg`), ft = H(`${side}Foot`), toe = H(`${side}Toes`);
+      if (!ul || !ll || !ft) continue;
+      const restFoot = -(ul.position.y + ll.position.y + ft.position.y);
+      const raised = (c: any, rest: number) => rest - (hipsY - c.getWorldPosition(plantV).y) / scale;
+      lowest = Math.min(lowest, raised(ft, restFoot));
+      if (toe) lowest = Math.min(lowest, raised(toe, restFoot - toe.position.y));
+    }
+    return Number.isFinite(lowest) ? -lowest : null;
+  }
+
+  /**
+   * 程序化步态。three-vrm 的规范化骨骼里各轴的正方向(模型面朝 +Z,左手在 +X),逐项推过:
+   *   - 大腿 / 大臂(垂下之后)绕 X 转正值 → 往后摆;负值 → 往前;
+   *   - 小腿绕 X 正值 → 屈膝;脚绕 X 正值 → 脚尖往下;
+   *   - 小臂:左臂绕 Y 负值、右臂绕 Y 正值 → 屈肘向前(绕 X 是拧小臂,不是弯);
+   *   - 胯绕 Y 负值 → 左胯往前;胸绕 Y 正值 → 右肩往前;脊柱绕 X 正值 → 前倾。
+   * 左腿往前时:左臂往后、右臂往前(对侧同相),胯跟着左腿扭、胸往反方向扭,头再往回收一点让视线稳住;
+   * 双腿分开最大时身体最低、两腿交错时最高;摆动腿那侧胯微微下沉。
+   * weight 是淡入淡出的混合量(在 idle / pose 已经写进骨骼之后叠上去)。
+   */
+  const gaitRef = useRef({ blend: 0, run: 0 });
+  const gaitBase = useRef(new Map<string, { bx: number; by: number; bz: number; wx: number; wy: number; wz: number }>()).current;
+  function applyGait(phase: number, weight: number, run: number, t: number, H: (n: string) => any) {
+    // 叠加偏移:有的骨骼每帧会被 idle / pose 重写,有的不会(比如小臂、脖子)。
+    // 记下上一帧写进去的值:没被别人改过就从上一帧的底子上叠,改过就以新值为底子 —— 不会越叠越歪。
+    const layer = (key: string, v: { x: number; y: number; z: number } | undefined, x: number, y: number, z: number) => {
+      if (!v) return;
+      let rec = gaitBase.get(key);
+      if (!rec || Math.abs(v.x - rec.wx) > 1e-6 || Math.abs(v.y - rec.wy) > 1e-6 || Math.abs(v.z - rec.wz) > 1e-6) {
+        rec = { bx: v.x, by: v.y, bz: v.z, wx: 0, wy: 0, wz: 0 };
+        gaitBase.set(key, rec);
+      }
+      v.x = rec.bx + x * weight; v.y = rec.by + y * weight; v.z = rec.bz + z * weight;
+      rec.wx = v.x; rec.wy = v.y; rec.wz = v.z;
+    };
+    const add = (bone: string, x: number, y: number, z: number) => layer(bone, H(bone)?.rotation, x, y, z);
+    const s = Math.sin(phase), c = Math.cos(phase);
+    const walk = 1 - run;
+
+    // ── 腿:左腿 = -s 往前(s>0 时左腿在前) ──
+    const legAmp = 0.42 * walk + 0.72 * run;
+    const lLeg = -s * legAmp, rLeg = s * legAmp; // 绕 X,负 = 往前
+    // 摆动相(腿正往前送的半个周期)才屈膝;支撑相几乎伸直,只留一点缓冲
+    const lSwingPhase = Math.max(0, c), rSwingPhase = Math.max(0, -c);
+    const kneeAmp = 0.7 * walk + 1.35 * run;
+    const lKnee = lSwingPhase * kneeAmp + 0.06 + Math.max(0, s) * 0.05;
+    const rKnee = rSwingPhase * kneeAmp + 0.06 + Math.max(0, -s) * 0.05;
+    add('leftUpperLeg', lLeg - lSwingPhase * 0.12 * run, 0, 0);
+    add('rightUpperLeg', rLeg - rSwingPhase * 0.12 * run, 0, 0);
+    add('leftLowerLeg', lKnee, 0, 0);
+    add('rightLowerLeg', rKnee, 0, 0);
+    // 脚:在前的脚跟着地(脚尖抬),在后的脚尖蹬地(脚尖朝下)
+    add('leftFoot', -Math.max(0, s) * 0.25 + Math.max(0, -s) * 0.35 * (0.6 + run) - lSwingPhase * 0.1, 0, 0);
+    add('rightFoot', -Math.max(0, -s) * 0.25 + Math.max(0, s) * 0.35 * (0.6 + run) - rSwingPhase * 0.1, 0, 0);
+
+    // ── 手臂:对侧同相,贴着身体前后摆;往前摆时肘弯得多一点 ──
+    const armAmp = 0.28 * walk + 0.55 * run;
+    add('leftUpperArm', s * armAmp, 0, -0.04 - run * 0.05);   // 左腿在前(s>0)→ 左臂往后
+    add('rightUpperArm', -s * armAmp, 0, 0.04 + run * 0.05);
+    const elbow = 0.22 * walk + 1.25 * run;
+    add('leftLowerArm', 0, -(elbow + Math.max(0, -s) * 0.3), 0);
+    add('rightLowerArm', 0, elbow + Math.max(0, s) * 0.3, 0);
+
+    // ── 躯干 ──
+    add('hips', 0, -s * (0.09 + run * 0.05), -c * 0.035);         // 胯跟腿扭 + 摆动侧下沉
+    add('spine', 0.04 + run * 0.16, s * 0.04, c * 0.02);
+    add('chest', 0.02 * run, s * (0.07 + run * 0.05), c * 0.015);  // 胸反向扭
+    add('neck', 0, -s * 0.04, 0);
+    add('head', -(0.02 + run * 0.08), -s * 0.03, -c * 0.015);      // 头往回收,视线稳住
+
+    // ── 起伏:双腿分开最大时最低,交错时最高(跑步反过来,腾空时最高) ──
+    const hips = H('hips');
+    if (hips?.position) {
+      const bob = walk * (-Math.abs(s) * 0.022 + 0.008) + run * (Math.abs(c) * 0.035 - 0.012);
+      layer('hips.pos', hips.position, 0, bob, 0);
+    }
+    void t;
+  }
+
+
+  function applyRestFix(t: number, H: (n: string) => any) {
+    const breath = Math.sin(t * 1.3);
+    // 同步态一样按「上一帧写的值」判断底子,不被每帧重置的骨骼(手)也不会越叠越歪
+    const set = (bone: string, x: number, y: number, z: number) => {
+      const v = H(bone)?.rotation;
+      if (!v) return;
+      const key = 'rest:' + bone;
+      let rec = gaitBase.get(key);
+      if (!rec || Math.abs(v.x - rec.wx) > 1e-6 || Math.abs(v.y - rec.wy) > 1e-6 || Math.abs(v.z - rec.wz) > 1e-6) {
+        rec = { bx: v.x, by: v.y, bz: v.z, wx: 0, wy: 0, wz: 0 };
+        gaitBase.set(key, rec);
+      }
+      v.x = rec.bx + x; v.y = rec.by + y; v.z = rec.bz + z;
+      rec.wx = v.x; rec.wy = v.y; rec.wz = v.z;
+    };
+    // 大臂:再往身体收一点(左 z 更负、右 z 更正),呼吸时肩臂微微前后
+    set('leftUpperArm', breath * 0.015, 0, -0.1);
+    set('rightUpperArm', breath * 0.015, 0, 0.1);
+    // 小臂:把配置里的拧(x=0.3)抵掉,改成向前微屈
+    set('leftLowerArm', -0.3, -0.22, 0);
+    set('rightLowerArm', -0.3, 0.22, 0);
+    // 手:同样抵掉拧,手指略朝内收
+    set('leftHand', -0.3, 0, 0.12);
+    set('rightHand', -0.3, 0, -0.12);
+  }
+
+  // ── 真人动捕(走 / 跑 / 待机):第一次用到时下载,没下到就一直用程序步态 ──
+  const mocapRef = useRef<MocapSet | null>(null);
+  const mocapReqRef = useRef(false);
+  const legLenRef = useRef(new WeakMap<object, number>());
+  const idleMocapRef = useRef({ w: 0 });
+  // 动作的真人动捕(鞠躬 / 说话比划…):已下载的片段 + 正在播 / 淡出的那一段
+  const actionClipsRef = useRef(new Map<string, MocapClip | null>());
+  const actionMocapRef = useRef<{ name: string; clip: MocapClip; loop: boolean; u: number; w: number } | null>(null);
+  const qA = useRef(new THREE.Quaternion()).current;
+  const qB = useRef(new THREE.Quaternion()).current;
+  const qT = useRef(new THREE.Quaternion()).current;
+  const qT2 = useRef(new THREE.Quaternion()).current;
+  /** 这个模型的腿长(大腿根 → 脚踝,米):动捕的步幅 / 起伏都以腿长为单位 */
+  function legLen(vrm: any, H: (n: string) => any): number {
+    const v = legLenRef.current.get(vrm);
+    if (v) return v;
+    const a = H('leftUpperLeg'), b = H('leftLowerLeg'), c = H('leftFoot');
+    if (!a || !b || !c) return 0.8;
+    const pa = a.getWorldPosition(new THREE.Vector3()), pb = b.getWorldPosition(new THREE.Vector3()), pc = c.getWorldPosition(new THREE.Vector3());
+    let len = pa.distanceTo(pb) + pb.distanceTo(pc);
+    if (!(len > 0.3 && len < 2)) len = 0.8;
+    legLenRef.current.set(vrm, len);
+    return len;
+  }
+  /** 取一段动捕在进度 u 处的四元数;wrap = 循环衔接处要交叉淡化的秒数 */
+  function sampleLoop(clip: MocapClip, bone: string, u: number, out: THREE.Quaternion, wrap = 0): boolean {
+    if (!sampleBone(THREE, clip, bone, u, out, qT)) return false;
+    if (wrap > 0) {
+      const tc = (((u % 1) + 1) % 1) * clip.duration;
+      const k = (tc - (clip.duration - wrap)) / wrap;
+      if (k > 0) {
+        // 快到结尾:往开头那几帧淡过去,接缝处不跳
+        sampleBone(THREE, clip, bone, (tc - (clip.duration - wrap)) / clip.duration, qT2, qT);
+        out.slerp(qT2, k);
       }
     }
+    return true;
+  }
+  /** 髋的上下起伏:按「上一帧写进去的值」判断底子,不越叠越高 */
+  function layerHipsY(H: (n: string) => any, dy: number) {
+    const hips = H('hips');
+    if (!hips?.position) return;
+    let rec = gaitBase.get('mocap:hips.y');
+    if (!rec || Math.abs(hips.position.y - rec.wy) > 1e-6) {
+      rec = { bx: 0, by: hips.position.y, bz: 0, wx: 0, wy: 0, wz: 0 };
+      gaitBase.set('mocap:hips.y', rec);
+    }
+    hips.position.y = rec.by + dy;
+    rec.wy = hips.position.y;
   }
 
   function tick(elapsed: number, dt: number) {
     const vrm = vrmRef.current;
     if (!vrm?.humanoid) return;
+    if (!mocapReqRef.current) {
+      mocapReqRef.current = true;
+      loadMocap().then((m) => { mocapRef.current = m; });
+      for (const n of Object.keys(MOCAP_ACTIONS)) loadActionClip(n).then((c) => { actionClipsRef.current.set(n, c); });
+    }
     const H = (n: string) => getBone(vrm.humanoid, n);
     const sceneObj = vrm.scene;
 
@@ -238,6 +419,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     // 2. idle 基准（呼吸 + 微动）
     const idleCfg = lookups.actionByName.get('idle');
     if (idleCfg) applyActionFormula(idleCfg, elapsed, H, sceneObj);
+    relaxHands(H); // 手指放松微弯(T 字站姿的手是绷直张开的),后面的动作要摆手指照样盖得过
 
     // 3. pose 平滑混合
     poseBlendRef.current = Math.min(1, poseBlendRef.current + dt * 3);
@@ -247,18 +429,55 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       applyPose(poseCfg, poseBlendRef.current, H);
     }
 
-    // 4. walk 步态
+    // 3.5 站姿修正:配置里的 idle 姿势手臂微微张开、笔直,小臂和手腕是「拧」(绕 X)不是「弯」,
+    //     看着像提线木偶。只在默认站姿下叠一层:手臂收回贴身、取消拧、手肘自然微屈、随呼吸轻晃。
+    if (currentPose === 'idle' && !mocapRef.current) applyRestFix(elapsed, H);
+
+    // 4. walk 步态:有真人动捕就用动捕(按走过的距离推进,脚不打滑),没有就用程序步态
     const w = walkRef.current;
-    if (w.moving && w.style !== 'teleport' && w.style !== 'idle') {
-      const walkStyle = w.style === 'run' ? 'run' : 'walk';
-      const walkCfg = lookups.danceByName.get(walkStyle);
-      if (walkCfg) {
-        applyDanceFormula(walkCfg, 0, 0, ampRef.current, audio.poll().bass, w.phase, H);
+    const moving = w.moving && w.style !== 'teleport' && w.style !== 'idle';
+    gaitRef.current.blend = Math.min(1, Math.max(0, gaitRef.current.blend + (moving ? dt * 6 : -dt * 4)));
+    if (moving) gaitRef.current.run = w.style === 'run' ? Math.min(1, gaitRef.current.run + dt * 3) : Math.max(0, gaitRef.current.run - dt * 3);
+    const mocap = mocapRef.current;
+
+    // 4a. 真人待机:站着(默认站姿、没在走、没跳舞)时,真人等人时的重心转换、呼吸、小动作
+    const idleOk = !!mocap && currentPose === 'idle' && !dancingRef.current && gaitRef.current.blend < 0.999;
+    const im = idleMocapRef.current;
+    im.w = Math.min(1, Math.max(0, im.w + (idleOk ? dt * 2 : -dt * 4)));
+    if (mocap && im.w > 0.001) {
+      const u = elapsed / mocap.idle.duration;
+      const k = im.w * (1 - gaitRef.current.blend);
+      for (const b of MOCAP_BONES) {
+        const node = H(b);
+        // 这段待机动捕套到 VRM 上膝盖一直弯着、脚尖上翘外撇:腿只借一点重心转换,脚基本平放朝前
+        const legW = IDLE_LEG_WEIGHT[b] ?? 1;
+        if (node && sampleLoop(mocap.idle, b, u, qA, 0.6)) node.quaternion.slerp(qA, k * legW);
       }
-      smRef.current.set({ kind: 'walk', phase: w.phase, style: walkStyle });
-    } else {
-      smRef.current.remove('walk');
     }
+
+    if (gaitRef.current.blend > 0.001) {
+      if (mocap) {
+        const run = gaitRef.current.run;
+        const L = legLen(vrm, H);
+        const stride = (mocap.walk.stride * (1 - run) + mocap.run.stride * run) * L;
+        const u = (w.dist ?? 0) / Math.max(0.2, stride);
+        for (const b of MOCAP_BONES) {
+          const node = H(b);
+          if (!node) continue;
+          if (!sampleLoop(mocap.walk, b, u, qA)) continue;
+          if (run > 0.001 && sampleLoop(mocap.run, b, u, qB)) qA.slerp(qB, run);
+          node.quaternion.slerp(qA, gaitRef.current.blend);
+        }
+        const bob = (sampleHipsY(mocap.walk, u) * (1 - run) + sampleHipsY(mocap.run, u) * run) * L;
+        layerHipsY(H, bob * gaitRef.current.blend); // 最后落脚时会按腿的实际姿势重算(见 plantDrop)
+      } else {
+        applyGait(w.phase, gaitRef.current.blend, gaitRef.current.run, elapsed, H);
+      }
+    } else if (mocap) {
+      layerHipsY(H, 0);
+    }
+    if (moving) smRef.current.set({ kind: 'walk', phase: w.phase, style: w.style === 'run' ? 'run' : 'walk' });
+    else smRef.current.remove('walk');
 
     // 5. dance
     if (dancingRef.current) {
@@ -273,7 +492,36 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
     // 6. action（最高优先级）+ 自动过期
     const actionState = smRef.current.stack.find((s): s is Extract<AnimState, { kind: 'action' }> => s.kind === 'action');
-    if (actionState) {
+    // 6a. 有真人动捕的动作(鞠躬、说话比划)用动捕:淡入,单次的播完就收,换了别的动作从最后一帧淡出
+    const am = actionMocapRef.current;
+    const clipFor = actionState ? actionClipsRef.current.get(actionState.name) : null;
+    if (actionState && clipFor) {
+      const t = (performance.now() - actionState.startedAtMs) / 1000;
+      const loop = MOCAP_ACTIONS[actionState.name]?.loop ?? false;
+      if (!am || am.name !== actionState.name || am.clip !== clipFor) {
+        actionMocapRef.current = { name: actionState.name, clip: clipFor, loop, u: 0, w: am?.w ?? 0 };
+      }
+      const cur = actionMocapRef.current!;
+      cur.u = loop ? t / clipFor.duration : Math.min(0.999, t / clipFor.duration);
+      const tail = loop ? 1 : Math.min(1, (clipFor.duration - t) / 0.35);
+      cur.w = Math.min(1, cur.w + dt * 4, Math.max(0, tail));
+      if (!loop && t > clipFor.duration) smRef.current.remove('action');
+    } else if (am) {
+      am.w = Math.max(0, am.w - dt * 3);
+      if (am.w <= 0) actionMocapRef.current = null;
+    }
+    const amNow = actionMocapRef.current;
+    if (amNow && amNow.w > 0.001) {
+      const spec = MOCAP_ACTIONS[amNow.name];
+      const strength = amNow.w * (spec?.strength ?? 1);
+      for (const b of MOCAP_BONES) {
+        if (spec?.upper && !MOCAP_UPPER.has(b)) continue;
+        const node = H(b);
+        if (!node) continue;
+        if (amNow.loop ? sampleLoop(amNow.clip, b, amNow.u, qA, 0.5) : sampleBone(THREE, amNow.clip, b, amNow.u, qA, qT)) node.quaternion.slerp(qA, strength);
+      }
+    }
+    if (actionState && !clipFor) {
       const actionCfg = lookups.actionByName.get(actionState.name);
       if (actionCfg) {
         const t = (performance.now() - actionState.startedAtMs) / 1000;
@@ -285,8 +533,24 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       }
     }
 
-    // 7. Foot IK：脚贴地
-    applyFootIK(dt, H);
+    // 6.9 十期:坐下 —— 腿和手臂摆成坐姿,髋沉到座面上(脚不再贴地)
+    const sit = sitRef?.current ?? null;
+    if (sit) sitYRef.current = sit.y;
+    sitWRef.current = Math.min(1, Math.max(0, sitWRef.current + (sit ? dt * 2.5 : -dt * 3)));
+    if (sitWRef.current > 0.001) {
+      const sw = sitWRef.current * sitWRef.current * (3 - 2 * sitWRef.current);
+      applySitPose(THREE, H, sw);
+      const scale = vrm.scene?.scale?.y || 1;
+      layerHipsY(H, (-sitDrop(legLen(vrm, H) + 0.07, sitYRef.current) * sw) / scale);
+      return;
+    }
+
+    // 7. 落脚:站着时脚放平;按此刻腿的姿势沉胯,最低的着地点踩在地上(有动捕时;没动捕的程序化步态自己叠髋的起伏)
+    if (mocap) {
+      flattenFeet(H, sceneObj, dancingRef.current ? 0 : 1 - gaitRef.current.blend);
+      const drop = plantDrop(H);
+      if (drop !== null) layerHipsY(H, Math.max(-0.4, Math.min(0.1, drop)));
+    }
   }
 
   return {

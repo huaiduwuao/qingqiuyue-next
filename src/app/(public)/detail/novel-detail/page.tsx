@@ -17,6 +17,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LockIcon from '@mui/icons-material/Lock';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
+import { stateTransition } from '@/lib/navTransition';
+import { backfillNotice, backfillPending, backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 import { detail as contentDetail } from '@/apis/content-video';
 import { page as chapterPage, get as getChapterDetail, addShelf } from '@/apis/content-novel-chapter';
 import {
@@ -77,6 +79,8 @@ interface NovelDetail {
     readyItems?: number;
     totalItems?: number;
     sourceUrl?: string;
+    /** 自动补全的排队 / 运行 / 上次结果(lib/autoBackfill) */
+    backfill?: BackfillState;
   };
 }
 
@@ -195,7 +199,10 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
           (下面的章节列表照常渲染),但不再假装点进去有东西可读。 */}
       {textMissing && (
         <Box sx={{ mt: 4, fontSize: 14, color: theme.sub }}>
-          <Box sx={{ mb: avail?.sourceUrl ? 1.5 : 0 }}>{avail?.notice || '本站未收录该书正文'}</Box>
+          <Box sx={{ mb: avail?.sourceUrl ? 1.5 : 0, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {backfillPending(detail) && <CircularProgress size={14} sx={{ color: theme.sub }} />}
+            <span>{backfillNotice(avail, '本站未收录该书正文')}</span>
+          </Box>
           {avail?.sourceUrl && (
             <Button
               variant="outlined"
@@ -262,8 +269,11 @@ function NovelDetailContent() {
     queryKey: ['detail', 'novel', id],
     queryFn: () => contentDetail('novel', { id: id! }).then((r) => (r ?? null) as NovelDetail | null),
     enabled: !!id,
+    // 站内没正文时后端已把这本书投进自动补全:排队 / 运行中就轮询,正文一到"开始阅读"就亮起来。
+    refetchInterval: backfillRefetchInterval,
   });
   const detail = detailQuery.data ?? undefined;
+  const backfilling = backfillPending(detail);
 
   // 目录窗口的锚点章节(给 useContentItems 当 untilChapterId —— 长篇小说初次进入只拉
   // 目标章节所在页,不一次拉全本)。进入这本书时定一次:地址栏 chapter 优先,否则本地进度。
@@ -288,6 +298,7 @@ function NovelDetailContent() {
     lite: true,
     untilChapterId: tocAnchor.chapter,
     enabled: tocAnchor.ready,
+    poll: backfilling,
   });
   const queryClient = useQueryClient();
   const legacy = useMemo(() => legacyChapters(id ?? '', detail), [id, detail]);
@@ -359,30 +370,38 @@ function NovelDetailContent() {
     (i: number) => {
       const target = chapters[i];
       if (!target) return;
-      setExitReading(false);
-      setRange({ start: i, end: i });
-      setCurrent(i);
-      // 从目录 / 上下章按钮跳章一律从章首开始,不能沿用上一章的页码
-      setPage(0);
-      setPanel(null);
-      setShowInfo(false);
-      setUrlChapter(target.id, 0);
-      if (id) saveProgress(id, { chapterId: target.id, page: 0 });
-      window.scrollTo({ top: 0 });
+      const apply = () => {
+        setExitReading(false);
+        setRange({ start: i, end: i });
+        setCurrent(i);
+        // 从目录 / 上下章按钮跳章一律从章首开始,不能沿用上一章的页码
+        setPage(0);
+        setPanel(null);
+        setShowInfo(false);
+        setUrlChapter(target.id, 0);
+        if (id) saveProgress(id, { chapterId: target.id, page: 0 });
+        window.scrollTo({ top: 0 });
+      };
+      // 从详情页进入阅读器:和换页一样的前进转场(阅读中跳章不做,免得翻章也整屏平移)
+      if (range === null) stateTransition('forward', apply);
+      else apply();
     },
-    [chapters, id, setUrlChapter],
+    [chapters, id, setUrlChapter, range],
   );
 
   // 回目录/详情:退出阅读态。把地址栏的 chapter 参数去掉,并滚回顶部。
   const backToDetail = useCallback(() => {
-    setExitReading(true);
-    setRange(null);
-    setCurrent(0);
-    setPage(0);
-    setPanel(null);
-    setShowInfo(false);
-    if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
-    window.scrollTo({ top: 0 });
+    // 退出阅读器回详情:返回转场
+    stateTransition('back', () => {
+      setExitReading(true);
+      setRange(null);
+      setCurrent(0);
+      setPage(0);
+      setPanel(null);
+      setShowInfo(false);
+      if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
+      window.scrollTo({ top: 0 });
+    });
   }, [id, pathname]);
 
   const appendAfter = useCallback(
@@ -523,7 +542,7 @@ function NovelDetailContent() {
 
   const emptyNotice = chapters.length === 0 && !tocLoading && (
     <Box sx={{ mt: 4, pt: 3, borderTop: `1px dashed ${rt.line}`, color: rt.sub, fontSize: 14 }}>
-      <Box sx={{ mb: 1.5 }}>{tocQuery.data?.backfilling ? '正在获取章节目录…' : playNoticeOf(detail) || '这本书暂时没有可在线阅读的章节'}</Box>
+      <Box sx={{ mb: 1.5 }}>{tocQuery.data?.backfilling || backfilling ? '正在从源站获取章节目录…' : playNoticeOf(detail) || '这本书暂时没有可在线阅读的章节'}</Box>
       {platforms.length > 0 && (
         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
           <PlatformLinks platforms={platforms} title="" dense />
@@ -606,10 +625,17 @@ function NovelDetailContent() {
   };
 
   const rendered = range ? chapters.slice(range.start, range.end + 1) : [];
+  // 移动端分页阅读是定高的一屏:外层钉死 --app-height 不许滚。以前外层/纸面都是 minHeight: 100vh,
+  // 手机浏览器里 100vh 比可视区高(地址栏那一截),body 末尾的音乐底栏占位又再加一个 --sab,
+  // 整页能上下滚一小段。data-app-shell 让 globals.css 把那个占位藏掉。
+  const pagedShell = isMobile && !showDetail && prefs.mode !== 'scroll';
 
   return (
     <ReaderMuiScope theme={rt}>
-      <Box sx={{ minHeight: '100vh', colorScheme: rt.dark ? 'dark' : 'light', color: rt.text, backgroundColor: rt.page, backgroundImage: noiseLayer(rt.dark), transition: 'background-color .3s' }}>
+      <Box
+        data-app-shell={pagedShell ? '' : undefined}
+        sx={{ ...(pagedShell ? { height: 'var(--app-height, 100dvh)', overflow: 'hidden' } : { minHeight: '100vh' }), colorScheme: rt.dark ? 'dark' : 'light', color: rt.text, backgroundColor: rt.page, backgroundImage: noiseLayer(rt.dark), transition: 'background-color .3s' }}
+      >
         <Snackbar open={!!errMsg} autoHideDuration={2500} onClose={() => setErrMsg(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
           <Alert severity="error" variant="filled" onClose={() => setErrMsg(null)}>
             {errMsg}
@@ -656,12 +682,20 @@ function NovelDetailContent() {
             width: columnWidth,
             maxWidth: '100%',
             mx: 'auto',
-            minHeight: '100vh',
+            minHeight: pagedShell ? 0 : '100vh',
             boxSizing: 'border-box',
             // 移动端分页阅读:顶栏是浮层,分页容器得从状态栏下面开始。不留这段的话容器贴着 y=0、
             // 高度又扣了 --sat,状态栏那一截全挪到了底部 —— 安卓客户端里底部多空出一截。
             // 用 pt 不用容器的 mt:mt 会穿透到这一层,把整页撑得比屏幕高、能上下滚。
-            pt: isMobile && !showDetail && prefs.mode !== 'scroll' ? 'var(--sat, 0px)' : 0,
+            // 移动端详情态:顶栏同样是浮层(48px + 状态栏),书籍信息卡得从它下面开始,
+            // 以前是 0 —— 卡片顶边和封面上半截压在顶栏底下,安卓客户端里还要再多压一个状态栏。
+            pt: !isMobile
+              ? 0
+              : showDetail
+                ? 'calc(48px + var(--sat, 0px))'
+                : prefs.mode !== 'scroll'
+                  ? 'var(--sat, 0px)'
+                  : 0,
             transition: 'width .3s, background-color .3s',
           }}
           onClick={(e) => {
@@ -763,7 +797,7 @@ function NovelDetailContent() {
                   ref={paginatedRef}
                   sx={{
                     height: isMobile
-                      ? 'calc(100dvh - var(--sat, 0px) - var(--sab, 0px))'
+                      ? 'calc(var(--app-height, 100dvh) - var(--sat, 0px) - var(--sab, 0px))'
                       : 'calc(100dvh - 56px)',
                     width: '100%',
                     overflow: 'hidden',

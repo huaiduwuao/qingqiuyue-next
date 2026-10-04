@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { BotBadge } from '@/components/community/UserLine';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import PublicTopBar from '@/components/layout/PublicTopBar';
@@ -314,6 +315,7 @@ export default function UserProfilePage() {
                 <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.75, py: 0.25, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, fontWeight: 600 }}>
                   {TYPE_LABEL[w.contentType] || w.contentType}
                 </Box>
+                <PlayTag id={w.id} contentType={w.contentType} variant="overlay" top={6} right={6} />
               </Box>
               <Box sx={{ minWidth: 0, [LIST_ROW]: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
                 <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>{w.title}</Typography>

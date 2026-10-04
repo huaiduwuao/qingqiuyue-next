@@ -14,7 +14,7 @@
 
 import { normalizeContentRefs, type ContentRef } from './content';
 
-export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run' | 'plan' | 'content';
+export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run' | 'plan' | 'content' | 'source_draft';
 
 export interface ScenePanelListItem {
   id: string;
@@ -119,7 +119,16 @@ export interface ScenePanelContent extends ScenePanelBase {
   items: ContentRef[];
 }
 
-export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun | ScenePanelPlan | ScenePanelContent;
+/**
+ * 接入助手草稿卡片(后端 ui_show_source_draft,见 engine/tools_source_setup.go)。
+ * 只带草稿 id:卡片用看卡片那个人的会话读草稿、保存或放弃,不经过 agent。
+ */
+export interface ScenePanelSourceDraft extends ScenePanelBase {
+  kind: 'source_draft';
+  draftId: string;
+}
+
+export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun | ScenePanelPlan | ScenePanelContent | ScenePanelSourceDraft;
 
 /** 后端工具名 → 面板类型 */
 export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
@@ -130,6 +139,7 @@ export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
   ui_show_run: 'run',
   ui_show_plan: 'plan',
   ui_show_content: 'content',
+  ui_show_source_draft: 'source_draft',
 };
 
 /** 关闭面板的工具名 */
@@ -202,6 +212,12 @@ export function scenePanelFromToolCall(
     const operationId = asString(args.operation_id).trim();
     if (!operationId) return null;
     return { kind: 'operation', id, title: asString(args.title) || '部署操作', subtitle, operationId };
+  }
+
+  if (kind === 'source_draft') {
+    const draftId = asString(args.draft_id).trim();
+    if (!draftId) return null;
+    return { kind: 'source_draft', id, title: asString(args.title) || '接入草稿', subtitle, draftId };
   }
 
   if (kind === 'run') {

@@ -7,6 +7,8 @@ import Chip from '@mui/material/Chip';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { type PublishHubType } from '@/lib/contentRoute';
 import { CREATION_TYPES, type CreationType } from '../../_components/contentTypes';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection } from '@/components/mobile/MobileSection';
 
 /**
  * hd-publish dispatcher 的"类型选择"落地页。
@@ -21,6 +23,8 @@ export interface TypePickerProps {
 }
 
 export function TypePicker({ onPick }: TypePickerProps) {
+  const { isMobile } = useResponsive();
+  if (isMobile) return <TypePickerMobile onPick={onPick} />;
   return (
     <Box>
       {/* Hero header */}
@@ -170,5 +174,79 @@ export function TypePicker({ onPick }: TypePickerProps) {
         ))}
       </Box>
     </Box>
+  );
+}
+
+/**
+ * 手机版:不要横幅(顶部页签已经写着「发布作品」),13 种类型排成 4 列图标宫格,一屏放下。
+ * 说明文字只留在电脑版卡片里;手机上图标 + 两个字的名字就够认。
+ */
+function TypePickerMobile({ onPick }: TypePickerProps) {
+  return (
+    <MobileSection title="选择类型" extra="提交后进入审核">
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', rowGap: 1.75, columnGap: 0.5 }}>
+        {CREATION_TYPES.map((c: CreationType) => (
+          <Box
+            key={c.id}
+            component="button"
+            type="button"
+            onClick={() => onPick(c.hubType)}
+            aria-label={c.title}
+            sx={{
+              all: 'unset',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 0.75,
+              minWidth: 0,
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+              '&:active': { opacity: 0.6 },
+              '&:focus-visible .tp-icon': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+            }}
+          >
+            <Box
+              className="tp-icon"
+              sx={{
+                width: 46,
+                height: 46,
+                borderRadius: 2.5,
+                background: c.gradient,
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                '& .MuiSvgIcon-root': { fontSize: 24 },
+              }}
+            >
+              {c.icon}
+            </Box>
+            {c.badge && (
+              <Box
+                component="span"
+                sx={{
+                  position: 'absolute',
+                  top: -4,
+                  left: 'calc(50% + 14px)',
+                  px: 0.5,
+                  borderRadius: 999,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  lineHeight: '14px',
+                  color: '#fff',
+                  bgcolor: 'primary.main',
+                }}
+              >
+                {c.badge}
+              </Box>
+            )}
+            <Typography noWrap sx={{ fontSize: 12, color: 'text.primary', maxWidth: '100%' }}>
+              {c.title.replace(/^发布/, '')}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    </MobileSection>
   );
 }

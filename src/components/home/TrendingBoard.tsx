@@ -10,9 +10,6 @@ import Tabs from '@mui/material/Tabs';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import PublicIcon from '@mui/icons-material/PublicRounded';
-import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
-import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
-import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -24,6 +21,7 @@ import {
 } from '@/apis/recommend';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
+import { PlayTag } from '@/components/common/PlayTag';
 
 // 时间窗口。与后端 internal/trending 的 Period 一一对应。
 const PERIODS: { value: TrendingPeriod; label: string }[] = [
@@ -55,7 +53,7 @@ export default function TrendingBoard({
   title = '全网热榜',
   defaultPeriod = 'day',
   maxItems = 20,
-  playableOnly = false,
+  playableOnly = true,
 }: Props) {
   const router = useRouter();
   const [period, setPeriod] = useState<TrendingPeriod>(defaultPeriod);
@@ -227,28 +225,14 @@ export default function TrendingBoard({
                 {item.title}
               </Typography>
 
-              {/* 播放性:不可播的内容明确标出来,别让用户点进去才发现。
-                  三种状态给三种待遇 ——
-                    pending_repair:真故障,警告色扳手
-                    live_offline  :主播没开播,是直播的正常状态,用中性色的"休息中"
-                                    图标,不能用故障色,那会让用户以为我们坏了
-                    not_applicable:小说/文章,不标 */}
-              {item.playbackStatus === 'pending_repair' && (
-                <Tooltip title={item.repairNotice || '内容修复中'}>
-                  <BuildRoundedIcon sx={{ fontSize: 13, color: 'warning.main', flexShrink: 0 }} />
-                </Tooltip>
-              )}
-              {item.playbackStatus === 'live_offline' && (
-                <Tooltip title={item.repairNotice || '主播当前未开播'}>
-                  <BedtimeRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
-                </Tooltip>
-              )}
-              {/* bandwidth_limited:内容没坏,本站只是不替源站付视频带宽 —— 中性图标,点进去有原站入口 */}
-              {item.playbackStatus === 'bandwidth_limited' && (
-                <Tooltip title={item.repairNotice || '因带宽成本暂不支持站内播放,可前往原站观看'}>
-                  <CloudOffRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
-                </Tooltip>
-              )}
+              {/* 播放性:每条都标能不能播 / 能不能读,别让用户点进去才发现。榜单接口
+                  本来就带 playbackStatus,直接给 PlayTag;没判定的它会按 id 去问。
+                  repairNotice(修复说明 / 未开播 / 带宽原因)放在悬停提示里。 */}
+              <Tooltip title={item.repairNotice || ''}>
+                <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                  <PlayTag id={item.id} contentType={item.contentType} status={item.playbackStatus} sx={{ height: 18, fontSize: 10 }} />
+                </Box>
+              </Tooltip>
 
               <Typography
                 sx={{

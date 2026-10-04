@@ -61,9 +61,9 @@ export default function LiveForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (!video) return '请先上传直播回放视频';

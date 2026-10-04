@@ -144,6 +144,7 @@ export default function SystemDataPermissionPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         columns={columns}
         actionPermissions={{ edit: PERMISSIONS.SYSTEM_DATA_PERMISSION.UPDATE, delete: PERMISSIONS.SYSTEM_DATA_PERMISSION.DELETE }}
         hasPermission={can}

@@ -12,6 +12,9 @@ import ContentDistributionChart from '../../_components/ContentDistributionChart
 import TrendChart from '../../_components/TrendChart';
 import FanPortrait from '../../_components/FanPortrait';
 import HotTopicsCarousel from '../../_components/HotTopicsCarousel';
+import CreatorHomeMobile from './CreatorHomeMobile';
+import BountyPicks from '../../_components/BountyPicks';
+import { useResponsive } from '@/hooks/useResponsive';
 
 function SectionHeader({
   step,
@@ -69,6 +72,9 @@ function SectionHeader({
 }
 
 export default function CreatorHomePage() {
+  // 手机上是单独设计的精简工作台,不是这一页的响应式缩小版
+  const { isMobile } = useResponsive();
+  if (isMobile) return <CreatorHomeMobile />;
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto', width: '100%', pb: 4 }}>
       {/* Hero — 创作者档案 */}
@@ -83,15 +89,21 @@ export default function CreatorHomePage() {
         <HotTopicsCarousel />
       </Box>
 
-      {/* Step 2 · 创作开始 */}
+      {/* Step 2 · 继续创作:只放进行中的草稿/上传/定时 + 去发布的按钮,13 种类型入口在「发布作品」页 */}
       <Box>
-        <SectionHeader step={2} title="开始创作" subtitle="发布短视频 / 图文 / 直播" hint="支持草稿暂存" />
+        <SectionHeader step={2} title="继续创作" subtitle="草稿 · 上传中 · 定时发布" />
         <NewCreationSection />
       </Box>
 
-      {/* Step 3 · 数据洞察 */}
+      {/* Step 3 · 接个悬赏:创作中心和悬赏中心连起来 —— 认领任务、在这里创作、用作品交付 */}
       <Box>
-        <SectionHeader step={3} title="数据洞察" subtitle="作品表现 + 粉丝画像" />
+        <SectionHeader step={3} title="接个悬赏" subtitle="有人在花钱找人创作" />
+        <BountyPicks />
+      </Box>
+
+      {/* Step 4 · 数据洞察 */}
+      <Box>
+        <SectionHeader step={4} title="数据洞察" subtitle="作品表现 + 粉丝画像" />
         <Box
           sx={{
             display: 'grid',

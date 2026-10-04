@@ -34,16 +34,22 @@ import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import VerifiedIcon from '@mui/icons-material/Verified';
+import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
+import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined';
+import { startCall } from '@/lib/call/controller';
+import { callRecordText, type CallMedia, type CallRecord } from '@/apis/call';
 import { adminClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
 import { pinSession, unpinSession, removeSessions, sendShareCard, type ShareKind } from '@/apis/msg';
 import ShareCardBubble from '@/components/msg/ShareCardBubble';
 import SharePicker from '@/components/msg/SharePicker';
+import { useHideMobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { usePollFallback } from '@/lib/realtime';
 import { blockUser, followUser, unblockUser, unfollowUser } from '@/apis/social';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
@@ -51,6 +57,7 @@ import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { openExternal } from '@/lib/safeUrl';
+import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
 
 interface Session {
   id: number;
@@ -64,7 +71,7 @@ interface Session {
   isOfficial?: boolean;
   unread: number;
   lastMessage: string;
-  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty' | 'card';
+  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty' | 'card' | 'call';
   lastTime: string;
   pinned: boolean;
 }
@@ -75,7 +82,8 @@ interface Message {
   fromUserId: number;
   /** bounty:悬赏任务流转卡片,content 是 JSON(后端 service.BountyCard),只能由服务端写入 */
   /** card:用户分享的站内内容,content 是 JSON(后端 msgapp.ShareCard),标题封面由服务端快照 */
-  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty' | 'card';
+  /** call:通话记录,content 是 JSON(后端 msgapp.CallRecord),只由 callapp 在通话结束时写入 */
+  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty' | 'card' | 'call';
   content: string;
   time: string;
   status?: 'sent' | 'delivered' | 'read';
@@ -88,6 +96,7 @@ const INTERACTION_SUB_TYPES = [
   { key: 'like', label: '赞' },
   { key: 'follow', label: '粉丝' },
   { key: 'friend', label: '好友' },
+  { key: 'room_event', label: '活动' },
 ];
 
 const QUICK_EMOJI = ['😀', '😂', '🥰', '😍', '🤔', '😢', '👍', '👏', '🎉', '❤️', '🔥', '✨'];
@@ -148,7 +157,8 @@ export default function MsgPage() {
     if (session > 0) setSelectedId(session);
   }, [setMainTab, setSelectedId]);
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px))', bgcolor: 'background.default' }}>
+    // 手机底部导航压在最下面(打开会话时会收起,inset 归零)
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px) - var(--bottom-nav-inset, 0px))', bgcolor: 'background.default' }}>
       {/* 顶部 Tab 导航 */}
       <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default', flexShrink: 0, px: 3 }}>
         <Tabs
@@ -311,11 +321,17 @@ function FullNoticeItem({ item }: { item: any }) {
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
     if (item.type === 'like') return <FavoriteBorderIcon sx={{ fontSize: 12, color: 'primary.main' }} />;
     if (item.type === 'follow') return <PersonAddAlt1Icon sx={{ fontSize: 12, color: 'warning.main' }} />;
+    if (item.type === 'room_event') return <EventAvailableIcon sx={{ fontSize: 12, color: 'success.main' }} />;
     return null;
   })();
 
   const handleClick = async () => {
     markRead(); // 点击即标记已读(异步,不阻塞后续操作)
+    if (item.type === 'room_event' && item.fromUserId) {
+      // 创世房间活动(from = 房主):进他的房间
+      router.push(`/digital-human?room=${encodeURIComponent(String(item.fromUserId))}`);
+      return;
+    }
     if (item.type === 'follow') {
       // 粉丝消息:已读即可,不自动回关;看主页点头像,回关点右侧按钮
       return;
@@ -590,6 +606,8 @@ function DmPanel() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  // 手机上打开会话:输入框在最底下,底部导航让开
+  useHideMobileBottomNav(mobileShowDetail);
   const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -630,6 +648,13 @@ function DmPanel() {
   }, [filteredSessions]);
 
   const selected = useMemo(() => sessions.find((s) => s.id === selectedId), [sessions, selectedId]);
+  /** 发起通话。媒体点对点直连(见 lib/call/controller),这里只负责入口和报错。 */
+  const dial = (media: CallMedia) => {
+    if (!selected) return;
+    startCall({ userId: String(selected.userId), nickname: selected.nickname, avatar: selected.avatar }, media).catch((e) =>
+      setSnack({ open: true, msg: (e as Error)?.message || '呼叫失败', severity: 'error' }),
+    );
+  };
 
   const { data: msgData, isLoading: loadingMsgs } = useQuery({
     queryKey: ['dm-messages-page', selectedId],
@@ -975,6 +1000,20 @@ function DmPanel() {
                     </Typography>
                   )}
                 </Box>
+                {!selected.isOfficial && !selected.isBlocked && (
+                  <>
+                    <Tooltip title="语音通话">
+                      <IconButton size="small" aria-label="语音通话" sx={{ color: 'text.secondary' }} onClick={() => dial('audio')}>
+                        <CallOutlinedIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="视频通话">
+                      <IconButton size="small" aria-label="视频通话" sx={{ color: 'text.secondary' }} onClick={() => dial('video')}>
+                        <VideocamOutlinedIcon sx={{ fontSize: 19 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
                 <Tooltip title={selected.isFollowed ? '点击取消关注' : '关注'}>
                   <Box
                     onClick={() => !followMutation.isPending && !selected.isBlocked && followMutation.mutate()}
@@ -1311,7 +1350,8 @@ interface BountyCardData {
   taskTitle: string;
   demandId?: number;
   demandTitle?: string;
-  reward?: number;
+  reward?: number; // 标价(元),老卡片只有这个
+  rewardDiamonds?: number;
   text?: string;
   work?: { id: string | number; contentType: string; title: string; cover?: string };
 }
@@ -1358,7 +1398,7 @@ function BountyCardBubble({ content, isMine }: { content: string; isMine: boolea
         {card.demandTitle && (
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             需求:{card.demandTitle}
-            {card.reward ? ` · 标价 ¥${card.reward}` : ''}
+            {taskRewardDiamonds(card) > 0 ? ` · 标价 ${formatDiamonds(taskRewardDiamonds(card))}` : ''}
           </Typography>
         )}
         {card.work && (
@@ -1425,6 +1465,36 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
     return (
       <Box sx={{ alignSelf: 'center', py: 0.5 }}>
         <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{message.content}</Typography>
+      </Box>
+    );
+  }
+  if (message.type === 'call') {
+    let rec: CallRecord = { media: 'audio', result: 'failed', seconds: 0 };
+    try {
+      rec = { ...rec, ...JSON.parse(message.content) };
+    } catch {
+      /* 老数据 / 坏数据按「未接通」显示 */
+    }
+    const missed = !isMine && (rec.result === 'missed' || rec.result === 'busy');
+    return (
+      <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
+        {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+        <Box
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 1,
+            borderRadius: 2,
+            bgcolor: isMine ? 'primary.main' : 'action.hover',
+            color: missed ? 'error.main' : isMine ? 'primary.contrastText' : 'text.primary',
+            fontSize: 13,
+          }}
+        >
+          {rec.media === 'video' ? <VideocamOutlinedIcon sx={{ fontSize: 16 }} /> : <CallOutlinedIcon sx={{ fontSize: 16 }} />}
+          {callRecordText(rec, isMine)}
+        </Box>
       </Box>
     );
   }

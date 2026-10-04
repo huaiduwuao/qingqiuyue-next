@@ -52,12 +52,15 @@ import { accountClient } from '@/lib/api/client';
   formatDuration,
   ensureArray,
 } from './data';
-import { parseRewardCny } from './helpers';
+import { parseRewardDiamonds } from './helpers';
 import { KpiCard } from './KpiCard';
 import { ActivityCard } from './ActivityCard';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { DetailDrawer, type DetailTabKey } from './DetailDrawer';
 import { coverBackground } from '@/lib/media';
+import { useResponsive } from '@/hooks/useResponsive';
+import ActivityMobile from './ActivityMobile';
+import { useActiveTab } from '../../ActiveTabContext';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -81,16 +84,35 @@ const SORT_DEFS: Array<{ id: SortKey; label: string }> = [
 ];
 
 export default function ActivityPage() {
+  const { isMobile } = useResponsive();
   const [tab, setTab] = useState<FilterTab>('all');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [sort, setSort] = useState<SortKey>('heat');
   const [search, setSearch] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTabKey>('detail');
+  // 深链:/account/content?tab=activity&activity=<id> 直接打开这个活动的详情(「复制链接」复制的就是它)。
+  // 读完从地址栏去掉,刷新不重复弹。
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('activity');
+    if (!id) return;
+    setDetailId(id);
+    setDetailTab('detail');
+    url.searchParams.delete('activity');
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, []);
   const [signupId, setSignupId] = useState<string | null>(null);
   const [signupAgreed, setSignupAgreed] = useState(false);
   const [submitId, setSubmitId] = useState<string | null>(null);
   const [submitSelected, setSubmitSelected] = useState<string[]>([]);
+  // 从作品管理「参加活动」过来:记住是哪部作品,打开任意活动的投稿时替用户勾好
+  const { tabParams } = useActiveTab();
+  const [pendingWork, setPendingWork] = useState<{ id: string; title: string } | null>(null);
+  useEffect(() => {
+    const id = tabParams?.workId;
+    if (id) setPendingWork({ id: String(id), title: String(tabParams?.workTitle || '') });
+  }, [tabParams]);
   const [submitCaption, setSubmitCaption] = useState('');
   const [snack, setSnack] = useState<{ msg: string; sev: 'success' | 'info' | 'warning' } | null>(null);
 
@@ -141,10 +163,10 @@ export default function ActivityPage() {
     ).length;
     const monthlyReward = items
       .filter((a) => a.participation === 'won' && a.myWonAt && a.myWonAt > Date.now() - 30 * 86400000)
-      .reduce((sum, a) => sum + (parseRewardCny(a.myWonReward) || 0), 0);
+      .reduce((sum, a) => sum + (parseRewardDiamonds(a.myWonReward) || 0), 0);
     const totalWon = items
       .filter((a) => a.participation === 'won')
-      .reduce((sum, a) => sum + (parseRewardCny(a.myWonReward) || 0), 0);
+      .reduce((sum, a) => sum + (parseRewardDiamonds(a.myWonReward) || 0), 0);
     return { active, mySigned, monthlyReward, totalWon };
   }, [items]);
 
@@ -233,7 +255,7 @@ export default function ActivityPage() {
     }
   };
 
-  const openSubmit = (id: string) => { setSubmitId(id); setSubmitSelected([]); setSubmitCaption(''); };
+  const openSubmit = (id: string) => { setSubmitId(id); setSubmitSelected(pendingWork ? [pendingWork.id] : []); setSubmitCaption(''); };
   const closeSubmit = () => { setSubmitId(null); setSubmitSelected([]); setSubmitCaption(''); };
 
   const confirmSubmit = async () => {
@@ -247,6 +269,7 @@ export default function ActivityPage() {
       const count = res?.submitted ?? submitSelected.length;
       await refetchActivities();
       setSnack({ msg: `已提交 ${count} 部作品到《${submitTarget.title}》`, sev: 'success' });
+      setPendingWork(null);
       closeSubmit();
     } catch (e) {
       setSnack({ msg: `投稿失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
@@ -259,10 +282,266 @@ export default function ActivityPage() {
       return;
     }
     navigator.clipboard
-      .writeText(`${window.location.origin}/activity/${id}`)
+      // 以前是 /activity/<id>,站里没有这个路由,复制出去是 404
+      .writeText(`${window.location.origin}/account/content?tab=activity&activity=${encodeURIComponent(id)}`)
       .then(() => setSnack({ msg: '活动链接已复制,快邀好友一起来玩', sev: 'info' }))
       .catch(() => setSnack({ msg: '复制失败,请手动复制链接', sev: 'warning' }));
   };
+
+  const handleSubscribe = async () => {
+    try {
+      await accountClient('/activity/subscribe', { method: 'POST' });
+      setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' });
+    } catch (e) {
+      setSnack({ msg: `订阅失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
+    }
+  };
+
+  // 详情抽屉 / 报名 / 投稿对话框 / 提示:电脑版和手机版共用
+  const overlays = (
+    <>
+      {/* 从作品管理「参加活动」过来时的常驻提示 */}
+      <Snackbar
+        open={!!pendingWork && !submitTarget}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ top: { xs: 'calc(56px + var(--sat, 0px))', md: 88 } }}
+      >
+        <Alert
+          severity="info"
+          variant="filled"
+          onClose={() => setPendingWork(null)}
+          sx={{ alignItems: 'center', '& .MuiAlert-message': { overflow: 'hidden' } }}
+        >
+          为「{pendingWork?.title || '作品'}」挑一个活动,点「投稿」时已替你选好这部作品
+        </Alert>
+      </Snackbar>
+      {/* Detail Drawer */}
+      <Drawer
+        anchor="right"
+        open={!!detail}
+        onClose={() => setDetailId(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: '100%', md: 720 },
+              bgcolor: 'background.default',
+              borderLeft: '1px solid',
+              borderColor: 'divider',
+            },
+          },
+        }}
+      >
+        {detail && (
+          <DetailDrawer
+            activity={detail}
+            tab={detailTab}
+            onTabChange={setDetailTab}
+            onClose={() => setDetailId(null)}
+            onSignup={() => openSignup(detail.id)}
+            onSubmit={() => openSubmit(detail.id)}
+            onCopyLink={() => handleCopyLink(detail.id)}
+          />
+        )}
+      </Drawer>
+
+      {/* Sign-up dialog */}
+      <Dialog
+        open={!!signupTarget}
+        onClose={closeSignup}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } } }}
+      >
+        {signupTarget && (
+          <>
+            <DialogTitle sx={{ fontSize: 16, fontWeight: 700, pb: 1 }}>报名《{signupTarget.title}》</DialogTitle>
+            <DialogContent sx={{ pb: 1 }}>
+              <Box sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'rgba(254, 44, 85, 0.08)', border: '1px solid', borderColor: 'rgba(254, 44, 85, 0.2)' }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'primary.main', mb: 0.5 }}>奖项总额</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>{signupTarget.totalReward}</Typography>
+              </Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 1 }}>报名前请阅读活动规则</Typography>
+              <Box component="ul" sx={{ pl: 2, m: 0, mb: 2 }}>
+                {signupTarget.rules.map((r, i) => (
+                  <Typography key={i} component="li" sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5, lineHeight: 1.5 }}>{r}</Typography>
+                ))}
+              </Box>
+              <FormControlLabel
+                control={<Checkbox size="small" checked={signupAgreed} onChange={(e) => setSignupAgreed(e.target.checked)} sx={{ color: 'text.disabled' }} />}
+                label={<Typography sx={{ fontSize: 12, color: 'text.secondary' }}>我已阅读并同意以上规则,自愿参与本活动</Typography>}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button variant="text" onClick={closeSignup} sx={{ textTransform: 'none' }}>取消</Button>
+              <Button onClick={confirmSignup} variant="contained" disabled={!signupAgreed} sx={{ textTransform: 'none' }}>确认报名</Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Submit-work dialog */}
+      <Dialog
+        open={!!submitTarget}
+        onClose={closeSubmit}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{ paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } } }}
+      >
+        {submitTarget && (
+          <>
+            <DialogTitle sx={{ fontSize: 16, fontWeight: 700, pb: 1 }}>投稿到《{submitTarget.title}》</DialogTitle>
+            <DialogContent sx={{ pb: 1 }}>
+              <Box sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'rgba(37, 244, 238, 0.08)', border: '1px solid', borderColor: 'rgba(37, 244, 238, 0.2)' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'secondary.main', mb: 0.5 }}>投稿要求</Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {submitTarget.requirements.map((r) => (
+                    <Chip key={r} label={r} size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(37, 244, 238, 0.16)', color: 'var(--fg-cyan)' }} />
+                  ))}
+                </Box>
+              </Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 1 }}>
+                选择作品 ({submitSelected.length} 已选)
+              </Typography>
+              <Box sx={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2, pr: 0.5 }}>
+                {eligibleWorks.map((w) => {
+                  const selected = submitSelected.includes(w.id);
+                  const matchedTag = w.hashtags.find((h) => submitTarget.requirements.some((r) => r.toLowerCase().includes(h.toLowerCase())));
+                  const alreadySubmitted = submitTarget.submissions.some((s) => s.workId === w.id);
+                  return (
+                    <Box
+                      key={w.id}
+                      onClick={() => {
+                        if (alreadySubmitted) return;
+                        setSubmitSelected((prev) => prev.includes(w.id) ? prev.filter((x) => x !== w.id) : [...prev, w.id]);
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.25,
+                        p: 1,
+                        borderRadius: 1,
+                        bgcolor: selected ? 'rgba(254, 44, 85, 0.08)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: selected ? 'rgba(254, 44, 85, 0.4)' : 'divider',
+                        cursor: alreadySubmitted ? 'not-allowed' : 'pointer',
+                        opacity: alreadySubmitted ? 0.5 : 1,
+                        transition: 'all 0.15s',
+                        '&:hover': alreadySubmitted ? {} : { borderColor: selected ? 'primary.main' : 'rgba(254, 44, 85, 0.3)' },
+                      }}
+                    >
+                      <Box sx={{ width: 56, height: 56, borderRadius: 1, background: coverBackground(w.cover), flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <PlayArrowRoundedIcon sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22 }} />
+                        <Box sx={{ position: 'absolute', bottom: 2, right: 2, px: 0.4, borderRadius: 0.5, fontSize: 9, fontWeight: 600, color: '#fff', bgcolor: 'rgba(0,0,0,0.6)' }}>
+                          {formatDuration(w.duration)}
+                        </Box>
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatBigNumber(w.views)} 观看</Typography>
+                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>·</Typography>
+                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatBigNumber(w.likes)} 点赞</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.4, mt: 0.4, flexWrap: 'wrap' }}>
+                          {w.hashtags.map((h) => (
+                            <Box
+                              key={h}
+                              sx={{
+                                fontSize: 9,
+                                px: 0.4,
+                                borderRadius: 0.4,
+                                bgcolor: matchedTag === h ? 'rgba(93, 219, 150, 0.16)' : 'action.hover',
+                                color: matchedTag === h ? '#5DDB96' : 'text.disabled',
+                                fontWeight: matchedTag === h ? 700 : 400,
+                              }}
+                            >
+                              {h}
+                            </Box>
+                          ))}
+                          {alreadySubmitted && (
+                            <Box sx={{ fontSize: 9, px: 0.4, color: 'var(--fg-amber)', fontWeight: 600 }}>已投稿</Box>
+                          )}
+                        </Box>
+                      </Box>
+                      <Checkbox checked={selected} disabled={alreadySubmitted} size="small" sx={{ p: 0 }} />
+                    </Box>
+                  );
+                })}
+              </Box>
+              <TextField
+                placeholder="附言(可选,会展示在评委评审界面)"
+                multiline
+                minRows={2}
+                maxRows={4}
+                fullWidth
+                value={submitCaption}
+                onChange={(e) => setSubmitCaption(e.target.value)}
+                sx={{ '& .MuiInputBase-root': { fontSize: 12 } }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button variant="text" onClick={closeSubmit} sx={{ textTransform: 'none' }}>取消</Button>
+              <Button
+                onClick={confirmSubmit}
+                variant="contained"
+                disabled={submitSelected.length === 0}
+                startIcon={<UploadFileRoundedIcon sx={{ fontSize: 14 }} />}
+                sx={{ textTransform: 'none' }}
+              >
+                提交 {submitSelected.length} 部作品
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={3000}
+        onClose={() => setSnack(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {snack ? (
+          <Alert severity={snack.sev} variant="filled" onClose={() => setSnack(null)} sx={{ fontSize: 13 }}>
+            {snack.msg}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+    </>
+  );
+
+  // 手机:四个数一行 + 一行筛选 + 单列活动行,单独设计,见 ActivityMobile;抽屉/对话框共用
+  if (isMobile) {
+    const isMine = (a: Activity) => ['signed', 'submitted', 'shortlist', 'won', 'lost'].includes(a.participation);
+    const countOf = (id: FilterTab) =>
+      id === 'all' ? items.length
+      : id === 'mine' ? items.filter(isMine).length
+      : id === 'won' ? items.filter((a) => a.participation === 'won').length
+      : id === 'ended' ? items.filter((a) => a.status === 'ended' || a.status === 'judging').length
+      : items.filter((a) => a.status === id).length;
+    return (
+      <ActivityMobile
+        stats={stats}
+        tabs={TAB_DEFS.map((t) => ({ ...t, count: countOf(t.id) }))}
+        tab={tab}
+        onTab={(id) => setTab(id as FilterTab)}
+        categoryValue={category}
+        onCategory={(id) => setCategory(id as CategoryFilter)}
+        sorts={SORT_DEFS}
+        sort={sort}
+        onSort={(id) => setSort(id as SortKey)}
+        search={search}
+        onSearch={setSearch}
+        list={filtered}
+        onOpen={(id) => { setDetailId(id); setDetailTab('detail'); }}
+        onSignup={openSignup}
+        onSubmit={openSubmit}
+        onSubscribe={handleSubscribe}
+      >
+        {overlays}
+      </ActivityMobile>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -298,14 +577,7 @@ export default function ActivityPage() {
             size="small"
             variant="outlined"
             startIcon={<NotificationsActiveRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={async () => {
-              try {
-                await accountClient('/activity/subscribe', { method: 'POST' });
-                setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' });
-              } catch (e) {
-                setSnack({ msg: `订阅失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
-              }
-            }}
+            onClick={handleSubscribe}
             sx={{ textTransform: 'none', fontSize: 12 }}
           >
             活动订阅
@@ -325,8 +597,8 @@ export default function ActivityPage() {
         >
           <KpiCard icon={<LocalFireDepartmentIcon />} label="进行中活动" value={stats.active.toString()} suffix="个" color="#FE2C55" bg="rgba(254, 44, 85, 0.12)" />
           <KpiCard icon={<HowToRegRoundedIcon />} label="我已参与" value={stats.mySigned.toString()} suffix="个" color="#25F4EE" bg="rgba(37, 244, 238, 0.12)" />
-          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="元" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
-          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="元" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
+          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="钻" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
+          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="钻" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
         </Box>
       </Box>
 
@@ -464,198 +736,7 @@ export default function ActivityPage() {
         </ListLayout>
       )}
 
-      {/* Detail Drawer */}
-      <Drawer
-        anchor="right"
-        open={!!detail}
-        onClose={() => setDetailId(null)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: '100%', md: 720 },
-              bgcolor: 'background.default',
-              borderLeft: '1px solid',
-              borderColor: 'divider',
-            },
-          },
-        }}
-      >
-        {detail && (
-          <DetailDrawer
-            activity={detail}
-            tab={detailTab}
-            onTabChange={setDetailTab}
-            onClose={() => setDetailId(null)}
-            onSignup={() => openSignup(detail.id)}
-            onSubmit={() => openSubmit(detail.id)}
-            onCopyLink={() => handleCopyLink(detail.id)}
-          />
-        )}
-      </Drawer>
-
-      {/* Sign-up dialog */}
-      <Dialog
-        open={!!signupTarget}
-        onClose={closeSignup}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{ paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } } }}
-      >
-        {signupTarget && (
-          <>
-            <DialogTitle sx={{ fontSize: 16, fontWeight: 700, pb: 1 }}>报名《{signupTarget.title}》</DialogTitle>
-            <DialogContent sx={{ pb: 1 }}>
-              <Box sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'rgba(254, 44, 85, 0.08)', border: '1px solid', borderColor: 'rgba(254, 44, 85, 0.2)' }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'primary.main', mb: 0.5 }}>奖项总额</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>{signupTarget.totalReward}</Typography>
-              </Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 1 }}>报名前请阅读活动规则</Typography>
-              <Box component="ul" sx={{ pl: 2, m: 0, mb: 2 }}>
-                {signupTarget.rules.map((r, i) => (
-                  <Typography key={i} component="li" sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5, lineHeight: 1.5 }}>{r}</Typography>
-                ))}
-              </Box>
-              <FormControlLabel
-                control={<Checkbox size="small" checked={signupAgreed} onChange={(e) => setSignupAgreed(e.target.checked)} sx={{ color: 'text.disabled' }} />}
-                label={<Typography sx={{ fontSize: 12, color: 'text.secondary' }}>我已阅读并同意以上规则,自愿参与本活动</Typography>}
-              />
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={closeSignup} sx={{ textTransform: 'none' }}>取消</Button>
-              <Button onClick={confirmSignup} variant="contained" disabled={!signupAgreed} sx={{ textTransform: 'none' }}>确认报名</Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-
-      {/* Submit-work dialog */}
-      <Dialog
-        open={!!submitTarget}
-        onClose={closeSubmit}
-        maxWidth="sm"
-        fullWidth
-        slotProps={{ paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } } }}
-      >
-        {submitTarget && (
-          <>
-            <DialogTitle sx={{ fontSize: 16, fontWeight: 700, pb: 1 }}>投稿到《{submitTarget.title}》</DialogTitle>
-            <DialogContent sx={{ pb: 1 }}>
-              <Box sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'rgba(37, 244, 238, 0.08)', border: '1px solid', borderColor: 'rgba(37, 244, 238, 0.2)' }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'secondary.main', mb: 0.5 }}>投稿要求</Typography>
-                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  {submitTarget.requirements.map((r) => (
-                    <Chip key={r} label={r} size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(37, 244, 238, 0.16)', color: '#25F4EE' }} />
-                  ))}
-                </Box>
-              </Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 1 }}>
-                选择作品 ({submitSelected.length} 已选)
-              </Typography>
-              <Box sx={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2, pr: 0.5 }}>
-                {eligibleWorks.map((w) => {
-                  const selected = submitSelected.includes(w.id);
-                  const matchedTag = w.hashtags.find((h) => submitTarget.requirements.some((r) => r.toLowerCase().includes(h.toLowerCase())));
-                  const alreadySubmitted = submitTarget.submissions.some((s) => s.workId === w.id);
-                  return (
-                    <Box
-                      key={w.id}
-                      onClick={() => {
-                        if (alreadySubmitted) return;
-                        setSubmitSelected((prev) => prev.includes(w.id) ? prev.filter((x) => x !== w.id) : [...prev, w.id]);
-                      }}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1.25,
-                        p: 1,
-                        borderRadius: 1,
-                        bgcolor: selected ? 'rgba(254, 44, 85, 0.08)' : 'transparent',
-                        border: '1px solid',
-                        borderColor: selected ? 'rgba(254, 44, 85, 0.4)' : 'divider',
-                        cursor: alreadySubmitted ? 'not-allowed' : 'pointer',
-                        opacity: alreadySubmitted ? 0.5 : 1,
-                        transition: 'all 0.15s',
-                        '&:hover': alreadySubmitted ? {} : { borderColor: selected ? 'primary.main' : 'rgba(254, 44, 85, 0.3)' },
-                      }}
-                    >
-                      <Box sx={{ width: 56, height: 56, borderRadius: 1, background: coverBackground(w.cover), flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <PlayArrowRoundedIcon sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22 }} />
-                        <Box sx={{ position: 'absolute', bottom: 2, right: 2, px: 0.4, borderRadius: 0.5, fontSize: 9, fontWeight: 600, color: '#fff', bgcolor: 'rgba(0,0,0,0.6)' }}>
-                          {formatDuration(w.duration)}
-                        </Box>
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatBigNumber(w.views)} 观看</Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>·</Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatBigNumber(w.likes)} 点赞</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 0.4, mt: 0.4, flexWrap: 'wrap' }}>
-                          {w.hashtags.map((h) => (
-                            <Box
-                              key={h}
-                              sx={{
-                                fontSize: 9,
-                                px: 0.4,
-                                borderRadius: 0.4,
-                                bgcolor: matchedTag === h ? 'rgba(93, 219, 150, 0.16)' : 'action.hover',
-                                color: matchedTag === h ? '#5DDB96' : 'text.disabled',
-                                fontWeight: matchedTag === h ? 700 : 400,
-                              }}
-                            >
-                              {h}
-                            </Box>
-                          ))}
-                          {alreadySubmitted && (
-                            <Box sx={{ fontSize: 9, px: 0.4, color: '#FFB400', fontWeight: 600 }}>已投稿</Box>
-                          )}
-                        </Box>
-                      </Box>
-                      <Checkbox checked={selected} disabled={alreadySubmitted} size="small" sx={{ p: 0 }} />
-                    </Box>
-                  );
-                })}
-              </Box>
-              <TextField
-                placeholder="附言(可选,会展示在评委评审界面)"
-                multiline
-                minRows={2}
-                maxRows={4}
-                fullWidth
-                value={submitCaption}
-                onChange={(e) => setSubmitCaption(e.target.value)}
-                sx={{ '& .MuiInputBase-root': { fontSize: 12 } }}
-              />
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={closeSubmit} sx={{ textTransform: 'none' }}>取消</Button>
-              <Button
-                onClick={confirmSubmit}
-                variant="contained"
-                disabled={submitSelected.length === 0}
-                startIcon={<UploadFileRoundedIcon sx={{ fontSize: 14 }} />}
-                sx={{ textTransform: 'none' }}
-              >
-                提交 {submitSelected.length} 部作品
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-
-      <Snackbar
-        open={!!snack}
-        autoHideDuration={3000}
-        onClose={() => setSnack(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        {snack ? (
-          <Alert severity={snack.sev} variant="filled" onClose={() => setSnack(null)} sx={{ fontSize: 13 }}>
-            {snack.msg}
-          </Alert>
-        ) : undefined}
-      </Snackbar>
+      {overlays}
     </Box>
   );
 }

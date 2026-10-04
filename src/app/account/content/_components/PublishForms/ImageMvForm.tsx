@@ -58,9 +58,9 @@ export default function ImageMvForm({ onSuccess }: PublishFormProps) {
     maxTags: 8,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       images.forEach((i) => URL.revokeObjectURL(i.previewUrl));
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (images.length === 0) return '请至少添加 1 张图片';

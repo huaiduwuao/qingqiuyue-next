@@ -66,7 +66,7 @@ const DEFAULT_SHAPE = '<circle cx="360" cy="150" r="70"/>';
 
 /**
  * 生成一张 720×405(16:9)的 SVG data URI。
- * 标题取前 12 个字画在左下角,和卡片右上角的 ¥ 徽标、左上角分类角标互不遮挡。
+ * 标题取前 12 个字画在左下角,和卡片右上角的赏金徽标、左上角分类角标互不遮挡。
  */
 export function fallbackCoverDataUri(title: string, category?: string): string {
   const seed = `${category || ''}|${(title || '').trim()}`;

@@ -72,6 +72,13 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     };
   }, [camera, controls]);
 
+  /** 角色平移时调用:正在飞的镜头连起点终点一起挪,落点仍然是相对角色的那个机位 */
+  function shift(dx: number, dz: number) {
+    const a = animRef.current;
+    if (!a) return;
+    for (const v of [a.fromPos, a.toPos, a.fromTgt, a.toTgt]) { v.x += dx; v.z += dz; }
+  }
+
   function tick(dt: number) {
     if (!animRef.current || !camera) return;
     animRef.current.t += dt;
@@ -109,5 +116,5 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     camera.position.copy(target).add(offset);
   }
 
-  return { preset, presets: CAMERA_PRESETS, switchTo, flyTo, getPose, orbit, tick };
+  return { preset, presets: CAMERA_PRESETS, switchTo, flyTo, getPose, orbit, shift, tick };
 }

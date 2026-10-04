@@ -190,7 +190,7 @@ export default function HotTopicsCarousel() {
                       py: 0.25,
                       borderRadius: 0.75,
                       bgcolor: 'rgba(0, 0, 0, 0.4)',
-                      color: 'text.primary',
+                      color: '#fff',
                       fontSize: 10,
                       fontWeight: 600,
                     }}

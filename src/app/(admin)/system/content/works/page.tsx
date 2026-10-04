@@ -49,11 +49,16 @@ export default function AdminWorksPage() {
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [source, setSource] = useState('');
+  const [tag, setTag] = useState('');
   const [preview, setPreview] = useState<AdminWork | null>(null);
 
   const list = useQuery({
-    queryKey: ['admin', 'works', page, type, status, keyword],
-    queryFn: () => fetchAdminWorks({ page, pageSize: PAGE_SIZE, contentType: type || undefined, status: status || undefined, title: keyword || undefined }),
+    queryKey: ['admin', 'works', page, type, status, keyword, source, tag],
+    queryFn: () => fetchAdminWorks({
+      page, pageSize: PAGE_SIZE, contentType: type || undefined, status: status || undefined, title: keyword || undefined,
+      source: source.trim() || undefined, tag: tag.trim() || undefined,
+    }),
   });
 
   const total = list.data?.total ?? 0;
@@ -75,6 +80,8 @@ export default function AdminWorksPage() {
           {STATUS_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
         </TextField>
         <TextField size="small" label="标题包含" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} sx={{ width: 220 }} />
+        <TextField size="small" label="标签/题材包含" value={tag} onChange={(e) => { setTag(e.target.value); setPage(1); }} sx={{ width: 160 }} />
+        <TextField size="small" label="来源(精确)" placeholder="如 七猫小说 / 域名" value={source} onChange={(e) => { setSource(e.target.value); setPage(1); }} sx={{ width: 180 }} />
       </Box>
 
       <TableContainer component={Paper}>

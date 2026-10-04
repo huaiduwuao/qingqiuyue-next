@@ -10,6 +10,7 @@
 import React from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -21,6 +22,7 @@ import Pagination from '@mui/material/Pagination';
 import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
 import DetailHeader from '@/components/detail/DetailHeader';
+import { PlayTag } from '@/components/common/PlayTag';
 import { overview, poems, poets, lifespanText, type PoetCard } from '@/apis/poetry';
 
 const PAGE_SIZE = 24;
@@ -108,13 +110,32 @@ function FilterRow({
   );
 }
 
+const POETRY_DEFAULTS = { tab: 'poems', dynasty: '', form: '', q: '', page: '1' };
+
+// useSearchParams 在静态导出下必须包一层 Suspense。
 export default function PoetryChannelPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <PoetryChannel />
+    </React.Suspense>
+  );
+}
+
+function PoetryChannel() {
   const router = useRouter();
-  const [tab, setTab] = React.useState<'poems' | 'poets'>('poems');
-  const [dynasty, setDynasty] = React.useState('');
-  const [form, setForm] = React.useState('');
-  const [q, setQ] = React.useState('');
-  const [page, setPage] = React.useState(1);
+  // 页签、筛选、页码都存 URL:点进诗词 / 诗人再返回,还停在原来那一页。
+  const [filters, setFilters] = useUrlFilters(POETRY_DEFAULTS);
+  const tab = filters.tab === 'poets' ? 'poets' : 'poems';
+  const { dynasty, form } = filters;
+  const page = Math.max(1, Number(filters.page) || 1);
+  // 搜索框边打边写 URL 会打断中文输入法,本地先存草稿,停手 300ms 再落到 URL。
+  const [qDraft, setQDraft] = React.useState(filters.q);
+  const q = filters.q;
+  React.useEffect(() => {
+    if (qDraft === q) return;
+    const t = setTimeout(() => setFilters({ q: qDraft, page: '1' }), 300);
+    return () => clearTimeout(t);
+  }, [qDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ov = useQuery({ queryKey: ['poetry', 'overview'], queryFn: overview });
 
@@ -137,10 +158,7 @@ export default function PoetryChannelPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // 换页签或换筛选都要回到第一页,否则会停在一个新结果集里不存在的页码上。
-  const reset = (fn: () => void) => {
-    fn();
-    setPage(1);
-  };
+  const reset = (patch: Partial<typeof POETRY_DEFAULTS>) => setFilters({ ...patch, page: '1' });
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -179,7 +197,7 @@ export default function PoetryChannelPage() {
 
         <Tabs
           value={tab}
-          onChange={(_, v) => reset(() => setTab(v))}
+          onChange={(_, v) => reset({ tab: v })}
           sx={{ mb: 2, minHeight: 36, '& .MuiTab-root': { minHeight: 36, fontSize: 14 } }}
         >
           <Tab value="poems" label="作品" />
@@ -190,22 +208,22 @@ export default function PoetryChannelPage() {
           label="朝代"
           options={(ov.data?.dynasties ?? []).map((d) => ({ value: d.value, count: d.count }))}
           value={dynasty}
-          onChange={(v) => reset(() => setDynasty(v))}
+          onChange={(v) => reset({ dynasty: v })}
         />
         {tab === 'poems' && (
           <FilterRow
             label="体裁"
             options={(ov.data?.forms ?? []).map((f) => ({ value: f.value, count: f.count }))}
             value={form}
-            onChange={(v) => reset(() => setForm(v))}
+            onChange={(v) => reset({ form: v })}
           />
         )}
         {tab === 'poets' && (
           <TextField
             size="small"
             placeholder="搜诗人名字"
-            value={q}
-            onChange={(e) => reset(() => setQ(e.target.value))}
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
             sx={{ mb: 2, width: { xs: '100%', sm: 260 } }}
           />
         )}
@@ -252,6 +270,7 @@ export default function PoetryChannelPage() {
                   {w.author && (
                     <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{w.author}</Typography>
                   )}
+                  <PlayTag id={w.id} contentType="POETRY" variant="inline" sx={{ alignSelf: 'center', flexShrink: 0 }} />
                 </Box>
                 {w.excerpt && (
                   <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>{w.excerpt}</Typography>
@@ -267,7 +286,7 @@ export default function PoetryChannelPage() {
               count={pageCount}
               page={page}
               onChange={(_, p) => {
-                setPage(p);
+                setFilters({ page: String(p) });
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               size="small"

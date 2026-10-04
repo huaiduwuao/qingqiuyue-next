@@ -18,11 +18,16 @@ import Typography from '@mui/material/Typography';
 import { useApp } from '@/contexts/AppContext';
 import RealizationList from '@/components/reward/RealizationList';
 import { listRealizations, myTeams } from '@/apis/team';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection } from '@/components/mobile/MobileSection';
+import { MobileChipRow, MobileEmpty, MobileSkeletonRows, ListFooter } from '../personal/mobileKit';
+import RealizationRowsMobile from './RealizationRowsMobile';
 
 const PAGE_SIZE = 12;
 
 export default function RealizationPage() {
   const { currentUser } = useApp();
+  const { isMobile } = useResponsive();
   const me = Number(currentUser?.id ?? 0);
   /** 'me' = 我交付的;数字 = 某支我所在的团队 */
   const [scope, setScope] = useState<string>('me');
@@ -59,7 +64,35 @@ export default function RealizationPage() {
     );
     ob.observe(el);
     return () => ob.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isMobile]); // isMobile:手机/电脑两棵树的哨兵不是同一个元素
+
+  // 手机:不要标题卡和说明(顶部 tab 已写着「实现」),范围选择收成一行胶囊,列表是单列行
+  if (isMobile) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {(teams.data || []).length > 0 && (
+          <MobileChipRow
+            items={[{ value: 'me', label: '我交付的' }, ...(teams.data || []).map((t) => ({ value: String(t.id), label: `团队 · ${t.name}` }))]}
+            value={scope}
+            onChange={setScope}
+          />
+        )}
+        <MobileSection title={scope === 'me' ? '我交付的' : '团队交付'} extra={total > 0 ? `共 ${total} 条` : undefined} flush>
+          {!me ? (
+            <MobileEmpty>登录后查看</MobileEmpty>
+          ) : list.isLoading ? (
+            <MobileSkeletonRows />
+          ) : items.filter(Boolean).length === 0 ? (
+            <MobileEmpty>{scope === 'me' ? '还没有验收通过的交付,去赏金广场认领一个任务试试' : '这支团队还没有验收通过的交付'}</MobileEmpty>
+          ) : (
+            <RealizationRowsMobile items={items} />
+          )}
+          <Box ref={sentinelRef} sx={{ height: '1px' }} />
+          <ListFooter loading={isFetchingNextPage} done={!hasNextPage && items.filter(Boolean).length > 0} />
+        </MobileSection>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

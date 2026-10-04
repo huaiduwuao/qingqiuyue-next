@@ -38,8 +38,8 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: s
 const OTHER_TYPE = { icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, color: '#5B8DEF', label: '其他', reorder: '' };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  paid: { label: '已支付', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  pending: { label: '待支付', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  paid: { label: '已支付', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  pending: { label: '待支付', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   // refunding:已申请,等客服审批;通过后原路退款,驳回回到「已支付」
   refunding: { label: '退款审核中', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
   refunded: { label: '已退款', color: 'text.secondary', bg: 'action.hover' },
@@ -124,7 +124,7 @@ export default function OrdersPage() {
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>我的订单</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: { xs: 'none', md: 'block' } }}>我的订单</Typography>
 
         <LoginGate mode="replace" message="登录后查看我的订单">
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>

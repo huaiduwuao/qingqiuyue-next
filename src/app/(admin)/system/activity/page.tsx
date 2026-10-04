@@ -78,11 +78,14 @@ export default function SystemActivityPage() {
   const [edit, setEdit] = useState<AdminActivity | null>(null);
   const [prizeText, setPrizeText] = useState('');
   const [judging, setJudging] = useState<AdminActivity | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
 
   // 后端 admin activity 接口(2026-09)不分页,前端在 DataGridTable 内做切片。
+  // keyword/category/published 走后端;阶段由时间推导,在前端过滤。
   const activitiesAll = React.useRef<AdminActivity[]>([]);
-  const fetchActivities = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    activitiesAll.current = await listActivities();
+  const fetchActivities = useCallback(async (params: { pageNumber: number; pageSize: number; [key: string]: any }) => {
+    const list = await listActivities({ keyword: params.keyword, category: params.category, published: params.published });
+    activitiesAll.current = params.status ? list.filter((a) => a.status === params.status) : list;
     const totalRow = activitiesAll.current.length;
     const start = (params.pageNumber - 1) * params.pageSize;
     return { records: activitiesAll.current.slice(start, start + params.pageSize), totalRow };
@@ -132,9 +135,39 @@ export default function SystemActivityPage() {
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>创作者活动</Typography>
       <DataGridTable
+        queryKey={['admin-activity']}
         title="活动"
         columns={columns}
         fetchData={fetchActivities}
+        filters={{
+          fields: [
+            { key: 'keyword', label: '标题/主办方', type: 'text' },
+            {
+              key: 'category',
+              label: '分类',
+              type: 'select',
+              options: Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ label, value })),
+            },
+            {
+              key: 'status',
+              label: '阶段',
+              type: 'select',
+              options: Object.entries(STATUS_LABEL).map(([value, label]) => ({ label, value })),
+            },
+            {
+              key: 'published',
+              label: '发布',
+              type: 'select',
+              options: [
+                { label: '已发布', value: 'true' },
+                { label: '草稿', value: 'false' },
+              ],
+            },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         onEdit={(row) => openEdit(row as AdminActivity)}
         toolBarRender={() => (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => openEdit(blankActivity())}>
@@ -228,9 +261,25 @@ function JudgingTable({
     queryFn: () => judgingId ? listSubmissions(judgingId) : Promise.resolve([]),
     enabled: !!judgingId,
   });
+  const [resultFilter, setResultFilter] = useState('all');
   if (!judgingId) return null;
-  const list = subsQ.data ?? [];
+  const all = subsQ.data ?? [];
+  const list = resultFilter === 'all' ? all : all.filter((s) => (s.result || 'none') === resultFilter);
   return (
+    <>
+    <TextField
+      select
+      size="small"
+      label="评审结果"
+      value={resultFilter}
+      onChange={(e) => setResultFilter(e.target.value)}
+      sx={{ minWidth: 140, mb: 1.5 }}
+    >
+      <MenuItem value="all">全部({all.length})</MenuItem>
+      {Object.entries(RESULT_LABEL).map(([k, v]) => (
+        <MenuItem key={k || 'none'} value={k || 'none'}>{v}({all.filter((s) => (s.result || '') === k).length})</MenuItem>
+      ))}
+    </TextField>
     <Box component="table" sx={{ width: '100%', fontSize: 12.5, '& td, & th': { py: 1, px: 1.5 } }}>
       <thead>
         <tr>
@@ -248,10 +297,11 @@ function JudgingTable({
       <tbody>
         {list.map((s) => <JudgeRow key={s.id} sub={s} onSave={(body) => onSave(s, body)} />)}
         {list.length === 0 && (
-          <tr><td colSpan={9} style={{ color: 'rgba(0,0,0,0.5)', textAlign: 'center' }}>还没有投稿</td></tr>
+          <tr><td colSpan={9} style={{ color: 'rgba(0,0,0,0.5)', textAlign: 'center' }}>{all.length === 0 ? '还没有投稿' : '没有符合条件的投稿'}</td></tr>
         )}
       </tbody>
     </Box>
+    </>
   );
 }
 

@@ -23,7 +23,8 @@ import WhatshotRoundedIcon from '@mui/icons-material/WhatshotRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
-import { useContentNavigate } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { SECTION_TINT } from '@/constants/gradients';
 import {
   type ClassicRange,
@@ -81,6 +82,8 @@ function useNowSeconds() {
 }
 
 export function LivePanel() {
+  // 直播间详情页代码先预取好,点进直播间不用等下载
+  useDetailRoutePrefetch(['LIVE']);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -133,7 +136,9 @@ export function LivePanel() {
     staleTime: 60_000,
   });
 
-  const [range, setRange] = useState<ClassicRange>('month');
+  // 往期范围也存 URL,点进直播间再返回时还原
+  const range = (searchParams.get('classicRange') as ClassicRange) || 'month';
+  const setRange = (v: ClassicRange) => setParams({ classicRange: v }, { classicRange: 'month' });
   const classics = useQuery({
     queryKey: ['home', 'live', 'classics', range, platform, category],
     queryFn: () => fetchClassics(range, filters, 12),
@@ -158,7 +163,7 @@ export function LivePanel() {
       (entries) => {
         if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
       },
-      { rootMargin: '400px' },
+      { root: findScrollRoot(el), rootMargin: PREFETCH_MARGIN },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -402,7 +407,8 @@ export function LivePanel() {
             {sort === 'new' ? '开播时间从今天开始记录,暂时没有刚开播的房间。' : '这个筛选下暂时没有直播间,换个分区或平台看看。'}
           </EmptyNote>
         ) : (
-          <ListLayout minColumnWidth={260} gap={16}>
+          // 手机上至少两列,和上面的推荐直播间一样;否则 375 宽一行一个,卡片占满整屏宽
+          <ListLayout minColumnWidth={260} minColumns={2} gap={16}>
             {roomList.map((r) => (
               <RoomCard key={String(r.id)} room={r} now={now} onOpen={() => openRoom(r.id)} />
             ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import Box from '@mui/material/Box';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -8,24 +8,34 @@ import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Typography from '@mui/material/Typography';
 import { usePathname, useRouter } from 'next/navigation';
-import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import PersonIcon from '@mui/icons-material/Person';
-import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
-import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { useApp } from '@/contexts/AppContext';
 import { AccountContextProvider } from '@/contexts/AccountContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
-import MobileNavDrawer from './components/MobileNavDrawer';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileBottomNav, mobileTabForPath } from '@/components/layout/MobileBottomNav';
 import GradientText from '@/components/reactbits/GradientText';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
 
+// 顶栏标题。以前这里还是一套「个人中心/内容管理/奖励中心/设置」抽屉导航,和首页侧边栏、工作台导航
+// 叠成好几套;现在全站只有首页那一个侧边栏(MobileMenuButton),这里只管标题。
 const ACCOUNT_PAGES = [
-  { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  { key: 'content', label: '内容管理', sub: '创作者工作台', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
-  { key: 'reward', label: '奖励中心', sub: '任务 · 邀请 · 悬赏协作', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
-  { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', icon: <SettingsIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+  { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', accent: 'primary.main' },
+  { key: 'content', label: '创作中心', sub: '发布 · 管理 · 数据 · 变现', path: '/account/content', accent: 'secondary.main' },
+  { key: 'reward', label: '悬赏', sub: '赏金广场 · 任务 · 邀请', path: '/account/reward', accent: 'warning.main' },
+  { key: 'msg', label: '消息', sub: '互动 · 系统 · 私信', path: '/account/msg', accent: 'primary.main' },
+  { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', accent: '#8B5CF6' },
+  { key: 'wallet', label: '我的钱包', sub: '已并入个人中心', path: '/account/wallet', accent: '#FE2C55' },
+  { key: 'orders', label: '我的订单', sub: '充值与购买记录', path: '/account/orders', accent: '#5B8DEF' },
+  { key: 'purchases', label: '我的购买', sub: '已购内容', path: '/account/purchases', accent: '#FF8A3D' },
+  { key: 'vip', label: '会员中心', sub: '会员权益', path: '/account/vip', accent: '#D4AF37' },
+  { key: 'points-mall', label: '积分商城', sub: '积分兑换', path: '/account/points-mall', accent: '#8B5CF6' },
+  { key: 'creator-level', label: '创作者等级', sub: '等级与权益', path: '/account/creator-level', accent: 'secondary.main' },
+  { key: 'my-lists', label: '我的合集', sub: '歌单 · 书架 · 收藏夹', path: '/account/my-lists', accent: 'primary.main' },
+  { key: 'dashboard', label: '数据看板', sub: '概览', path: '/account/dashboard', accent: 'primary.main' },
+  { key: 'social-monetize', label: '打赏与订阅', sub: '作品收入明细', path: '/account/social-monetize', accent: 'secondary.main' },
+  { key: 'quota', label: 'AI 额度', sub: '用量与配额', path: '/account/quota', accent: '#5B8DEF' },
 ];
 
 export default function AccountLayout({
@@ -48,14 +58,17 @@ function AccountLayoutContent({
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser } = useApp();
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const { isMobile } = useResponsive();
   const appBarRef = React.useRef<HTMLDivElement | null>(null);
+  // 手机上 创作/悬赏/消息 是底部 tab 的一级页:不要顶栏(标题 + ≡),页面自己的页签就在最上面。
+  // 侧边栏只在首页有;二级页(钱包/订单/设置…)照旧有带返回键的顶栏。
+  const hideBar = isMobile && !!mobileTabForPath(pathname);
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
-      router.push('/home/recommend?tab=home');
+      router.push('/home/recommend');
     }
   };
 
@@ -70,43 +83,27 @@ function AccountLayoutContent({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // 顶栏 ⇄ 安全区占位 换了元素要重新量(页面高度都按 --appbar-h 算)
+  }, [hideBar]);
 
   const isAccountSection = pathname.startsWith('/account');
   const isMsgPage = pathname.startsWith('/account/msg');
-  const currentPage = isMsgPage
-    ? { key: 'msg', label: '消息中心', sub: '互动 · 系统 · 私信', path: '/account/msg', icon: null, accent: 'primary.main' }
-    : ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
+  const bottomTab = mobileTabForPath(pathname);
+  const currentPage = ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyBg: body.style.backgroundColor,
-    };
-    // 注意:不要在这里写 body.style.height。MUI Dialog 打开时会测量 body 并加 padding-right 补偿
-    // 滚动条;body 被钉死成固定高度时,客户端 WebView 里 Dialog 定位容器高度算错,Paper 被压出可视区
-    // 或内部表单高度塌陷。body 高度交给外层 Box 的 `height: var(--app-height)` 控制,这里只锁 overflow。
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    // 跟主题走:var(--bg-body) 由 ThemeContext 在切 light/dark 时写入;
-    // 这里不再用 'transparent'(否则 AppBar 透到 html 根 --background,跟主题脱节)
-    body.style.backgroundColor = 'var(--bg-body)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock({ fixedHeight: false });
 
   if (!isAccountSection) {
     return <Box>{children}</Box>;
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
+    <Box data-app-shell sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
+      {hideBar ? (
+        // 只留刘海 / 状态栏的安全区
+        <Box ref={appBarRef} sx={{ height: 'var(--sat, 0px)', flexShrink: 0, bgcolor: 'var(--bg-body, #0a0b14)' }} />
+      ) : (
       <AppBar
         ref={appBarRef}
         position="sticky"
@@ -126,18 +123,17 @@ function AccountLayoutContent({
         <Toolbar
           sx={{
             gap: 1.5,
-            minHeight: 64,
-            px: { xs: 1.5, md: 3 },
+            minHeight: { xs: 48, md: 64 },
+            px: { xs: 0.5, md: 3 },
           }}
         >
-          <IconButton
-            size="small"
-            onClick={() => setDrawerOpen(true)}
-            sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'text.primary' }}
-            aria-label="打开菜单"
-          >
-            <MenuIcon />
-          </IconButton>
+          {/* 手机上能看到这条顶栏的都是二级页(钱包/订单/设置…),左上角是返回。
+              创作/悬赏/消息 在手机上没有顶栏(hideBar);侧边栏只在首页。 */}
+          {isMobile && (
+            <IconButton onClick={handleBack} aria-label="返回" sx={{ color: 'text.primary' }}>
+              <ArrowBackIcon />
+            </IconButton>
+          )}
 
           {/* Page title */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -170,33 +166,15 @@ function AccountLayoutContent({
               ml: 0.5,
             }}
           >
-            <Box sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Box sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentPage.label}
-            </Box>
-            <Box
-              component="span"
-              sx={{
-                display: 'inline-block',
-                px: 0.5,
-                py: 0.125,
-                mt: 0.25,
-                borderRadius: 0.5,
-                bgcolor: `${currentPage.accent}1A`,
-                color: currentPage.accent,
-                fontSize: 9,
-                fontWeight: 600,
-                lineHeight: 1,
-              }}
-            >
-              {currentPage.sub}
             </Box>
           </Box>
 
           <Box sx={{ flex: 1 }} />
 
-          {/* Right actions */}
-          {/* 返回键手机端也要有(之前整组在 xs 隐藏,手机上没有回退入口);通知/私信图标只在 sm+ 显示 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+          {/* 桌面右侧:返回 + 通知/私信 + 头像。手机上这些都不放(返回在左上角,消息/我的在底部导航) */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
@@ -206,16 +184,17 @@ function AccountLayoutContent({
               <ArrowBackIcon fontSize="small" />
             </IconButton>
             {!isMsgPage && (
-              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <NoticeIconView />
                 <DmIconView />
               </Box>
             )}
           </Box>
 
+          {/* 手机上不放右上角头像:底部导航有「我的」 */}
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }} onClick={() => router.push('/account/center')}>
+              <IconButton size="small" sx={{ ml: 0.5, p: 0.25, display: { xs: 'none', md: 'inline-flex' } }} onClick={() => router.push('/account/center')}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{
@@ -244,17 +223,13 @@ function AccountLayoutContent({
           }}
         />
       </AppBar>
-
-      <MobileNavDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        pages={ACCOUNT_PAGES}
-        currentPath={pathname}
-      />
+      )}
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {children}
       </Box>
+      {/* 创作 / 悬赏 / 消息是手机底部导航的落点,这三处也挂底栏(其余账号子页是二级页,不挂) */}
+      {bottomTab && <MobileBottomNav active={bottomTab} />}
     </Box>
   );
 }

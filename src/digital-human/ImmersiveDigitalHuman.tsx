@@ -16,7 +16,7 @@ import { devLog } from '@/lib/dev-log';
  */
 
 import React from 'react';
-import { Box, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, ButtonBase, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
@@ -25,6 +25,37 @@ import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import TvRoundedIcon from '@mui/icons-material/TvRounded';
+import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import { useWorldGame } from './scene-ui/useWorldGame';
+import { GameStatusBar, GameToasts, Minimap, QuestPanel, WorldHelp, WorldTools, ZonePrompt, useWorldHelp } from './scene-ui/GameHud';
+import { AuraShop, PlatformTasks, ZonePanel } from './scene-ui/PlazaPanels';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { usePlazaOnline } from './scene-ui/usePlazaOnline';
+import type { FeedAction, ZoneFeed } from './scene-ui/plazaFeeds';
+import { playTracks } from '@/lib/player/playlist';
+import { zoneFeed } from './vrm/world/worldLayout';
+import type { WorldEvent } from './vrm/world/useVrmWorld';
+import { usePlazaScenes } from './scene-ui/usePlazaScenes';
+import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
+import { SCENE_PRESETS } from './vrm/sceneBuilders';
+import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
+import { roomBounds, worldEnv } from './vrm/world/worldLayout';
+import { WORLD_ASSET_BASE } from './vrm/world/realKit';
+import { mediaUrl } from '@/lib/media';
+import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
+import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from './scene-ui/Genesis';
+import { useRoomSocket } from './scene-ui/useRoomSocket';
+import { RoomChat } from './scene-ui/RoomChat';
+import { useRoomVoice } from './scene-ui/useRoomVoice';
+import { useObjectUse } from './scene-ui/useObjectUse';
+import { DiveButton } from './scene-ui/DiveButton';
+import { ChoiceCard, InsightCard } from './scene-ui/LifeSceneCards';
+import { EchoCard, EchoLinesCard, FoundCard, FoundCounter, ReflectCard } from './scene-ui/ExploreCards';
+import { useAmbientSounds } from './scene-ui/useAmbientSounds';
+import { useBlocks } from './scene-ui/useBlocks';
+import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
+import { PerfBlockScreen } from './PerfBlockScreen';
+import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
@@ -170,7 +201,8 @@ function conversationTitle(text: string): string {
   return t.length > 50 ? `${t.slice(0, 50)}…` : t;
 }
 
-export default function ImmersiveDigitalHuman() {
+/** initialRoom:?room=<uid> 串门链接直达那个人的房间 */
+export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: string | null } = {}) {
   const router = useRouter();
   useDigitalHumanDebug();
   const { setTheme } = useThemeMode();
@@ -197,6 +229,22 @@ export default function ImmersiveDigitalHuman() {
   const [focusedDisplay, setFocusedDisplay] = React.useState<DisplaySlot | null>(null);
   // 最近打开的那块屏:没有 3D 屏幕可用时(非 VRM 形象 / 手机)只叠这一块在画面上
   const [activeDisplay, setActiveDisplay] = React.useState<DisplaySlot | null>(null);
+  // 星光广场(舞台外一整座能逛的广场 + 小玩法);记住用户的选择,默认开
+  const [worldOn, setWorldOn] = React.useState(true);
+  React.useEffect(() => {
+    try { if (localStorage.getItem('dh_world') === '0') setWorldOn(false); } catch { /* 隐私模式 */ }
+  }, []);
+  const toggleWorld = React.useCallback(() => {
+    setWorldOn((on) => {
+      try { localStorage.setItem('dh_world', on ? '0' : '1'); } catch { /* ignore */ }
+      return !on;
+    });
+  }, []);
+  const [questsOpen, setQuestsOpen] = React.useState(false);
+  const plazaStateRef = React.useRef<PlazaState | null>(null);
+  // 言出法随:聊天钩子比场景 / 舞台先建,工具事件经这个 ref 转给 useWorldObjects
+  const worldToolRef = React.useRef<((e: WorldToolEvent) => void) | null>(null);
+  const worldHelp = useWorldHelp();
   const [narrow, setNarrow] = React.useState(false);
   React.useEffect(() => {
     const mq = window.matchMedia('(max-width: 899px)');
@@ -278,6 +326,7 @@ export default function ImmersiveDigitalHuman() {
         const loc = displayLocRef.current[sl];
         return [sl, loc ? { name: DISPLAY_SPECS[sl].label, ...loc } : null];
       })),
+      plaza: plazaStateRef.current,
     }),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
@@ -291,6 +340,7 @@ export default function ImmersiveDigitalHuman() {
     },
     // 生成式 UI:数字人把列表/网格/表单推到 3D 场景面板
     onScenePanel: (panel) => setScenePanel(panel),
+    onWorldTool: (e) => worldToolRef.current?.(e),
     // 数字人自己往屏幕上放东西 / 关屏(screen_open / screen_close)
     onScreen: (cmd) => {
       const slot = parseSlot(cmd.screen);
@@ -621,6 +671,237 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // 创世:每人一间房、捏人(房间是场景列表里 kind = room 的那几个)
+  const genesis = useGenesis({ enabled: avatarMode === 'vrm' && worldOn });
+  // 场景与人物(后台 /system/plaza 维护):星光广场 + 感悟庭院…… + 我的房间 / 串门去过的房间
+  const scenes = usePlazaScenes(avatarMode === 'vrm' && worldOn, genesis.room.defs);
+  const goHome = React.useCallback(() => {
+    const m = genesis.room.mine;
+    if (m) scenes.switchTo(`room:${m.ownerId}`);
+    else void genesis.room.reload().then((r) => r && scenes.switchTo(`room:${r.ownerId}`));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genesis.room.mine, scenes.switchTo]);
+  // ?room=<uid>:进来就去那个人的房间(一次)
+  const initialRoomDoneRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!initialRoom || initialRoomDoneRef.current || !genesis.room.mine) return;
+    initialRoomDoneRef.current = true;
+    genesis.room.enter(initialRoom).then((k) => scenes.switchTo(k)).catch((e) => {
+      // 没开放 / 不存在:留在原地,提示一句(game 还没建好,用浏览器原生提示太吵,只记日志)
+      devLog.warn('[genesis] 串门失败', e);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRoom, genesis.room.mine]);
+
+  // 广场玩法:经验/任务记账 + 角色反应 + 地标互动
+  const confettiTimerRef = React.useRef<number | null>(null);
+  const game = useWorldGame({
+    def: scenes.def,
+    handle: stageHandle,
+    sendText: (t) => { void sendText(t); },
+    setDancing: (on) => updateStageState({ dancing: on }),
+    dancing: stageState.dancing,
+    celebrate: () => {
+      updateStageState({ confetti: true });
+      if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
+      confettiTimerRef.current = window.setTimeout(() => updateStageState({ confetti: false }), 4000);
+    },
+    busy: chatBusy,
+  });
+  React.useEffect(() => () => { if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current); }, []);
+  // 「和她聊 3 句」:用户消息每多一条记一次(切到旧会话一次性载入很多条,不算)
+  const userMsgCountRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    const n = chatLog.filter((m) => m.who === 'user').length;
+    const prev = userMsgCountRef.current;
+    userMsgCountRef.current = n;
+    if (prev !== null && n === prev + 1) game.record({ kind: 'chat' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatLog]);
+  const worldActive = avatarMode === 'vrm' && worldOn;
+  // 写实画风的场景里换成写实形象(Blender 流水线生成的真人 + 汉服);回到风格化场景用回自己选的形象
+  const realEnv = worldActive ? worldEnv(scenes.def) : null;
+  const realAvatarUrl = realEnv?.style === 'realistic' ? mediaUrl((realEnv.assets || WORLD_ASSET_BASE) + '/avatars/real_f01.vrm') : null;
+
+  // 广场联网:谁在广场、许愿墙、祝福、光环;许愿/祝福会在服务端记平台每日任务
+  const [tasksKey, setTasksKey] = React.useState(0);
+  // 七期:广场也走房间集线器;已经在集线器里的人,心跳那边不再画成人影
+  const hubPeersRef = React.useRef<Set<string>>(new Set());
+  const online = usePlazaOnline({
+    handle: stageHandle,
+    // 房间里的人走创世的多人同步(useRoomSocket),不再发广场心跳,免得同一个人画两遍
+    enabled: worldActive && scenes.def.kind !== 'room',
+    toast: (icon, t) => game.toast(icon, t),
+    sceneKey: scenes.def.key,
+    exclude: () => hubPeersRef.current,
+    onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
+    onBlessed: () => setTasksKey((k) => k + 1),
+  });
+  // 言出法随:摆放、现做进度、换场景(过场)
+  const [travel, setTravel] = React.useState<string | null>(null);
+  const worldObjects = useWorldObjects({
+    handle: stageHandle,
+    enabled: worldActive,
+    def: scenes.def,
+    defs: scenes.defs,
+    switchTo: scenes.switchTo,
+    toast: (icon, t) => game.toast(icon, t),
+    onTravel: (name) => { setTravel(name); window.setTimeout(() => setTravel(null), 2600); },
+  });
+  worldToolRef.current = worldObjects.handleTool;
+  // 创世十二期:积木(数据 + 同步 + 撤销)
+  const blocks = useBlocks({ handle: stageHandle, def: scenes.def, enabled: worldActive, me: genesis.room.mine?.ownerId ?? null, toast: (icon, t) => game.toast(icon, t) });
+  // 创世二期:房间里的多人同步(同伴的真形象、位置、说话、别人改的摆放)
+  const roomSock = useRoomSocket({
+    handle: stageHandle,
+    def: scenes.def,
+    enabled: worldActive,
+    applyEdit: (op, data) => {
+      if (op === 'blocks') { blocks.applyRemote(data); return; }
+      if (op === 'terrain') { blocks.applyTerrain(data); return; }
+      if (op === 'reload') blocks.reload();
+      worldObjects.applyRemote(op, data);
+    },
+    applyRoom: genesis.room.applyRemote,
+    onKick: (msg) => { game.toast('🚪', msg); goHome(); },
+    toast: (icon, t) => game.toast(icon, t),
+    // 世界模型:规则让某个东西说话 → 它头顶冒字;规则把人送去别的空间
+    onEntitySay: (id, text) => {
+      const p = worldObjects.items.find((x) => x.id === id);
+      if (p) stageHandle?.floatTextAt(text, p.x, p.y + 1.3, p.z, '#ffe9b0'); else game.toast('💬', text);
+    },
+    onTravel: (space) => { if (space.startsWith('room:')) void genesis.room.enter(space.slice(5)).then((k) => scenes.switchTo(k)).catch(() => {}); else scenes.switchTo(space); },
+    positionOf: (id) => { const p = worldObjects.items.find((x) => x.id === id); return p ? { x: p.x, y: p.y + 0.5, z: p.z } : null; },
+    onEnv: (env) => {
+      const r = genesis.room.roomOf(scenes.def.key);
+      if (r) genesis.room.applyRemote({ ...r, palette: { ...r.palette, ...Object.fromEntries(Object.entries(env).filter(([, v]) => v)) } });
+    },
+  });
+  hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
+  // 创世十期:点椅子坐下、点灯开关
+  // 带 sound 属性的东西:走近了循环播(声音库)
+  useAmbientSounds({ handle: stageHandle, items: worldObjects.items, enabled: worldActive });
+  const objectUse = useObjectUse({ handle: stageHandle, rs: roomSock, items: worldObjects.items, toast: (icon, t) => game.toast(icon, t) });
+  // 创世四期:房间语音(真人开麦走房间连接;AI 的话服务端合成后也从这条连接来)
+  const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });
+  function roomStateOf() {
+    const d = scenes.def;
+    const b = roomBounds(d) ?? { hx: 5, hz: 4 };
+    const snap = stageHandleRef.current?.getWorldSnapshot();
+    const r1 = (v: number) => Math.round(v * 10) / 10;
+    return {
+      name: d.name,
+      owner: d.room?.ownerName ?? '',
+      mine: !!d.room?.mine,
+      template: d.room?.template ?? 'study',
+      size: [b.hx * 2, b.hz * 2] as [number, number],
+      me: { x: r1(snap?.x ?? 0), z: r1(snap?.z ?? 0) },
+      objects: worldObjects.items.slice(0, 40).map((p) => ({ id: p.id, label: p.label || p.asset?.nameZh || p.assetKey, x: r1(p.x), z: r1(p.z), deg: Math.round((p.rotY * 180) / Math.PI) % 360, ...(p.scale && p.scale !== 1 ? { scale: r1(p.scale) } : {}) })),
+      people: roomSock.peers.slice(0, 20).map((p) => ({ name: p.nickname, x: r1(p.x), z: r1(p.z), ...(p.owner ? { owner: true } : {}), ...(p.ai ? { ai: true } : {}) })),
+    };
+  }
+  // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
+  plazaStateRef.current = worldActive ? {
+    placed: worldObjects.placedSummary,
+    scenes: scenes.defs.map((d) => `${d.key}:${d.name}`),
+    scene: scenes.def.name,
+    zone: game.zone,
+    zoneLabel: game.zoneInfo?.label,
+    landmarks: scenes.def.zones.map((z) => `${z.id}:${z.label}`),
+    characters: scenes.characters.map((c) => [c.title, c.name].filter(Boolean).join('·')).filter(Boolean),
+    online: online.online,
+    level: game.level.level,
+    orbsTotal: game.state.orbsTotal,
+    // 创世三期:在房间里时,房间的结构化状态(数字人据此看懂房间,world_place / world_edit / room_design 用坐标和 id)
+    ...(scenes.def.kind === 'room' && scenes.def.room ? { room: roomStateOf() } : {}),
+  } : null;
+  // 地标内容面板:走进地标自动展开,可以手动收起(离开再进来会重新展开)
+  const [panelZone, setPanelZone] = React.useState<string | null>(null);
+  React.useEffect(() => { setPanelZone(game.zone); }, [game.zone]);
+  const panelZoneInfo = panelZone && game.zoneInfo?.id === panelZone && zoneFeed(game.zoneInfo) !== 'none' ? game.zoneInfo : null;
+
+  // 人物:点他或走到他跟前就打开对话面板;第一次和某人说话记「和人物说说话」任务
+  const [charId, setCharId] = React.useState<string | null>(null);
+  const talkedRef = React.useRef(new Set<string>());
+  const openCharacter = React.useCallback((id: string) => {
+    setCharId(id);
+    if (!talkedRef.current.has(id)) { talkedRef.current.add(id); game.record({ kind: 'talk', character: id }); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const currentChar = charId ? scenes.characters.find((c) => c.id === charId) ?? null : null;
+  const onWorldEvent = React.useCallback((e: WorldEvent) => {
+    if (genesis.onWorldEvent(e)) return;
+    if (objectUse.onWorldEvent(e)) return;
+    if (e.type === 'character') { openCharacter(e.id); return; }
+    if (e.type === 'nearCharacter') { if (e.id) openCharacter(e.id); return; }
+    game.onWorldEvent(e);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCharacter, game.onWorldEvent, objectUse.onWorldEvent]);
+
+  // 画质:手机默认流畅,桌面默认高;记在本机
+  const [worldQuality, setWorldQuality] = React.useState<'high' | 'low'>('high');
+  React.useEffect(() => {
+    let q: 'high' | 'low' = window.matchMedia('(max-width: 899px)').matches ? 'low' : 'high';
+    try { const saved = localStorage.getItem('dh_world_quality'); if (saved === 'high' || saved === 'low') q = saved; } catch { /* 隐私模式 */ }
+    setWorldQuality(q);
+  }, []);
+  // 设备性能门槛:每次进来都现场检测 —— 快检(没有 WebGL2 / 软件渲染 / 内存或 CPU 太弱)+ 进门后量帧率,跑不动就拦(perfGate.ts)
+  const [gate, setGate] = React.useState<GateVerdict | null>(null);
+  React.useEffect(() => {
+    const v = quickCheck();
+    if (v.blocked) setGate(v);
+  }, []);
+  const fpsGate = useFpsGate({
+    enabled: avatarMode === 'vrm' && !gate,
+    quality: worldQuality,
+    setQuality: (q) => { setWorldQuality(q); try { localStorage.setItem('dh_world_quality', q); } catch { /* ignore */ } },
+    onDegrade: () => game.toast('⚙️', '设备有点吃力,已自动切到流畅画质'),
+  });
+  const blockedBy = gate ?? fpsGate.verdict;
+  const toggleQuality = () => setWorldQuality((q) => {
+    const n = q === 'high' ? 'low' : 'high';
+    try { localStorage.setItem('dh_world_quality', n); } catch { /* ignore */ }
+    return n;
+  });
+  // 时辰:默认跟场景,点按钮在 清晨 → 白天 → 黄昏 → 夜晚 → 跟随现在 之间轮换
+  const [worldTime, setWorldTime] = React.useState<TimeMode | null>(null);
+  const currentTime = (worldTime ?? worldEnv(scenes.def).time) as TimeMode;
+  const cycleTime = () => {
+    const order: TimeMode[] = ['dawn', 'day', 'dusk', 'night', 'auto'];
+    const next = order[(order.indexOf(currentTime) + 1) % order.length];
+    setWorldTime(next);
+    game.toast(next === 'night' ? '🌙' : next === 'auto' ? '🕰️' : '☀️', TIME_LABELS[next]);
+  };
+
+  // 换场景:中央舞台换成场景指定的预设,角色回到舞台前
+  const [scenePickerOpen, setScenePickerOpen] = React.useState(false);
+  const lastSceneRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!worldActive) return;
+    const d = scenes.def;
+    if (lastSceneRef.current === d.key) return;
+    const first = lastSceneRef.current === null;
+    lastSceneRef.current = d.key;
+    setWorldTime(null);
+    setCharId(null);
+    setPanelZone(null);
+    if ((SCENE_PRESETS as string[]).includes(d.stage)) updateStageState({ scene: d.stage as ScenePresetName });
+    if (!first) {
+      stageHandleRef.current?.enterScene();
+      game.toast(d.kind === 'insight' ? '🌙' : '✨', `来到「${d.name}」`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes.def.key, worldActive]);
+  const [auraShopOpen, setAuraShopOpen] = React.useState(false);
+  const onFeedAction = React.useCallback((a: FeedAction, feed: ZoneFeed | null) => {
+    if (a.kind === 'play') {
+      const n = playTracks(feed?.tracks?.length ? feed.tracks : [{ id: a.trackId }], { startId: a.trackId, source: { kind: 'playlist', name: '广场点唱机' } });
+      if (n > 0) { stageHandleRef.current?.setAction('groove'); stageHandleRef.current?.floatText('🎵', '#ffb74f'); }
+      return;
+    }
+    openOnDisplayRef.current(a.href, { slot: a.slot ?? null });
+  }, []);
+
   // 实时读 VrmStage 里的 positionRef 给面板显示（每 250ms）
   const [posDisplay, setPosDisplay] = React.useState({ x: 0, z: 0 });
   React.useEffect(() => {
@@ -730,8 +1011,56 @@ export default function ImmersiveDigitalHuman() {
     onInterrupt: () => chat.cancel(),
   })
 
+  // 跑不动:整页换成拦截页,3D 舞台不挂载(不再吃显卡)
+  if (blockedBy) {
+    return (
+      <PerfBlockScreen
+        reason={blockedBy.reason}
+        detail={blockedBy.detail}
+        onBack={() => router.push('/')}
+        onRetry={() => {
+          fpsGate.reset();
+          const v = quickCheck();
+          setGate(v.blocked ? v : null);
+        }}
+      />
+    );
+  }
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
+      {/* 潜水:泡在液体里时出现,按住往下潜 */}
+      {worldActive && <DiveButton handle={stageHandle} />}
+      {/* 憋气:头泡在会憋气的液体里,还能憋几秒 */}
+      {roomSock.breath && (
+        <Box sx={{ position: 'absolute', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', px: 1.5, py: 0.75, borderRadius: 3, bgcolor: 'rgba(10,30,60,0.7)', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span>🫧 憋气 {roomSock.breath.left} 秒</span>
+          <Box sx={{ width: 90, height: 6, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
+            <Box sx={{ width: Math.max(0, Math.min(100, (roomSock.breath.left / Math.max(1, roomSock.breath.max)) * 100)) + '%', height: '100%', bgcolor: roomSock.breath.left <= 3 ? '#ff7b7b' : '#7fd3ff', transition: 'width 0.9s linear' }} />
+          </Box>
+        </Box>
+      )}
+      {/* 人生场景:规则出的题、选完的一句感悟 */}
+      {roomSock.question && <ChoiceCard key={roomSock.question.id} q={roomSock.question} narrow={narrow} onAnswer={(i) => { if (roomSock.question) roomSock.answer(roomSock.question.id, i); }} />}
+      {roomSock.insight && <InsightCard key={roomSock.insight.at} insight={roomSock.insight} onClose={roomSock.dismissInsight} />}
+      {/* 留给人推理:藏着几样 / 刚发现的 / 场景的反问 */}
+      {roomSock.explore && <FoundCounter count={roomSock.explore.count} total={roomSock.explore.total} />}
+      {roomSock.found && <FoundCard key={roomSock.found.at} text={roomSock.found.text} onClose={roomSock.dismissFound} />}
+      {roomSock.asked && !roomSock.question && <ReflectCard key={roomSock.asked.id} q={roomSock.asked} narrow={narrow} onAnswer={(t, share) => { if (roomSock.asked) roomSock.answerReflect(roomSock.asked.id, t, share); }} onClose={roomSock.dismissAsked} />}
+      {/* 回声:选完 / 写完以后才给 */}
+      {roomSock.echo && !roomSock.question && !roomSock.asked && <EchoCard key={roomSock.echo.id} echo={roomSock.echo} narrow={narrow} onClose={roomSock.dismissEcho} />}
+      {roomSock.echoLines && <EchoLinesCard key={roomSock.echoLines.id} data={roomSock.echoLines} onClose={roomSock.dismissEchoLines} />}
+      {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
+      <Box sx={{
+        position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',
+        bgcolor: '#05060B', opacity: travel ? 1 : 0, transition: 'opacity 0.6s ease',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1.5,
+      }}>
+        <Box sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22, letterSpacing: 6 }}>{travel ? `前往 · ${travel}` : ''}</Box>
+        <Box sx={{ width: 160, height: 2, bgcolor: 'rgba(255,255,255,0.12)', overflow: 'hidden', borderRadius: 1 }}>
+          <Box sx={{ width: '40%', height: '100%', bgcolor: 'rgba(255,220,160,0.8)', animation: travel ? 'dhTravel 1.2s ease-in-out infinite' : 'none',
+            '@keyframes dhTravel': { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(250%)' } } }} />
+        </Box>
+      </Box>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       {/* 背景层:一份 3DGS 场景资产垫在 VRM 舞台后面(orbit 关掉,当静态布景) */}
       {avatarMode === 'vrm' && gsBackdrop && (
@@ -746,7 +1075,10 @@ export default function ImmersiveDigitalHuman() {
       {avatarMode === 'vrm' && (
         <VrmStage
           onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
-          modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
+          modelUrl={(worldActive ? genesis.avatarUrl : null) ?? realAvatarUrl ?? selectedModel?.url ?? '/avatars/character.vrm'}
+          worldEditing={worldActive && genesis.editing}
+          avatarParams={worldActive ? genesis.avatarParams : null}
+          onAvatarLoaded={genesis.avatar.setInfo}
           currentAction={action}
           emotion={emotion}
           viseme={viseme}
@@ -754,6 +1086,12 @@ export default function ImmersiveDigitalHuman() {
           lookAtCamera={stageState.lookAtCamera}
           onScenePanelHost={setPanelHost}
           onDisplayHosts={setDisplayHosts}
+          world={worldOn}
+          worldDef={scenes.def}
+          characters={scenes.characters}
+          worldQuality={worldQuality}
+          worldTime={worldTime}
+          onWorldEvent={onWorldEvent}
           transparentBackground={!!gsBackdrop}
           background={gsBackdrop ? 'transparent' : undefined}
           sx={{ position: 'absolute', inset: 0, zIndex: 1 }}
@@ -790,7 +1128,7 @@ export default function ImmersiveDigitalHuman() {
       )}
       {/* 非 VRM 形象没有 3D 面板宿主:面板直接叠在画面右侧 */}
       {!panelHost && scenePanel && (
-        <Box sx={{ position: 'absolute', right: 24, top: 80, zIndex: 4, width: 'min(420px, 90vw)' }}>
+        <Box sx={{ position: 'absolute', right: { xs: 12, md: 24 }, top: 'calc(64px + var(--sat, 0px))', zIndex: 4, width: { xs: 'calc(100vw - 24px)', md: 'min(420px, 90vw)' } }}>
           <ScenePanel
             key={scenePanel.id}
             panel={scenePanel}
@@ -809,7 +1147,7 @@ export default function ImmersiveDigitalHuman() {
       {/* 没有 3D 屏幕可用(非 VRM 形象 / 手机):最近打开的那一页叠在画面上半部分 */}
       {!displaysInScene && activeDisplay && displayPages[activeDisplay] && (
         <Box sx={{
-          position: 'absolute', zIndex: 4, top: 64, right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
+          position: 'absolute', zIndex: 4, top: 'calc(64px + var(--sat, 0px))', right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
           width: { md: 'min(640px, 50vw)' }, height: 'calc(100vh - min(40vh, 400px) - 84px)', minHeight: 240,
           borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(37,244,238,0.3)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
         }}>
@@ -824,7 +1162,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="退出"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           left: 12,
           zIndex: 3,
           color: 'rgba(255,255,255,0.85)',
@@ -842,10 +1180,12 @@ export default function ImmersiveDigitalHuman() {
           size="small"
           sx={{
             position: 'absolute',
-            top: 12,
-            left: 60,
+            top: 'calc(12px + var(--sat, 0px))',
+            // 手机上会话按钮在 left:60,模型选择器排在它右边,不叠在一起
+            left: { xs: 108, sm: 60 },
             zIndex: 3,
-            minWidth: 120,
+            minWidth: { xs: 0, sm: 120 },
+            maxWidth: { xs: 'calc(100vw - 220px)', sm: 'none' }, // 右边让出广场开关 + 控制台两个按钮
             '& .MuiOutlinedInput-root': {
               color: 'rgba(255,255,255,0.85)',
               bgcolor: 'rgba(0,0,0,0.4)',
@@ -884,7 +1224,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="会话列表"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           left: { xs: 60, sm: models.length > 1 ? 190 : 60 },
           zIndex: 3,
           color: sessionDrawerOpen ? '#25F4EE' : 'rgba(255,255,255,0.85)',
@@ -895,6 +1235,26 @@ export default function ImmersiveDigitalHuman() {
       >
         <ForumRoundedIcon />
       </IconButton>
+      {avatarMode === 'vrm' && (
+        <IconButton
+          onClick={toggleWorld}
+          size="medium"
+          aria-label={worldOn ? '收起星光广场' : '打开星光广场'}
+          title={worldOn ? '收起星光广场(回到小舞台)' : '打开星光广场'}
+          sx={{
+            position: 'absolute',
+            top: 'calc(12px + var(--sat, 0px))',
+            right: narrow ? 60 : 108,
+            zIndex: 3,
+            color: worldOn ? '#9dffcb' : 'rgba(255,255,255,0.85)',
+            bgcolor: worldOn ? 'rgba(157,255,203,0.15)' : 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(8px)',
+            '&:hover': { bgcolor: 'rgba(157,255,203,0.2)' },
+          }}
+        >
+          <ParkRoundedIcon />
+        </IconButton>
+      )}
       {avatarMode === 'vrm' && !narrow && (
         <IconButton
           onClick={() => setDisplaysOn((o) => !o)}
@@ -903,7 +1263,7 @@ export default function ImmersiveDigitalHuman() {
           title={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
           sx={{
             position: 'absolute',
-            top: 12,
+            top: 'calc(12px + var(--sat, 0px))',
             right: 60,
             zIndex: 3,
             color: displaysOn ? '#25F4EE' : 'rgba(255,255,255,0.85)',
@@ -921,7 +1281,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="舞台控制台"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           right: 12,
           zIndex: 3,
           color: panelOpen ? '#ff4fd8' : 'rgba(255,255,255,0.85)',
@@ -932,6 +1292,113 @@ export default function ImmersiveDigitalHuman() {
       >
         <TuneRoundedIcon />
       </IconButton>
+
+      {/* 星光广场 HUD:顶部等级/任务/提示,右侧小地图,走进地标弹互动卡 */}
+      {/* 广场 HUD 出错只丢 HUD,不能把整页(对话、语音)带崩 */}
+      {worldActive && (
+        <ErrorBoundary fallback={<></>}>
+          <Box sx={{
+            position: 'absolute', zIndex: 3, left: '50%', transform: 'translateX(-50%)',
+            // 手机顶栏两边都是按钮,放到第二行
+            top: narrow ? 'calc(62px + var(--sat, 0px))' : 'calc(12px + var(--sat, 0px))',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pointerEvents: 'none',
+          }}>
+            <GameStatusBar game={game} compact={narrow} questsOpen={questsOpen} onToggleQuests={() => setQuestsOpen((o) => !o)} />
+            {questsOpen && (
+              <QuestPanel game={game}>
+                <PlatformTasks refreshKey={tasksKey} onPoints={(t) => game.toast('🪙', t)} />
+              </QuestPanel>
+            )}
+            <GameToasts game={game} />
+          </Box>
+          {/* 手机上叠着打开的页面、或任务清单展开时让位 */}
+          {!(!displaysInScene && activeDisplay && displayPages[activeDisplay]) && !(narrow && questsOpen) && !genesis.editing && !genesis.settingsOpen && (
+            <Box sx={{
+              position: 'absolute', zIndex: 3, right: { xs: 12, md: 16 },
+              top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(68px + var(--sat, 0px))',
+              display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center',
+            }}>
+              <ButtonBase
+                onClick={() => setScenePickerOpen(true)}
+                aria-label="换场景"
+                sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: 'rgba(8,10,20,0.62)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: narrow ? 104 : 156 }}
+              >
+                <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🧭 {scenes.def.name}</Box>
+              </ButtonBase>
+              <GenesisHud g={genesis} def={scenes.def} onGoHome={goHome} narrow={narrow} canBuild={blocks.canBuild} />
+              <Minimap handle={stageHandle} size={narrow ? 104 : 156} def={scenes.def} />
+              <WorldTools game={game} onHelp={worldHelp.show} timeLabel={TIME_LABELS[currentTime]} onTime={cycleTime} quality={worldQuality} onQuality={toggleQuality} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
+              {auraShopOpen && (
+                <AuraShop
+                  onClose={() => setAuraShopOpen(false)}
+                  onChanged={(msg) => { game.toast('✨', msg); online.refreshAura(); setTasksKey((k) => k + 1); }}
+                />
+              )}
+            </Box>
+          )}
+          {/* 地标内容:桌面在左侧(会话列表开着时让到它右边),手机是聊天区上方的一块 */}
+          {(currentChar || panelZoneInfo) && (
+            <Box sx={narrow ? {
+              position: 'absolute', zIndex: 4, left: 12, right: 12,
+              bottom: 'calc(min(46vh, 460px) + 72px)', maxHeight: '30vh', display: 'flex',
+            } : {
+              position: 'absolute', zIndex: 3, left: sessionDrawerOpen ? 292 : 16,
+              top: 'calc(64px + var(--sat, 0px))', maxHeight: 'calc(100vh - min(40vh, 400px) - 90px)', display: 'flex',
+            }}>
+              {currentChar ? (
+                <CharacterPanel
+                  key={currentChar.id + currentChar.name}
+                  character={currentChar}
+                  themeName={scenes.def.zones.find((z) => z.themeKey && z.themeKey === currentChar.themeKey)?.label}
+                  width={narrow ? '100%' : 340}
+                  onClose={() => setCharId(null)}
+                  onOpen={(href, slot) => openOnDisplayRef.current(href, { slot: slot ?? null })}
+                  onAskHer={(t) => { void sendText(t); }}
+                  onSay={(t) => stageHandleRef.current?.characterSay(currentChar.id, t)}
+                  onOpenScenes={() => setScenePickerOpen(true)}
+                />
+              ) : panelZoneInfo ? (
+                <ZonePanel
+                  key={panelZoneInfo.id}
+                  zone={panelZoneInfo}
+                  width={narrow ? '100%' : 340}
+                  onClose={() => setPanelZone(null)}
+                  onAction={onFeedAction}
+                  onAsk={game.interact}
+                  online={online}
+                />
+              ) : null}
+            </Box>
+          )}
+          <ZonePrompt
+            game={game}
+            touch={narrow}
+            bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
+          />
+          {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
+          <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} room={genesis.room.roomOf(scenes.def.key)} toast={(icon, t) => game.toast(icon, t)} onCopied={() => void genesis.room.reload()} />
+          <RoomChat rs={roomSock} narrow={narrow} voice={roomVoice} />
+          <GenesisPanels
+            g={genesis}
+            def={scenes.def}
+            handle={stageHandle}
+            objects={worldObjects}
+            blocks={blocks}
+            siteBases={models.map((m) => ({ base: m.url, name: m.name, hint: '站内形象' }))}
+            toast={(icon, t) => game.toast(icon, t)}
+            narrow={narrow}
+          />
+          {scenePickerOpen && (
+            <ScenePicker
+              defs={scenes.defs}
+              current={scenes.def.key}
+              onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }}
+              onClose={() => setScenePickerOpen(false)}
+              extra={<RoomsSection g={genesis} toast={(icon, t) => game.toast(icon, t)} current={scenes.def.key} onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }} />}
+            />
+          )}
+        </ErrorBoundary>
+      )}
 
       {/* 底部 chip 条：情绪 + 姿势（移动端隐藏，腾位置给 chat） */}
       <Box sx={{
@@ -957,7 +1424,7 @@ export default function ImmersiveDigitalHuman() {
       <Box sx={{
         position: 'absolute',
         // 让出顶部的退出/模型/会话按钮;底部让出聊天区(高 40vh,最多 400px)
-        top: 64,
+        top: 'calc(64px + var(--sat, 0px))',
         left: { xs: 12, sm: 16 },
         width: { xs: 'calc(100vw - 24px)', sm: 260 },
         maxWidth: 260,
@@ -1050,8 +1517,9 @@ export default function ImmersiveDigitalHuman() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '40vh',
-        maxHeight: 400,
+        // 手机上形象/数字员工选择器单独占一行,聊天区给高一点;底部让出手势条
+        height: { xs: '46vh', md: '40vh' },
+        maxHeight: { xs: 460, md: 400 },
         zIndex: 3,
         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
         display: 'flex',
@@ -1111,7 +1579,7 @@ export default function ImmersiveDigitalHuman() {
                 key={i}
                 sx={{
                   alignSelf: m.who === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '70%',
+                  maxWidth: { xs: '86%', md: '70%' },
                   p: 1.5,
                   borderRadius: m.who === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: m.who === 'user' ? 'rgba(37,244,238,0.2)' : 'rgba(255,255,255,0.12)',
@@ -1134,13 +1602,15 @@ export default function ImmersiveDigitalHuman() {
         </Box>
 
         {/* 输入区 */}
-        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ px: { xs: 1.5, md: 2 }, pb: 'calc(16px + var(--sab, 0px))', display: 'flex', flexWrap: { xs: 'wrap', md: 'nowrap' }, gap: 1, alignItems: 'center' }}>
+          {/* 形象 / 背景 / 数字员工:手机上独占一行(以前和输入框挤一行,输入框被挤成一条缝) */}
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', md: 'auto' }, minWidth: 0, flexShrink: 0, '& select': { flex: { xs: '1 1 0', md: '0 0 auto' }, minWidth: 0 } }}>
           <select
             aria-label="形象"
             title="形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段"
             value={avatarMode}
             onChange={(e) => setAvatarMode(e.target.value as AvatarMode)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 96 }}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 96 }}
           >
             <option value="vrm">VRM</option>
             <option value="3dgs" disabled={gsAssets.length === 0}>3DGS{gsAssets.length === 0 ? '(无资产)' : ''}</option>
@@ -1152,14 +1622,14 @@ export default function ImmersiveDigitalHuman() {
               title="背景:场景预设,或用一份 3DGS 场景资产垫在角色后面"
               value={gsBackdrop}
               onChange={(e) => setGsBackdrop(e.target.value)}
-              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}
+              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}
             >
               <option value="">预设场景</option>
               {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>GS · {a.name}</option>)}
             </select>
           )}
           {avatarMode === '3dgs' && gsAssets.length > 1 && (
-            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}>
+            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}>
               {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>{a.name}</option>)}
             </select>
           )}
@@ -1167,12 +1637,13 @@ export default function ImmersiveDigitalHuman() {
             aria-label="数字员工"
             value={aguiAgent}
             onChange={(e) => setAguiAgent(e.target.value)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 120 }}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 120 }}
           >
             {(staffList.length ? staffList : [{ agentId: 'worker', name: '全能数字员工', description: '' }]).map((st) => (
               <option key={st.agentId} value={st.agentId}>{st.name}</option>
             ))}
           </select>
+          </Box>
           <TextField
             fullWidth
             placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
@@ -1182,6 +1653,9 @@ export default function ImmersiveDigitalHuman() {
             disabled={chatBusy}
             size="small"
             sx={{
+              flex: 1,
+              minWidth: 0,
+              width: 'auto',
               '& .MuiOutlinedInput-root': {
                 color: 'white',
                 bgcolor: 'rgba(255,255,255,0.1)',

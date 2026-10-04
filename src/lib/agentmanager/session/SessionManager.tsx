@@ -44,6 +44,7 @@ import {
   type ActiveUserRow,
   type SessionMessageRow,
 } from '@/apis/agentmanager-session'
+import { agentmAPI, type Agent } from '../api'
 
 /** 会话状态展示映射。未收录的状态原样显示(见下方渲染逻辑)。 */
 const SESSION_STATUS: Record<string, { label: string; color: 'success' | 'default' | 'info' }> = {
@@ -119,6 +120,8 @@ export default function SessionManager() {
   // 统计 + 活跃用户只在挂载时拉一次,不随翻页/过滤重拉
   const [stats, setStats] = useState<SessionStats | null>(null)
   const [activeUsers, setActiveUsers] = useState<ActiveUserRow[]>([])
+  // 「Agent」筛选的下拉选项(会话 agent_id = agentm_agents.id)
+  const [agents, setAgents] = useState<Agent[]>([])
 
   // 详情弹窗 state(行级「查看」按钮触发)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -133,6 +136,7 @@ export default function SessionManager() {
   useEffect(() => {
     getSessionStats().then(setStats).catch(() => setStats(null))
     listActiveUsers(20).then((d) => setActiveUsers(d.list || [])).catch(() => setActiveUsers([]))
+    agentmAPI.listAgents().then(setAgents).catch(() => setAgents([]))
   }, [])
 
   const handleView = useCallback(async (row: SessionRow) => {
@@ -243,6 +247,7 @@ export default function SessionManager() {
             page: params.pageNumber,
             pageSize: params.pageSize,
             user_id: params.user_id,
+            agent_id: params.agent_id,
             status: params.status,
             keyword: params.keyword,
             sort: params.sortField,
@@ -255,9 +260,16 @@ export default function SessionManager() {
             { key: 'keyword', label: '标题', type: 'text', placeholder: '搜索会话标题...', width: 220 },
             { key: 'user_id', label: '用户ID', type: 'text', placeholder: '按用户ID过滤', width: 140 },
             {
+              key: 'agent_id',
+              label: 'Agent',
+              type: 'select',
+              options: agents.map((a) => ({ label: a.name || `#${a.id}`, value: String(a.id) })),
+            },
+            {
               key: 'status',
               label: '状态',
               type: 'select',
+              // completed 由 conversation.Recorder 结束对话时写入(Session 模型注释只写了 active/archived,不全)
               options: [
                 { label: '活跃', value: 'active' },
                 { label: '已完成', value: 'completed' },
@@ -269,7 +281,7 @@ export default function SessionManager() {
           onChange: setFilters,
           onReset: () => setFilters({}),
         }}
-        extraParams={{ tick: reloadTick }}
+        refreshKey={reloadTick}
         // 活跃用户 chip 区放在 FilterBar 之下、表格之上。
         // 点击 chip 改写 filters.user_id,DataGridTable 自动 refetch 并回到第 1 页。
         toolBarRender={() =>

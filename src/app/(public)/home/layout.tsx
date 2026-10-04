@@ -6,6 +6,8 @@ import { loginHref } from '@/lib/auth/redirect';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -16,7 +18,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
-import { MyHomePage } from '@/components/home/MyHomePage';
+import { ME_DRAWER_TITLES } from '@/components/home/meDrawer';
+import DetailHeader from '@/components/detail/DetailHeader';
 import SearchIcon from '@mui/icons-material/Search';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
@@ -37,28 +40,42 @@ import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
-import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import TrendingBoard from '@/components/home/TrendingBoard';
+import HotspotBoard from '@/components/home/HotspotBoard';
 import BountyPulse from '@/components/home/BountyPulse';
-import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
 import { parseSectionId } from '@/lib/homeSections';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 // 客户端下载入口:跳到独立 /download 介绍页
-import { LivePanel } from './panels/LivePanel';
-import { TheaterPanel } from './panels/TheaterPanel';
-import { DramaPanel } from './panels/DramaPanel';
-import { CommunityPanel } from '@/components/community/CommunityPanel';
-import { TopicHub } from '@/components/community/TopicHub';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
-import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { MobileBottomNav, HOME_LAST_URL_KEY } from '@/components/layout/MobileBottomNav';
+import { MobileMenuButton, cameFromSideMenu } from '@/components/layout/MobileSideMenu';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
 import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import FirstRunGuide from '@/components/onboarding/FirstRunGuide';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
+import { useSwipeTabs } from '@/hooks/useSwipeTabs';
+
+// 页签面板按需加载:同一时刻只渲染一个,之前全部静态 import,进首页就要把
+// 「我的」(2000+ 行)、榜单、直播、放映厅、社区等全部下载下来。
+// 默认页签「精选」(FeedPanel)和推荐页(本路由自己的 page)保持静态。
+const PanelLoading = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+    <CircularProgress size={28} />
+  </Box>
+);
+const MyHomePage = dynamic(() => import('@/components/home/MyHomePage').then((m) => m.MyHomePage), { loading: PanelLoading });
+const AIRecommendPanel = dynamic(() => import('./panels/AIRecommendPanel').then((m) => m.AIRecommendPanel), { loading: PanelLoading });
+const LeaderboardPanel = dynamic(() => import('@/components/leaderboard/LeaderboardPanel').then((m) => m.LeaderboardPanel), { loading: PanelLoading });
+const LivePanel = dynamic(() => import('./panels/LivePanel').then((m) => m.LivePanel), { loading: PanelLoading });
+const TheaterPanel = dynamic(() => import('./panels/TheaterPanel').then((m) => m.TheaterPanel), { loading: PanelLoading });
+const DramaPanel = dynamic(() => import('./panels/DramaPanel').then((m) => m.DramaPanel), { loading: PanelLoading });
+const CommunityPanel = dynamic(() => import('@/components/community/CommunityPanel').then((m) => m.CommunityPanel), { loading: PanelLoading });
+const TopicHub = dynamic(() => import('@/components/community/TopicHub').then((m) => m.TopicHub), { loading: PanelLoading });
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -76,6 +93,12 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'drama', label: '短剧', path: '/home/recommend?tab=drama', icon: <TheatersRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
 ];
 
+/**
+ * 手机上只从侧边栏进的首页面板(直播/放映厅/短剧/意境/AI)。它们打开时是一个单独的页面:
+ * 顶上「← 标题」,没有首页页签和底部导航 —— 和诗词、壁纸一样。以前是在顶栏页签后面临时多出一个页签。
+ */
+const MOBILE_SUB_TABS = new Set(['live', 'theater', 'drama', 'topic', 'ai']);
+
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -85,8 +108,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const legacyCircle = rawTab === 'follow' || rawTab === 'friend' ? rawTab : null;
   const urlTab = legacyCircle ? 'feed' : rawTab;
   const urlSection = searchParams.get('section');
-  // 兼容 section 参数：优先用 tab，如果只有 section=recommend 则导航到 recommend
-  const effectiveTab = urlTab || (urlSection === 'recommend' ? 'recommend' : 'home');
+  // 没带 ?tab= 时默认打开「推荐」(手机、电脑一样)。只带了频道 ?section=xxx 的旧链接是精选里的频道,仍进精选;
+  // section=recommend 是精选的「推荐」频道的老写法,同样按推荐处理。
+  const effectiveTab = urlTab || (urlSection && urlSection !== 'recommend' ? 'home' : 'recommend');
   const [activeNav, setActiveNav] = useState(effectiveTab);
   const [meOpen, setMeOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +120,22 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
   // 响应式 Hook(< md 用底部导航,>= md 用侧栏;同一条线,见 useResponsive)
   const { isMobile } = useResponsive();
+
+  // 手机上的单独子页(侧边栏进的面板 / 「我的」里的观看历史等):有标题就出返回栏、收起底部导航
+  const mainTabParam = searchParams.get('mainTab') || '';
+  const mobileSubTitle = !isMobile
+    ? null
+    : activeNav === 'me'
+      ? ME_DRAWER_TITLES[mainTabParam] ?? null
+      : MOBILE_SUB_TABS.has(activeNav)
+        ? SIDE_NAV.find((n) => n.key === activeNav)?.label ?? null
+        : null;
+  const handleSubBack = useCallback(() => {
+    // 从侧边栏点进来的(MobileSideMenu 记下了这一页)照常后退,回到点它之前的地方;
+    // 分享链接、手输地址、冷启动直接进来的,上一页可能是任何东西(甚至没有),直接回对应的一级页
+    if (cameFromSideMenu(window.location.pathname + window.location.search)) router.back();
+    else router.replace(activeNav === 'me' ? '/home/recommend?tab=me' : '/home/recommend');
+  }, [router, activeNav]);
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
@@ -126,6 +166,15 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     return () => el?.removeEventListener('scroll', onScroll);
   }, [pathname, searchParams]);
 
+  // 记下首页里最后停留的页签:从创作/悬赏/消息点回底部「首页」时回到这里(见 MobileBottomNav)
+  // 按 URL 里的 tab 判断,不看 activeNav:切到「我的」时 URL 先变、activeNav 下一轮 effect 才跟上,
+  // 看 activeNav 会把 ?tab=me 当成首页记下来,之后点底部「首页」一直跳回「我的」。
+  useEffect(() => {
+    if (effectiveTab === 'me') return;
+    const qs = searchParams.toString();
+    try { sessionStorage.setItem(HOME_LAST_URL_KEY, `${pathname}${qs ? `?${qs}` : ''}`); } catch { /* 隐私模式 */ }
+  }, [effectiveTab, pathname, searchParams]);
+
   const handleNavChange = useCallback((key: string) => {
     // 导航前清空搜索框状态
     setSearchDraft('');
@@ -137,35 +186,28 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     }
   }, [router]);
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
-      bodyBg: body.style.backgroundColor,
-    };
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    // --app-height:支持 dvh 的浏览器是 100dvh,老 WebView 由 ViewportFix 写 innerHeight
-    body.style.height = 'var(--app-height, 100vh)';
-    body.style.backgroundColor = 'var(--bg-body, transparent)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.height = prev.bodyHeight;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock();
+
+  // 手机上内容区左右划切换顶栏页签(精选 ⇄ 推荐 ⇄ 榜单 ⇄ 动态),到头不循环
+  const swipeIdx = MOBILE_HOME_TABS.findIndex((t) => t.key === activeNav);
+  useSwipeTabs(mainRef, (dir) => {
+    const next = MOBILE_HOME_TABS[swipeIdx + dir];
+    if (next) handleNavChange(next.key);
+  }, isMobile && !mobileSubTitle && swipeIdx >= 0);
 
   return (
-    <Box sx={{ height: 'var(--app-height, 100vh)', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box data-app-shell sx={{ height: 'var(--app-height, 100vh)', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar
         searchDraft={searchDraft}
         setSearchDraft={setSearchDraft}
         searchDraftRef={searchDraftRef}
         isMobile={isMobile}
+        activeNav={activeNav}
+        onNavChange={handleNavChange}
+        onOpenSettings={() => setMeOpen(true)}
+        subTitle={mobileSubTitle}
+        onSubBack={handleSubBack}
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar
@@ -182,17 +224,16 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           WebkitOverflowScrolling: 'touch',
           // 底部导航挂载时会把自身高度写进 --bottom-nav-inset(含安全区),这里照抄,
           // 不再各自猜 56px;桌面端该变量是 0。
-          // 推荐视频流 (activeNav === 'recommend') 不再叠加 --player-inset:
-          // music bar 是 position: fixed 浮在最上层,视频流沉浸式要铺满整个 viewport,
-          // pb 不算它就不会在视频底部与音乐底栏之间留一道空白。
-          // 其它页面(瀑布流/榜单/我的)继续算 --player-inset,避免最后一行被音乐底栏遮住。
-          pb: activeNav === 'recommend'
-            ? 'var(--bottom-nav-inset, 0px)'
-            : 'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+          // 音乐底栏出现时再加上它的高度(--player-inset,由 GlobalMusicBar 写入)。
+          // 对所有页面一视同仁(推荐页的分类瀑布流也要它);沉浸式视频流自己用负 margin
+          // 伸到底栏下面、只把浮层往上抬(见 RecommendVideoFeed),不在这里按页签分支。
+          // 两侧栏各自留底栏高度(见 LeftSidebar / RightSidebar)。
+          pb:'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
           // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
           display: 'flex',
           flexDirection: 'column',
-          '& > *': { flexShrink: 0 },
+          // 切页签(精选/推荐/榜单…)时新面板淡入,不是生硬地一闪换掉(只动透明度,不影响里面的 fixed 元素)
+          '& > *': { flexShrink: 0, animation: 'qq-fade-in 0.2s ease-out both' },
           '& > [data-fill-main]': { flex: 1, minHeight: 0 },
         }}>
           {activeNav === 'me' ? <MyHomePage />
@@ -212,7 +253,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection || 'recommend'} />}
       </Box>
       {/* 底部导航栏（移动端） */}
-      <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />
+      {!mobileSubTitle && <MobileBottomNav active={activeNav === 'me' ? 'me' : 'home'} />}
       {/* 首屏引导:冷启动 800ms 后弹出,完成 / 跳过 / 7 天后再弹,见 lib/onboardingPrefs */}
       <FirstRunGuide />
     </Box>
@@ -224,17 +265,75 @@ function TopBar({
   setSearchDraft,
   searchDraftRef,
   isMobile,
+  activeNav,
+  onNavChange,
+  onOpenSettings,
+  subTitle,
+  onSubBack,
 }: {
   searchDraft: string;
   setSearchDraft: (v: string) => void;
   searchDraftRef: React.MutableRefObject<string>;
   isMobile: boolean;
+  activeNav: string;
+  onNavChange: (key: string) => void;
+  onOpenSettings: () => void;
+  subTitle: string | null;
+  onSubBack: () => void;
 }) {
   const { currentUser } = useApp();
   const router = useRouter();
   const headerRef = useRef<HTMLDivElement | null>(null);
   // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
   useTopbarHeight(headerRef);
+
+  // 手机上的单独子页:和诗词页一样的「← 标题」返回栏
+  if (isMobile && subTitle) {
+    return (
+      <Box ref={headerRef} component="header" sx={{ flexShrink: 0 }}>
+        <DetailHeader title={subTitle} onBack={onSubBack} />
+      </Box>
+    );
+  }
+
+  // 手机上「我的」不要顶栏(标题 + ≡ + 搜索):侧边栏只在首页有,「我的」自己的头像卡就在最上面。只留安全区。
+  if (isMobile && activeNav === 'me') {
+    return <Box ref={headerRef} component="header" sx={{ height: 'var(--sat, 0px)', flexShrink: 0 }} />;
+  }
+
+  // 手机:和主流 App 一样 —— 左上角侧边栏按钮,中间是首页的页签,右边搜索。
+  // 头像/通知/私信不再挤在右上角:「我的」「消息」都在底部导航里。
+  if (isMobile) {
+    return (
+      <Box
+        ref={headerRef}
+        component="header"
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          minHeight: 'calc(48px + var(--sat, 0px))',
+          pl: 'max(var(--sal, 0px), 4px)',
+          pr: 'max(var(--sar, 0px), 4px)',
+          bgcolor: 'var(--bg-topbar, transparent)',
+          backdropFilter: 'blur(14px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
+          borderBottom: '1px solid var(--border-color, transparent)',
+          flexShrink: 0,
+          paddingTop: 'var(--sat, 0px)',
+        }}
+      >
+        <MobileMenuButton activeNav={activeNav} onNavChange={onNavChange} onOpenSettings={onOpenSettings} />
+        <MobileHomeTabs activeNav={activeNav} onNavChange={onNavChange} />
+        <IconButton aria-label="搜索" onClick={() => router.push('/search')} sx={{ color: 'var(--text-primary, currentColor)' }}>
+          <SearchIcon />
+        </IconButton>
+      </Box>
+    );
+  }
 
   const submit = () => {
     const q = searchDraftRef.current.trim();
@@ -446,11 +545,78 @@ function TopBar({
   );
 }
 
+// 手机顶栏上的首页页签。侧边栏进的直播/短剧等是单独子页(MOBILE_SUB_TABS),不再临时加进这里。
+const MOBILE_HOME_TABS = [
+  { key: 'home', label: '精选' },
+  { key: 'recommend', label: '推荐' },
+  { key: 'rank', label: '榜单' },
+  { key: 'feed', label: '动态' },
+];
+
+function MobileHomeTabs({ activeNav, onNavChange }: { activeNav: string; onNavChange: (key: string) => void }) {
+  const tabs = MOBILE_HOME_TABS;
+  if (activeNav === 'me') {
+    return (
+      <Typography sx={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>我的</Typography>
+    );
+  }
+  return (
+    <Box
+      role="tablist"
+      aria-label="首页页签"
+      sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}
+    >
+      {tabs.map((t) => {
+        const on = t.key === activeNav;
+        return (
+          <Box
+            key={t.key}
+            component="button"
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onNavChange(t.key)}
+            sx={{
+              position: 'relative',
+              flexShrink: 0,
+              border: 0,
+              background: 'transparent',
+              px: 1.25,
+              py: 1,
+              fontFamily: 'inherit',
+              fontSize: on ? 16.5 : 15,
+              fontWeight: on ? 800 : 500,
+              lineHeight: 1.2,
+              color: on ? 'var(--text-primary, currentColor)' : 'var(--text-muted, currentColor)',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+              transition: 'font-size 0.15s, color 0.15s',
+              '&::after': on ? {
+                content: '""',
+                position: 'absolute',
+                left: '50%',
+                bottom: 2,
+                width: 16,
+                height: 3,
+                ml: '-8px',
+                borderRadius: 2,
+                bgcolor: 'var(--brand-color, #FE2C55)',
+              } : undefined,
+            }}
+          >
+            {t.label}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 function Logo({ isCompact = false }: { isCompact?: boolean }) {
   return (
     <Box
       component={Link}
-      href="/home/recommend?tab=home"
+      href="/home/recommend"
       aria-label="清秋月 首页"
       sx={{
         display: 'flex',
@@ -501,6 +667,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
   return (
     <Box
       component="nav"
+      // globals.css 按它写 --side-nav-w:音乐底栏/唱片据此避开侧栏
+      data-side-nav
       sx={{
         width: { md: 200, lg: 220 },
         flexShrink: 0,
@@ -510,6 +678,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         flexDirection: 'column',
         borderRight: '1px solid var(--border-color, transparent)',
         bgcolor: 'var(--bg-sidebar, transparent)',
+        // 不再按 --player-inset 垫底:音乐底栏一开一关,整列(导航、备案、设置按钮)跟着上下跳。
+        // 现在是播放器避开侧栏(GlobalMusicBar 读 --side-nav-w),侧栏高度与播放器无关。
       }}
     >
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
@@ -617,6 +787,8 @@ function RightSidebar({ section }: { section: string }) {
         flexShrink: 0,
         display: { xs: 'none', lg: 'flex' },
         p: 2,
+        // 滚动区末尾留出音乐底栏高度:平时照样铺到底(不因底栏开合而缩放),滚到底时最后一块不被盖住
+        pb: 'calc(16px + var(--player-inset, 0px))',
         minHeight: 0,
         overflowY: 'auto',
         flexDirection: 'column',
@@ -625,6 +797,9 @@ function RightSidebar({ section }: { section: string }) {
     >
       {/* 社区悬赏(teamapp /realm/demands,公开只读):首页上唯一能看见「有人在花钱
           找人做事」的地方。放在最上面 —— 榜单讲的是别人在看什么,这张讲的是你能做什么。 */}
+      {/* 此刻热议(internal/hotspot):全网热搜对上的站内能看 / 能读的内容,新访客最先想看的 */}
+      <HotspotBoard />
+
       <BountyPulse limit={6} />
 
       {/* 站内排行榜(internal/leaderboard):按类型出的热度日榜,跟随首页 section

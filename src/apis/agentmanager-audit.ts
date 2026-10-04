@@ -50,6 +50,10 @@ export interface ListAuditLogParams {
   status?: string
   /** 按模型名模糊搜索(后端 ILIKE) */
   keyword?: string
+  /** 仅 /admin/audit 生效:按用户 ID 精确过滤(/gateway/audit 固定本人,后端忽略) */
+  user_id?: string | number
+  /** 仅 /admin/audit 生效:按员工名(metadata.agent)模糊过滤 */
+  agent?: string
   /** 排序列名,后端有白名单,非白名单列回落 id */
   sort?: string
   /** asc / desc */

@@ -194,6 +194,11 @@ export const PERMISSIONS = {
     VIEW: 'system:withdraw-review:view',
     REVIEW: 'system:withdraw-review:review',
   },
+  // 数字人广场的场景 / 地标 / 人物(menu 2006):VIEW 看,MANAGE 增删改
+  SYSTEM_PLAZA: {
+    VIEW: 'system:plaza:view',
+    MANAGE: 'system:plaza:manage',
+  },
 } as const;
 
 export type PermissionCode = string;

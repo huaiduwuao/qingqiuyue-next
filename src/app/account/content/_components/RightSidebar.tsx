@@ -189,7 +189,8 @@ export default function RightSidebar() {
             活动中心
           </Typography>
           <Box
-            onClick={() => router.push('/account/reward')}
+            // 以前推到 /account/reward(奖励中心),而这些是创作中心的内容活动 —— 应该去本中心的「活动与话题」
+            onClick={() => setActiveTab('activity')}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -207,7 +208,7 @@ export default function RightSidebar() {
           {ACTIVITIES.map((a) => (
             <Box
               key={a.id}
-              onClick={() => router.push('/account/reward')}
+              onClick={() => router.push(`/account/content?tab=activity&activity=${encodeURIComponent(String(a.id))}`)}
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,

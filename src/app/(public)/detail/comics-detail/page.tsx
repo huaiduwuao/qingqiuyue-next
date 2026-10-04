@@ -37,6 +37,10 @@ import { EpisodeList } from '@/components/detail/EpisodeList';
 import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
+import { stateTransition } from '@/lib/navTransition';
+import { openExternal } from '@/lib/safeUrl';
+import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { backfillNotice, backfillPending, backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 
 interface Comics {
   id: number;
@@ -57,7 +61,24 @@ interface Comics {
   collectCount?: number;
   commentCount?: number;
   /** 站内能不能读(后端 internal/playability 阅读轴)。 */
-  availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number };
+  availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number; backfill?: BackfillState };
+  /** 正版平台收录的作品:站内只有目录,为什么读不了 + 去哪读(见 ExternalPlatforms)。 */
+  playNotice?: string;
+  platforms?: unknown;
+}
+
+/**
+ * 正版平台目录行(B 站漫画等):站内没有图,url 是平台的阅读页 —— 点开直接去平台读,
+ * 不进站内阅读器。判断依据是这一话的链接落在作品登记的平台域名上,所以 178 漫画这类
+ * 只是图还没抓下来的话仍走站内阅读器(补图中)。
+ */
+function isPlatformChapter(ch: ContentItem, platformHosts: Set<string>): boolean {
+  if (!ch.url || chapterImages(ch).length > 0) return false;
+  try {
+    return platformHosts.has(new URL(ch.url).host);
+  } catch {
+    return false;
+  }
 }
 
 const INTERNAL_STATUS = new Set(['active', 'PUBLISH', 'UN_PUBLISH', 'REVIEWING', 'REJECTED', 'DRAFT']);
@@ -82,6 +103,25 @@ function chapterImages(ch: ContentItem | undefined): string[] {
   }
 }
 
+/**
+ * 作品简介。平台 bot 发的四格/图说漫画没写 description,content 是分格 JSON
+ * [{caption, imageUrl, index}] —— 以前原样当简介显示,一屏 JSON 外加撑宽页面的长 URL。
+ * 能解析成分格就取各格的配文,否则原样返回。
+ */
+function comicIntro(raw: string): string {
+  if (!raw.startsWith('[')) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return raw;
+    const captions = parsed
+      .map((p: unknown) => (p && typeof p === 'object' && typeof (p as { caption?: unknown }).caption === 'string' ? (p as { caption: string }).caption.trim() : ''))
+      .filter(Boolean);
+    return captions.length ? captions.join('\n') : '';
+  } catch {
+    return raw;
+  }
+}
+
 function ComicsDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -90,9 +130,30 @@ function ComicsDetailContent() {
     queryKey: ['detail', 'comics', id],
     queryFn: () => contentDetail('comics', { id: id! }).then((r) => r as Partial<Comics>),
     enabled: !!id,
+    // 站内没图时后端已把这部漫画投进自动补全:排队 / 运行中就轮询,话数与分页图一到就能读。
+    refetchInterval: backfillRefetchInterval,
   });
-  const chaptersQuery = useContentItems('comics', id, itemPage);
-  const chapters = chaptersQuery.data?.items ?? [];
+  const backfilling = backfillPending(query.data);
+  const chaptersQuery = useContentItems('comics', id, itemPage, { poll: backfilling });
+  const platforms = useMemo(() => platformsOf(query.data), [query.data]);
+  const platformHosts = useMemo(() => {
+    const hosts = new Set<string>();
+    for (const p of platforms) {
+      try {
+        hosts.add(new URL(p.url).host);
+      } catch {
+        /* platformsOf 已滤掉非 http 链接 */
+      }
+    }
+    return hosts;
+  }, [platforms]);
+  // 平台目录里要付费的话也挂锁(和站内付费墙的 locked 同一个图标),点开仍是去平台。
+  const chapters = useMemo(
+    () => (chaptersQuery.data?.items ?? []).map((c) => (c.info === 'locked' && !c.locked ? { ...c, locked: true } : c)),
+    [chaptersQuery.data],
+  );
+  const platformChapters = chapters.filter((c) => isPlatformChapter(c, platformHosts));
+  const freePlatformChapters = platformChapters.filter((c) => c.info !== 'locked').length;
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
   useEffect(() => {
@@ -125,17 +186,28 @@ function ComicsDetailContent() {
 
   const openChapter = useCallback(
     (ch: ContentItem) => {
+      if (isPlatformChapter(ch, platformHosts)) {
+        if (!openExternal(ch.url)) notify('这一话的链接打不开', 'error');
+        else if (ch.info === 'locked') notify('这一话在原平台需要付费或会员', 'info');
+        return;
+      }
       if (ch.locked) {
         notify('该话需解锁后阅读', 'info');
         return;
       }
-      setActiveChapterId(ch.id);
-      setActivePage(1);
-      setReaderOpen(true);
+      const apply = () => {
+        setActiveChapterId(ch.id);
+        setActivePage(1);
+        setReaderOpen(true);
+      };
+      // 从详情进阅读器:前进转场;阅读器里换话不做
+      if (readerOpen) apply();
+      else stateTransition('forward', apply);
       setTimeout(() => readerRef.current?.scrollTo({ top: 0, behavior: 'auto' }), 0);
     },
-    [notify],
+    [notify, readerOpen, platformHosts],
   );
+  const closeReader = useCallback(() => stateTransition('back', () => setReaderOpen(false)), []);
 
   const goChapter = useCallback(
     (delta: number) => {
@@ -161,11 +233,11 @@ function ComicsDetailContent() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') nextPage();
       else if (e.key === 'ArrowLeft') prevPage();
-      else if (e.key === 'Escape') setReaderOpen(false);
+      else if (e.key === 'Escape') closeReader();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [readerOpen, nextPage, prevPage]);
+  }, [readerOpen, nextPage, prevPage, closeReader]);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -197,7 +269,7 @@ function ComicsDetailContent() {
             { label: '地区', value: data.area },
             { label: '话数', value: total > 0 ? `共${total}话` : '' },
           ].filter((f) => f.value);
-          const intro = (data.description || data.content || '').trim();
+          const intro = comicIntro((data.description || data.content || '').trim());
           const sourceLink = [data.sourceUrl, data.source].find((u) => !!u && /^https?:\/\//.test(u));
           return (
             <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -260,20 +332,37 @@ function ComicsDetailContent() {
                       </Typography>
                     </Box>
                     {chapters.length > 0 && (
-                      <Button size="small" variant="contained" onClick={() => openChapter(chapters[0])} sx={{ borderRadius: 4 }}>
-                        开始阅读
+                      <Button
+                        size="small"
+                        variant="contained"
+                        // 平台目录:从第一话免费的开始(B 站漫画的第 0.5 话常是公告)
+                        onClick={() => openChapter(platformChapters.find((c) => c.info !== 'locked') ?? chapters[0])}
+                        endIcon={platformChapters.length > 0 ? <OpenInNewIcon sx={{ fontSize: 14 }} /> : undefined}
+                        sx={{ borderRadius: 4 }}
+                      >
+                        {platformChapters.length > 0 ? '去原平台阅读' : '开始阅读'}
                       </Button>
                     )}
                   </Box>
                 </Box>
               </Box>
 
+              {(playNoticeOf(data) || platforms.length > 0) && (
+                <Box sx={{ mb: 3, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                    {playNoticeOf(data) || '本站仅收录目录，请前往原平台阅读'}
+                    {platformChapters.length > 0 && `（共 ${platformChapters.length} 话，其中 ${freePlatformChapters} 话免费）`}
+                  </Typography>
+                  <PlatformLinks platforms={platforms} title="" dense />
+                </Box>
+              )}
+
               {intro && (
                 <>
                   <Typography variant="h6" sx={{ color: 'text.primary', mb: 1.5, fontWeight: 700 }}>
                     作品简介
                   </Typography>
-                  <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3, textIndent: '2em', whiteSpace: 'pre-line' }}>
+                  <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3, textIndent: '2em', whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
                     {intro}
                   </Typography>
                 </>
@@ -289,10 +378,10 @@ function ComicsDetailContent() {
                 unit="话"
                 variant="list"
                 loading={chaptersQuery.isLoading}
-                backfilling={chaptersQuery.data?.backfilling}
+                backfilling={chaptersQuery.data?.backfilling || backfilling}
                 empty={
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    暂无章节
+                    {backfillNotice(data.availability, '暂无章节', '话数与图片')}
                     {sourceLink && (
                       <Button size="small" href={sourceLink} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
                         去原站阅读
@@ -315,15 +404,17 @@ function ComicsDetailContent() {
                   sx={{
                     position: 'fixed',
                     inset: 0,
-                    bgcolor: 'rgba(0,0,0,0.95)',
+                    bgcolor: '#000',
                     zIndex: 1300,
+                    pt: 'var(--sat, 0px)',
+                    pb: 'var(--sab, 0px)',
                     display: 'flex',
                     flexDirection: 'column',
                     color: '#fff',
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, gap: 1, borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
-                    <IconButton onClick={() => setReaderOpen(false)} sx={{ color: '#fff' }} aria-label="关闭阅读器">
+                    <IconButton onClick={closeReader} sx={{ color: '#fff' }} aria-label="关闭阅读器">
                       <CloseRoundedIcon />
                     </IconButton>
                     <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1 }} noWrap>
@@ -360,7 +451,7 @@ function ComicsDetailContent() {
                     ) : (
                       <Box
                         onClick={nextPage}
-                        sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: 1, cursor: 'pointer' }}
+                        sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: { xs: 0, sm: 1 }, cursor: 'pointer', flexShrink: 0 }}
                       >
                         {/* 阅读器内嵌分页图:爬虫原图可能是外站防盗链地址,
                             必须过 CoverImage → mediaUrl(代理改写)+ 失败兜底,
@@ -369,7 +460,7 @@ function ComicsDetailContent() {
                           src={images[Math.min(activePage, images.length) - 1]}
                           alt={`${chapter.title || ''} 第 ${activePage} 页`}
                           loading="eager"
-                          sx={{ maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 4 }}
+                          sx={{ width: '100%', height: 'auto', objectFit: 'contain', borderRadius: { xs: 0, sm: 1 } }}
                         />
                       </Box>
                     )}

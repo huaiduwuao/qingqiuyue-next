@@ -35,6 +35,7 @@ import { contentClient, formatApiError } from '@/lib/api/client';
 import { BotBadge } from '@/components/community/UserLine';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { UserNameDecor } from '@/components/common/UserDecor';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 
 // 常用表情/动图列表
 const EMOJI_LIST = ['😀', '😄', '😎', '🤔', '😅', '😂', '🤣', '😍', '🥰', '😘',
@@ -97,6 +98,8 @@ interface DetailCommentsProps {
   initialCount?: number;
   compact?: boolean;
   commentCount?: number;
+  /** 列表接口给出/发评论后变化的总数,给外层的计数角标对齐用 */
+  onTotalChange?: (total: number) => void;
 }
 
 function unwrapPage<T>(res: unknown): { list: T[]; total: number; hasMore: boolean } {
@@ -147,7 +150,7 @@ function toggled<T extends CommentReply>(c: T, action: CommentActionType): T {
 
 const emptyThread: Thread = { open: false, loading: false, loaded: false, replies: [] };
 
-export function DetailComments({ contentId, initialCount = 0, compact = false, commentCount }: DetailCommentsProps) {
+export function DetailComments({ contentId, initialCount = 0, compact = false, commentCount, onTotalChange }: DetailCommentsProps) {
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [total, setTotal] = useState(initialCount);
   const [page, setPage] = useState(1);
@@ -155,6 +158,8 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // 自动翻页失败后停下,等用户点「重试」,免得哨兵还在可视区就无限重试
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [threads, setThreads] = useState<Record<string, Thread>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -173,6 +178,15 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const notify = useCallback((message: string, severity: Severity = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  // 只在列表真正加载过之后回报,免得把外层传进来的 initialCount 原样回传
+  const onTotalChangeRef = useRef(onTotalChange);
+  useEffect(() => {
+    onTotalChangeRef.current = onTotalChange;
+  });
+  useEffect(() => {
+    if (loaded) onTotalChangeRef.current?.(total);
+  }, [loaded, total]);
 
   // 详情数据晚于组件挂载到达;评论列表加载后以列表接口的总数为准。
   useEffect(() => {
@@ -225,6 +239,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
     if (loadingMore || !hasMore) return;
     const gen = genRef.current;
     setLoadingMore(true);
+    setLoadMoreFailed(false);
     try {
       const res = await loadPage(page + 1);
       if (gen !== genRef.current) return;
@@ -235,7 +250,10 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       setHasMore(res.hasMore);
       setPage((p) => p + 1);
     } catch (err) {
-      if (gen === genRef.current) notify(formatApiError(err), 'error');
+      if (gen === genRef.current) {
+        notify(formatApiError(err), 'error');
+        setLoadMoreFailed(true);
+      }
     } finally {
       setLoadingMore(false);
     }
@@ -371,6 +389,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       onReplyEmoji={(e) => setPicker({ kind: 'emoji', anchor: e.currentTarget, target: 'reply' })}
       hasMore={hasMore}
       loadingMore={loadingMore}
+      loadMoreFailed={loadMoreFailed}
       onLoadMore={() => void loadMore()}
       emptyText={compact ? '暂无评论' : '暂无评论，快来抢沙发'}
     />
@@ -453,7 +472,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
 function CommentList({
   comments, loading, threads, busy, replyTarget, replyText, sendingReply,
   onReplyTextChange, onStartReply, onCancelReply, onSendReply, onToggleThread, onAction, onReplyEmoji,
-  hasMore, loadingMore, onLoadMore, emptyText,
+  hasMore, loadingMore, loadMoreFailed, onLoadMore, emptyText,
 }: {
   comments: CommentItem[];
   loading: boolean;
@@ -471,9 +490,11 @@ function CommentList({
   onReplyEmoji: (e: React.MouseEvent<HTMLElement>) => void;
   hasMore: boolean;
   loadingMore: boolean;
+  loadMoreFailed?: boolean;
   onLoadMore: () => void;
   emptyText: string;
 }) {
+  const sentinel = useAutoLoad(hasMore && !loadMoreFailed, loadingMore, onLoadMore);
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -540,11 +561,13 @@ function CommentList({
           </Box>
         );
       })}
-      {hasMore && (
-        <Button onClick={onLoadMore} disabled={loadingMore} sx={{ alignSelf: 'center', color: 'text.secondary', fontSize: 13 }}>
-          {loadingMore ? <CircularProgress size={16} /> : '加载更多评论'}
+      {loadingMore && <CircularProgress size={16} sx={{ alignSelf: 'center' }} />}
+      {hasMore && loadMoreFailed && !loadingMore && (
+        <Button onClick={onLoadMore} sx={{ alignSelf: 'center', color: 'text.secondary', fontSize: 13 }}>
+          加载失败,点此重试
         </Button>
       )}
+      <Box ref={sentinel} sx={{ height: '1px' }} />
     </Box>
   );
 }

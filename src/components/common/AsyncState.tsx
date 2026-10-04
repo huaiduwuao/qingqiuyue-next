@@ -43,6 +43,7 @@ export function AsyncState<T>({
   emptyVariant = 'inbox',
   skeletonCount = 6,
   skeletonHeight = 80,
+  skeleton,
   errorHint,
   children,
 }: {
@@ -53,11 +54,14 @@ export function AsyncState<T>({
   emptyVariant?: EmptyVariant;
   skeletonCount?: number;
   skeletonHeight?: number;
+  /** 按页面形状定制的骨架屏(播放器位 + 标题 + 选集格…),不传就是几条通用灰条 */
+  skeleton?: ReactNode;
   errorHint?: string;
   children: (data: T) => ReactNode;
 }) {
   // 初始加载骨架屏
   if (query.isLoading) {
+    if (skeleton !== undefined) return <>{skeleton}</>;
     return (
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {Array.from({ length: skeletonCount }).map((_, i) => (

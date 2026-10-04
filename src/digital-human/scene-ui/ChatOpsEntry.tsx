@@ -35,6 +35,11 @@ const TOOL_LABEL: Record<string, string> = {
   workflow_execute: '执行工作流',
   resource_search: '搜索资源',
   bounty_create: '发布悬赏',
+  source_setup_probe: '探测站点',
+  source_setup_fetch: '查看站点页面',
+  source_setup_test: '试跑接入草稿',
+  source_credentials_list: '查看登录凭据',
+  ui_show_source_draft: '展示接入草稿',
 };
 
 export function toolLabel(name: string): string {

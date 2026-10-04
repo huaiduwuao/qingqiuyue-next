@@ -106,15 +106,16 @@ export default function HomeMorePage() {
         <Typography variant="h4" sx={{ mb: 3 }}>更多内容</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 320px' }, gap: 2, mb: 3 }}>
           <Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-          <Card sx={{ width: 256, flexShrink: 0 }}>
+            {/* 手机上菜单和内容上下排(以前左右并排,256px 菜单 + 内容把页面撑出屏幕) */}
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+          <Card sx={{ width: { xs: '100%', md: 256 }, flexShrink: 0 }}>
             <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
               <AsyncState query={treeQuery} isEmpty={(d) => d.length === 0} emptyText="暂无内容" skeletonCount={5}>
                 {(data) => <List sx={{ p: 0 }}>{renderMenu(data)}</List>}
               </AsyncState>
             </CardContent>
           </Card>
-          <Card sx={{ flex: 1 }}>
+          <Card sx={{ flex: 1, minWidth: 0 }}>
             <CardContent>
               {!activeContentId ? (
                 <EmptyState text="请选择左侧菜单" />

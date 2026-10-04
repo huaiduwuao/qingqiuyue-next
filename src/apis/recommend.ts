@@ -17,8 +17,9 @@ export const reportBehavior = (data: {
 //   unknown        —— 尚未判定
 //   bandwidth_limited —— **不是故障**:流解析得出来,但源站校验 Referer,本站不替
 //                     它付视频带宽。提示"因带宽成本暂不支持站内播放",给去原站的入口
-//   embeddable     —— 不走本站播放器,但源站有官方外链播放器,iframe 嵌在本站页面里播
-//                     (embedUrl / embedProvider 随之下发;sourceUrl 是源站页面,不是流)。
+//   resolvable     —— 源站页面有流解析规则(lib/localStream):客户端本机解析、网页端服务端解析,
+//                     本站播放器播放(sourceUrl 是源站页面,不是流;embedProvider 是署名平台名)。
+//   embeddable     —— 旧值(源站外链 iframe),索引重建前还会出现,前端按 resolvable 处理。
 //                     站内看得到画面,不要当成不可播去打标或过滤
 //
 // 同一个字段还承载「能不能读」这条轴(小说/漫画/文章/新闻)。合成一个枚举是因为
@@ -35,6 +36,7 @@ export type PlaybackStatus =
   | 'pending_repair'
   | 'live_offline'
   | 'bandwidth_limited'
+  | 'resolvable'
   | 'embeddable'
   | 'readable'
   | 'partial_text'
@@ -57,6 +59,8 @@ export interface FeedItem {
   channels?: string[];
   /** 主召回通道(兼容旧字段) */
   reason: string;
+  /** 被「此刻的分支」召回时是哪一枝(channels 里有 topic) */
+  topic?: string;
   metadata?: string;
 
   // ── 播放性 ──
@@ -67,7 +71,7 @@ export interface FeedItem {
   playbackStatus?: PlaybackStatus;
   /** 面向用户的中文提示,仅 pending_repair 时非空 */
   repairNotice?: string;
-  /** playbackStatus=embeddable 时:源站官方外链播放器的 iframe 地址与平台名 */
+  /** embedUrl 是旧字段(不再嵌 iframe,恒为空);embedProvider 是署名平台名 */
   embedUrl?: string;
   embedProvider?: string;
 
@@ -97,9 +101,10 @@ export const getPersonalFeed = (params: { userId: number; type?: string; size?: 
   contentClient('/recommend/personal', { params });
 
 // 相关推荐 → GET /api/content/recommend/related?seedId=
-// 以种子内容为中心的 i2i 召回(向量相似 + 同作者/同标签),已排除种子自身。
+// 以种子内容为中心召回(向量相似 + 同歌手/同专辑/同题材 + 看过它的人还看了什么),已排除种子自身。
+// 不传 types 时后端按种子类型优先、不足再跨类型补齐。用户取自登录会话,不用传 userId。
 // seedId 用字符串:内容 id 是超出 2^53 的雪花 id。
-export const getRelated = (params: { seedId: string | number; userId?: number; types?: string; size?: number }) =>
+export const getRelated = (params: { seedId: string | number; types?: string; size?: number }) =>
   contentClient<FeedResult>('/recommend/related', { params });
 
 // 热榜 → GET /api/content/analytics/hot

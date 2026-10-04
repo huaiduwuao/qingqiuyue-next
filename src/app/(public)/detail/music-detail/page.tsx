@@ -39,6 +39,7 @@ import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/li
 import { trackFromDetail } from '@/lib/player/playMusic';
 import { PlatformLinks, platformsOf } from '@/components/detail/ExternalPlatforms';
 import { track, recordHistory } from '@/lib/track';
+import { backfillPending, backfillRefetchInterval } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 
@@ -58,6 +59,9 @@ function MusicDetailContent() {
     queryKey: ['detail', 'music', id],
     queryFn: () => contentDetail('music', { id: id! }).then((r) => r as any),
     enabled: !!id,
+    // 实时解析也没有音源时后端已投自动补全(找整首并转存):排队 / 运行中就轮询,转存好就能放。
+    // 这里的 data 是 any(详情字段没建类型),直接传函数会让 useQuery 把数据推成 unknown,包一层保住 any。
+    refetchInterval: (q) => backfillRefetchInterval(q),
   });
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
@@ -107,9 +111,14 @@ function MusicDetailContent() {
   const audioSrc = realAudioUrl || mediaUrl(query.data?.audioUrl);
   const sourcePage: string = query.data?.sourceUrl || query.data?.source || '';
   const audioUnavailable = query.isSuccess && !audioLoading && (!audioSrc || audioFailed);
+  const audioBackfilling = backfillPending(query.data);
   const audioNotice = audioFailed
     ? '音源加载失败（可能已过期或受版权限制），请刷新重试或前往原平台收听'
-    : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
+    : audioBackfilling
+      ? '正在为这首歌寻找并转存整首音源,稍候片刻…'
+      : query.data?.audioBackfill?.status === 'failed'
+        ? `已在各平台找过整首音源,暂时没有;${query.data?.audioNotice || '可前往原平台收听'}`
+        : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
   // VIP 歌曲只拿得到试听片段:照常能播,但要说清楚这不是整首。
   const audioIsPreview = !audioUnavailable && query.data?.audioStatus === 'preview';
 
@@ -199,6 +208,8 @@ function MusicDetailContent() {
           不加安全区就直接压在状态栏底下(--sat 见 globals.css) */}
       <DetailHeader
         title={query.data?.title || '音乐详情'}
+        playId={id}
+        playType="MUSIC"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton
@@ -335,7 +346,8 @@ function MusicDetailContent() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', columnGap: 1, rowGap: 1.5, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <IconButton aria-label="上一首" disabled={!isCurrent} onClick={() => musicPlayer.prev()} sx={{ color: 'text.tertiary' }}>
                 <SkipPreviousIcon fontSize="large" />
               </IconButton>
@@ -357,16 +369,19 @@ function MusicDetailContent() {
               <IconButton aria-label="下一首" disabled={!isCurrent} onClick={() => musicPlayer.next()} sx={{ color: 'text.tertiary' }}>
                 <SkipNextIcon fontSize="large" />
               </IconButton>
-              <Box sx={{ width: 16 }} />
-              <VolumeUpIcon sx={{ color: 'text.secondary' }} />
-              <Slider
-                size="small"
-                value={volume}
-                aria-label="音量"
-                onChange={(_, v) => musicPlayer.setVolume((v as number) / 100)}
-                sx={{ color: 'primary.main', width: 100, ml: 1 }}
-              />
-              <Box sx={{ flex: 1 }} />
+              </Box>
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', ml: 2 }}>
+                <VolumeUpIcon sx={{ color: 'text.secondary' }} />
+                <Slider
+                  size="small"
+                  value={volume}
+                  aria-label="音量"
+                  onChange={(_, v) => musicPlayer.setVolume((v as number) / 100)}
+                  sx={{ color: 'primary.main', width: 100, ml: 1 }}
+                />
+              </Box>
+              <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: { xs: '100%', sm: 'auto' } }}>
               <Tooltip title={inQueue ? '已在播放队列' : '加入播放队列(边浏览边听)'}>
                 <span>
                   <IconButton onClick={addToQueue} disabled={audioUnavailable} aria-label="加入播放队列" sx={{ color: inQueue ? 'primary.main' : 'text.secondary' }}>
@@ -382,14 +397,16 @@ function MusicDetailContent() {
               <IconButton
                 onClick={handleLike}
                 disabled={likeBusy}
-                sx={{ color: liked ? 'primary.main' : 'text.secondary' }}
+                aria-label="点赞"
+                sx={{ color: liked ? 'primary.main' : 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}
               >
                 {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
               </IconButton>
               <CollectButton contentId={id!} contentType="music" />
-              <IconButton onClick={handleShare} sx={{ color: 'text.secondary' }}>
+              <IconButton onClick={handleShare} aria-label="分享" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>
                 <ShareIcon />
               </IconButton>
+              </Box>
             </Box>
 
             <Divider sx={{ borderColor: 'divider', my: 3 }} />

@@ -10,6 +10,7 @@
  * 后端:qingqiuyue-go/internal/teamapp(挂在 /api/core)。
  */
 import { rewardClient } from '@/lib/api/client';
+import { fenToDiamonds, formatDiamonds } from '@/apis/wallet';
 import type { EntityId } from '@/lib/id';
 
 export type TeamRole = 'owner' | 'admin' | 'member';
@@ -26,7 +27,7 @@ export interface Team {
   memberCount: number;
   /** 验收通过的交付数 */
   realizedCount: number;
-  /** 累计结账收入(分) */
+  /** 累计结账收入(分;由钻石折来,展示用 fenToDiamonds) */
   earnedCents: number;
   openJoin: boolean;
   status: 'active' | 'disbanded';
@@ -66,6 +67,7 @@ export interface Realization {
   workType: string;
   workTitle: string;
   workCover: string;
+  /** 结账成交额(分;由钻石折来,展示用 fenToDiamonds) */
   amountCents: number;
   settledAt?: string | null;
   createdAt: string;
@@ -124,7 +126,8 @@ export const listRealizations = (params: {
   pageSize?: number;
 }) => rewardClient<{ list: Realization[]; total: number }>('/realization/list', { method: 'GET', params });
 
-export const yuan = (cents?: number) => ((cents ?? 0) / 100).toFixed(2);
+/** 团队收入、实现成交额(库里按分记,由钻石折来)的展示文本,如 "120 钻" */
+export const centsAsDiamonds = (cents?: number) => formatDiamonds(fenToDiamonds(cents));
 
 /** 意境页里的一条需求(公开只读,不登录也能看) */
 export interface RealmDemand {
@@ -137,7 +140,9 @@ export interface RealmDemand {
   cover?: string;
   /** 分类(video/music/novel/…),兜底封面按它配图 */
   category?: string;
-  /** 赏金(元) */
+  /** 赏金(钻) */
+  payDiamonds?: number;
+  /** 赏金(元),老字段 */
   pay: number;
   status: 'PUBLISHED' | 'COMPLETED' | 'SETTLED';
   endTime?: string | null;

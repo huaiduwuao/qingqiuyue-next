@@ -27,7 +27,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import type { GridColDef } from '@mui/x-data-grid'
 import { DataGridTable } from '@/components/tables/DataGridTable'
-import type { FilterBarProps } from '@/components/tables/FilterBar'
+import { FilterBar, type FilterBarProps } from '@/components/tables/FilterBar'
 import { listFullAuditLogs, listMyAuditLogs } from '@/apis/agentmanager-audit'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats, type CostStats } from './api'
 import GatewayQuotaPanel from './GatewayQuotaPanel'
@@ -47,6 +47,17 @@ const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: f
 const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
+
+/** 下拉选项:从已加载的数据里取去重后的非空值(列表已全量加载,前端筛选) */
+const distinctOptions = (vals: (string | undefined | null)[]) =>
+  Array.from(new Set(vals.filter((v): v is string => !!v))).sort().map(v => ({ label: v, value: v }))
+
+/** 关键字匹配:任一字段包含关键字(忽略大小写) */
+const matchKeyword = (kw: string | undefined, ...fields: (string | string[] | undefined | null)[]) => {
+  const k = (kw || '').trim().toLowerCase()
+  if (!k) return true
+  return fields.some(f => (Array.isArray(f) ? f.join(',') : f || '').toLowerCase().includes(k))
+}
 
 /** 审计日志列定义。提到组件外,避免每次 render 重建导致 DataGrid 重新计算列。 */
 const auditColumns: GridColDef<AuditLog>[] = [
@@ -141,6 +152,9 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [skills, setSkills] = useState<Skill[]>([])
   // 审计筛选条件(状态 / 模型关键字),由 DataGridTable 的 FilterBar 驱动
   const [auditFilters, setAuditFilters] = useState<FilterBarProps['values']>({})
+  // Agent / 技能卡片的筛选:列表已全量加载(limit=500),前端过滤,不触发重新加载
+  const [agentFilters, setAgentFilters] = useState<FilterBarProps['values']>({})
+  const [skillFilters, setSkillFilters] = useState<FilterBarProps['values']>({})
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
@@ -248,6 +262,20 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
       </Box>
     )
   }
+
+  const filteredAgents = agentsList.filter(a =>
+    matchKeyword(agentFilters.keyword, a.name, a.agent_id, a.description, a.tags) &&
+    (!agentFilters.status || a.status === agentFilters.status) &&
+    (!agentFilters.published || String(!!a.published) === agentFilters.published) &&
+    (!agentFilters.role || a.role === agentFilters.role) &&
+    (!agentFilters.model || a.model === agentFilters.model)
+  )
+  const filteredSkills = skills.filter(s =>
+    matchKeyword(skillFilters.keyword, s.name, s.description, s.tags) &&
+    (!skillFilters.category || s.category === skillFilters.category) &&
+    (!skillFilters.source || s.source === skillFilters.source) &&
+    (!skillFilters.status || s.status === skillFilters.status)
+  )
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'dashboard', label: '📊 总览' },
@@ -595,8 +623,37 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               </CardContent>
             </Card>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>画布 Agent(实例绑定)</Typography>
+            <FilterBar
+              fields={[
+                { key: 'keyword', label: '关键字', type: 'text', placeholder: '名称 / ID / 描述 / 标签', width: 220 },
+                {
+                  key: 'status',
+                  label: '状态',
+                  type: 'select',
+                  options: [
+                    { label: '草稿', value: 'draft' },
+                    { label: '启用', value: 'active' },
+                    { label: '暂停', value: 'paused' },
+                  ],
+                },
+                {
+                  key: 'published',
+                  label: '发布',
+                  type: 'select',
+                  options: [
+                    { label: '已发布', value: 'true' },
+                    { label: '未发布', value: 'false' },
+                  ],
+                },
+                { key: 'role', label: '角色', type: 'select', options: distinctOptions(agentsList.map(a => a.role)) },
+                { key: 'model', label: '模型', type: 'select', options: distinctOptions(agentsList.map(a => a.model)), width: 200 },
+              ]}
+              values={agentFilters}
+              onChange={setAgentFilters}
+              onReset={() => setAgentFilters({})}
+            />
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-              {agentsList.map(agent => (
+              {filteredAgents.map(agent => (
                 <Card key={agent.id}>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -639,6 +696,9 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               {agentsList.length === 0 && (
                 <Typography variant="body2" color="text.secondary">暂无 Agent,点右上角「新建 Agent」创建。</Typography>
               )}
+              {agentsList.length > 0 && filteredAgents.length === 0 && (
+                <Typography variant="body2" color="text.secondary">没有符合筛选条件的 Agent。</Typography>
+              )}
             </Box>
           </Box>
         )}
@@ -660,10 +720,10 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               <Card sx={{ mb: 2 }}>
                 <CardContent>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    本月({costStats.period}) {costStats.total_requests.toLocaleString()} 次调用 · {costStats.total_tokens.toLocaleString()} tokens
+                    本月({costStats.period}) {(costStats.total_requests ?? 0).toLocaleString()} 次调用 · {(costStats.total_tokens ?? 0).toLocaleString()} tokens
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {costStats.breakdown.map(b => (
+                    {(costStats.breakdown ?? []).map(b => (
                       <Chip
                         key={`${b.source}-${b.agent}`}
                         size="small"
@@ -686,6 +746,8 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                   pageSize: params.pageSize,
                   status: params.status,
                   keyword: params.keyword,
+                  // 用户 / 员工筛选只有管理员全量接口认
+                  ...(isAdmin ? { user_id: params.user_id, agent: params.agent } : {}),
                   // 点列头排序:转成后端的白名单列名(非白名单列由后端回落 id)
                   sort: params.sortField,
                   order: params.sortOrder,
@@ -701,9 +763,16 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                     options: [
                       { label: '成功', value: 'success' },
                       { label: '失败', value: 'error' },
+                      { label: '部分成功', value: 'partial' },
                     ],
                   },
                   { key: 'keyword', label: '模型', type: 'text', placeholder: '按模型名搜索', width: 200 },
+                  ...(isAdmin
+                    ? [
+                        { key: 'user_id', label: '用户 ID', type: 'text' as const, placeholder: '用户 ID', width: 140 },
+                        { key: 'agent', label: '员工', type: 'text' as const, placeholder: '按员工名搜索', width: 160 },
+                      ]
+                    : []),
                 ],
                 values: auditFilters,
                 onChange: setAuditFilters,
@@ -721,8 +790,28 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               <Button size="small" variant="contained" onClick={() => setStudio('skill')}>➕ 新建技能</Button>
             </Box>
             <SkillHubPanel isAdmin={isAdmin} onInstalled={loadSkills} />
+            <FilterBar
+              fields={[
+                { key: 'keyword', label: '关键字', type: 'text', placeholder: '名称 / 描述 / 标签', width: 220 },
+                { key: 'category', label: '分类', type: 'select', options: distinctOptions(skills.map(s => s.category)) },
+                { key: 'source', label: '来源', type: 'select', options: distinctOptions(skills.map(s => s.source)) },
+                {
+                  key: 'status',
+                  label: '状态',
+                  type: 'select',
+                  options: [
+                    { label: '草稿', value: 'draft' },
+                    { label: '已发布', value: 'published' },
+                    { label: '已归档', value: 'archived' },
+                  ],
+                },
+              ]}
+              values={skillFilters}
+              onChange={setSkillFilters}
+              onReset={() => setSkillFilters({})}
+            />
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-              {skills.map(skill => (
+              {filteredSkills.map(skill => (
                 <Card key={skill.id}>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -746,6 +835,9 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                   </CardContent>
                 </Card>
               ))}
+              {skills.length > 0 && filteredSkills.length === 0 && (
+                <Typography variant="body2" color="text.secondary">没有符合筛选条件的技能。</Typography>
+              )}
             </Box>
           </Box>
         )}

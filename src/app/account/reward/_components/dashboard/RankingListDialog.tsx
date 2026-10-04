@@ -13,6 +13,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import { getRewardRanking, type RewardRanker } from '@/apis/dashboard';
 import { RANK_PILL } from '@/constants/gradients';
+import { formatDiamondsShort } from '@/apis/wallet';
 
 /**
  * 完整达人榜弹层 —— 页内展示,不跳转 /account/reward/ranking(该路由不存在)。
@@ -125,7 +126,7 @@ export default function RankingListDialog({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'success.main' }}>
                   <WhatshotIcon sx={{ fontSize: 10 }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
-                    ¥{(r.income / 1000).toFixed(1)}k
+                    {formatDiamondsShort(r.incomeDiamonds ?? r.income / 10)}
                   </Typography>
                 </Box>
               </Box>

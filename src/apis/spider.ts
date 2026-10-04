@@ -230,7 +230,9 @@ export async function crawlSiteNow(domain: string, data?: { max_pages?: number; 
 }
 
 // Source APIs
-export async function listSources(params?: PageParams): Promise<PageResult<any>> {
+export async function listSources(
+  params?: PageParams & { keyword?: string; type?: string; status?: string; category?: string },
+): Promise<PageResult<any>> {
   const res = await spiderClient('/sources', { params });
   return normalizePageResponse(res);
 }
@@ -248,7 +250,9 @@ export async function deleteSource(id: number): Promise<any> {
 }
 
 // Template APIs
-export async function listTemplates(params?: PageParams): Promise<PageResult<any>> {
+export async function listTemplates(
+  params?: PageParams & { keyword?: string; type?: string; status?: string; source_id?: string; domain?: string },
+): Promise<PageResult<any>> {
   const res = await spiderClient('/templates', { params });
   return normalizePageResponse(res);
 }
@@ -265,6 +269,10 @@ export interface TemplateWrite {
   sourceId?: EntityId | null;
   /** raw JSON content(覆盖 module_template.content 整段),发给后端的 config;后端会校验 */
   content?: string;
+  /** 以下三项后端空串视为不改 */
+  category?: string;
+  code?: string;
+  domain?: string;
 }
 /** @deprecated 用 TemplateWrite */
 export type TemplateUpdate = TemplateWrite;
@@ -276,6 +284,9 @@ function templateBody(params: TemplateWrite) {
     type: params.type,
     ...(sourceId !== null ? { source_id: sourceId } : {}),
     ...(params.content ? { config: params.content } : {}),
+    ...(params.category ? { category: params.category } : {}),
+    ...(params.code ? { code: params.code } : {}),
+    ...(params.domain ? { domain: params.domain } : {}),
   };
 }
 
@@ -309,7 +320,7 @@ export async function getRecentActivity(): Promise<ActivityFeed> {
 }
 
 // ─── Tasks ───
-export async function listTasks(params?: PageParams & { status?: string; type?: string }): Promise<PageResult<any>> {
+export async function listTasks(params?: PageParams & { status?: string; type?: string; keyword?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/tasks', { params });
   return normalizePageResponse(res);
 }
@@ -560,7 +571,7 @@ export async function getContentBackfillStatus(taskId: number): Promise<any> {
 }
 
 /** 最近的内容补全任务(运营看历史用)。 */
-export async function listContentBackfillRecent(params?: { page?: number; pageSize?: number }): Promise<{
+export async function listContentBackfillRecent(params?: { page?: number; pageSize?: number; status?: string }): Promise<{
   list: ContentBackfillRecentItem[];
   total: number;
   page: number;
@@ -858,6 +869,23 @@ export async function exportTemplates(params: { sourceId: EntityId; format?: str
   const { sourceId, ...rest } = params;
   return spiderClient('/templates/export', { method: 'POST', data: { ...rest, source_id: toEntityId(sourceId) } });
 }
+/**
+ * 试跑 book 模板(站内搜索 → 定位 → 目录 → 第 1 章),只读。
+ * content 是编辑器里当前的 JSON(不必先保存)。
+ */
+export async function testBookProfile(params: {
+  content: string;
+  title?: string;
+  author?: string;
+  bookId?: string;
+}): Promise<any> {
+  return spiderClient('/templates/book-test', {
+    method: 'POST',
+    data: { content: params.content, title: params.title, author: params.author, book_id: params.bookId },
+    timeout: 120_000,
+  });
+}
+
 export async function testTemplate(params: {
   url: string;
   type?: string;            // list | detail | chapter
@@ -940,6 +968,8 @@ export interface RepairReport {
   dry_run: boolean;
   applied?: { filled: number; updated: number; skipped: number; failed: number };
   sources: string[];
+  /** 整轮失败的原因(有它就说明任务失败了,逐源明细在 errors) */
+  error?: string;
 }
 
 export interface RepairSourceOption {
@@ -968,13 +998,39 @@ export async function listRepairSources(): Promise<{ list: RepairSourceOption[] 
  * 一本书双源两百章就要四分多钟,「0 = 全书」必断;断开时后端 ctx 被取消,
  * 应用修复会停在半路,书被改了一半,前端只看到「请求失败」。
  */
-export async function repairChapters(params: {
+/** 修复 / 补全任务运行中的进度快照(crawl_job.progress)。 */
+export interface RepairProgress {
+  phase: string;
+  percent: number;
+  currentUrl?: string;
+  itemsFound?: number;
+  chaptersNew?: number;
+  errors?: number;
+  error_list?: string[];
+  elapsedSec?: number;
+  startedAt?: string;
+}
+
+/** 进度阶段的中文名(修复面板与任务页共用)。 */
+export const REPAIR_PHASE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  resolving: '在源站上定位这本书',
+  catalog: '拉目录',
+  fetching: '抓正文',
+  aggregating: '多源对齐裁决',
+  applying: '写库',
+  done: '已完成',
+  failed: '失败',
+};
+
+/** 发起一次异步修复,返回 task_id。报告用 {@link pollRepair} 取。 */
+export async function startRepair(params: {
   contentId: string;
   domains?: string[];
   dryRun?: boolean;
   maxChapters?: number;
   applyVerdicts?: string[];
-}): Promise<RepairReport> {
+}): Promise<number> {
   const started = await spiderClient<{ task_id?: number; taskId?: number }>('/content/repair', {
     method: 'POST',
     data: {
@@ -988,19 +1044,110 @@ export async function repairChapters(params: {
   });
   const taskId = Number(started?.task_id ?? started?.taskId);
   if (!taskId) throw new Error('修复任务没有返回 task_id');
+  return taskId;
+}
 
-  // 后端任务自己的上限是 30 分钟,这里多等一点
-  const deadline = Date.now() + 35 * 60 * 1000;
+/**
+ * 轮询一个修复任务直到拿到报告。
+ *
+ * 与发起分开,是为了让面板在切菜单回来后按记下的 task_id 重新接上 ——
+ * 第一次立刻查(跑完的任务直接拿到报告,不用干等 3 秒)。
+ * signal 中止后不再发请求,抛 AbortError;调用方卸载时要 abort,
+ * 否则离开页面后这个循环还会在后台每 3 秒打一次接口。
+ */
+export async function pollRepair(
+  taskId: number,
+  opts: { onProgress?: (p: RepairProgress, taskId: number) => void; signal?: AbortSignal } = {},
+): Promise<RepairReport> {
+  const { onProgress, signal } = opts;
+  const aborted = () => new DOMException('aborted', 'AbortError');
+  // 后端任务自己的上限是 2 小时(两个源各 1500 章),这里多等一点
+  const deadline = Date.now() + 125 * 60 * 1000;
+  let first = true;
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 3000));
+    if (!first) {
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, 3000);
+        signal?.addEventListener('abort', () => { clearTimeout(t); reject(aborted()); }, { once: true });
+      });
+    }
+    first = false;
+    if (signal?.aborted) throw aborted();
     // 跑完返回报告;还在跑返回 202 + {status}
-    const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string }>(
+    const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string; progress?: RepairProgress }>(
       `/content/repair/${taskId}`,
       { method: 'GET' },
     );
-    if (r && Array.isArray(r.diffs)) return r;
+    if (signal?.aborted) throw aborted();
+    if (r?.progress && onProgress) onProgress(r.progress, taskId);
+    // 有 content_id 就是报告(跑完了)。失败的报告老后端给 diffs=null,
+    // 以前只认 Array.isArray(diffs),于是一直轮询到超时,页面像卡死。
+    if (r && r.content_id != null) {
+      const failed = r.error || (!Array.isArray(r.diffs) && (r.errors?.length ?? 0) > 0);
+      if (failed) {
+        const detail = (r.errors || []).join(';');
+        throw new Error([r.error || '修复失败', detail].filter(Boolean).join(':'));
+      }
+      return { ...r, diffs: r.diffs || [] };
+    }
     if (r?.status === 'failed') throw new Error(r.error_msg || r.errorMsg || '修复任务失败');
     if (r?.status === 'completed') throw new Error('任务已结束,但报告没有取到(可能已过期),请重新诊断');
   }
-  throw new Error('修复超过 35 分钟仍未结束,请稍后到任务列表查看');
+  throw new Error('修复超过 2 小时仍未结束,请到任务列表查看');
+}
+
+/** 修复任务列表的一行(GET /content/repair/recent)。完整报告仍用 pollRepair 取。 */
+export interface RepairTaskRow {
+  task_id: number;
+  status: 'running' | 'completed' | 'failed' | string;
+  /** 运行中但半小时没有进度 —— 多半是 spider-api 重启把任务带走了 */
+  stale?: boolean;
+  content_id?: string;
+  title?: string;
+  /** null = 老任务,名字里没记模式,且没有报告 */
+  dry_run: boolean | null;
+  operator?: string;
+  phase?: string;
+  percent: number;
+  items_found?: number;
+  elapsed_sec?: number;
+  errors?: number;
+  error_msg?: string;
+  started_at?: string;
+  updated_at?: string;
+  aggregated?: number;
+  by_verdict?: Record<string, number>;
+  applied?: RepairReport['applied'];
+  sources?: string[];
+  has_report: boolean;
+}
+
+export async function listRepairTasks(params: { page?: number; pageSize?: number; contentId?: string; status?: string } = {}): Promise<{
+  list: RepairTaskRow[];
+  total: number;
+}> {
+  return spiderClient('/content/repair/recent', {
+    method: 'GET',
+    params: {
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 10,
+      content_id: params.contentId || undefined,
+      status: params.status || undefined,
+    },
+  });
+}
+
+/** 发起并等到报告(一次性调用;面板用 startRepair + pollRepair 以便切页后续上)。 */
+export async function repairChapters(params: {
+  contentId: string;
+  domains?: string[];
+  dryRun?: boolean;
+  maxChapters?: number;
+  applyVerdicts?: string[];
+  /** 每次轮询拿到的运行中进度 */
+  onProgress?: (p: RepairProgress, taskId: number) => void;
+  signal?: AbortSignal;
+}): Promise<RepairReport> {
+  const taskId = await startRepair(params);
+  return pollRepair(taskId, { onProgress: params.onProgress, signal: params.signal });
 }

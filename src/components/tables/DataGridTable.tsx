@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useId, lazy, Suspense } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -35,6 +36,13 @@ interface DataGridTableProps {
    * auto-refetched on change.
    */
   filters?: FilterBarProps;
+  /**
+   * react-query 键前缀。页面 invalidateQueries 同一前缀(如 LIST_KEY)时表格自动重拉,
+   * 不传则只能靠 refreshKey / 筛选变化触发。
+   */
+  queryKey?: readonly unknown[];
+  /** 变化即重拉当前页(不回第一页)—— 给定时刷新、保存后刷新用,别塞进 extraParams。 */
+  refreshKey?: string | number;
   /** 操作列权限码 — 不传则不限制 */
   actionPermissions?: { edit?: string; delete?: string };
   /** 拥有 edit/delete 权限的判断函数;不传则永远 true(交给 actionPermissions 控制) */
@@ -59,13 +67,13 @@ export function DataGridTable({
   toolBarRender,
   extraParams,
   filters,
+  queryKey,
+  refreshKey,
   actionPermissions,
   hasPermission,
   customActions,
 }: DataGridTableProps) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [rowCount, setRowCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const instanceId = useId();
   const [mounted, setMounted] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -77,50 +85,50 @@ export function DataGridTable({
   const fetchDataRef = useRef(fetchData);
   fetchDataRef.current = fetchData;
 
-  const isLoadingRef = useRef(false);
-  const mountedRef = useRef(true);
-
   useEffect(() => {
     setMounted(true);
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
   }, []);
 
-  const extraParamsKey = useMemo(() => {
-    const merged: Record<string, any> = { ...(extraParams || {}) };
-    const filterVals = filters?.values;
-    if (filterVals) {
-      for (const [k, v] of Object.entries(filterVals)) {
-        if (v !== '' && v !== null && v !== undefined) merged[k] = v;
+  // 非空筛选值 —— 既进请求参数,也进查询键
+  const filterValues = filters?.values;
+  const filterArgs = useMemo(() => {
+    const out: Record<string, any> = {};
+    if (filterValues) {
+      for (const [k, v] of Object.entries(filterValues)) {
+        if (v !== '' && v !== null && v !== undefined) out[k] = v;
       }
     }
-    return Object.keys(merged).length ? JSON.stringify(merged) : '';
-  }, [extraParams, filters]);
+    return out;
+  }, [filterValues]);
 
+  const extraParamsKey = useMemo(() => {
+    const merged: Record<string, any> = { ...(extraParams || {}), ...filterArgs };
+    return Object.keys(merged).length ? JSON.stringify(merged) : '';
+  }, [extraParams, filterArgs]);
+
+  // 筛选变了回第一页;refreshKey 变化不回
   useEffect(() => {
     setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
   }, [extraParamsKey]);
 
-  const loadData = useCallback(async () => {
-    if (isLoadingRef.current || !mountedRef.current) return;
+  const sortField = sortModel?.[0]?.field;
+  const sortOrder = sortModel?.[0]?.sort ?? undefined;
 
-    isLoadingRef.current = true;
-    setLoading(true);
-
-    try {
-      const sortField = sortModel?.[0]?.field;
-      const sortOrder = sortModel?.[0]?.sort;
-
-      // Merge filter values (drop empties) so fetchData receives them as flat query params
-      const filterArgs: Record<string, any> = {};
-      if (filters?.values) {
-        for (const [k, v] of Object.entries(filters.values)) {
-          if (v !== '' && v !== null && v !== undefined) filterArgs[k] = v;
-        }
-      }
-
+  // 用 react-query 取数:并发时只认最新一次请求的结果(旧实现会丢掉加载中的筛选变更),
+  // 页面 invalidate 同前缀键即可刷新。instanceId 防同页多表共用前缀时串数据。
+  const query = useQuery({
+    queryKey: [
+      ...(queryKey ?? ['data-grid-table']),
+      instanceId,
+      paginationModel.page,
+      paginationModel.pageSize,
+      sortField,
+      sortOrder,
+      extraParamsKey,
+      refreshKey,
+    ],
+    queryFn: async () => {
+      // 拦截器已剥掉 {code,msg} 外壳,result 本身就是业务数据
       const result = await fetchDataRef.current({
         pageNumber: paginationModel.page + 1,
         pageSize: paginationModel.pageSize,
@@ -128,31 +136,25 @@ export function DataGridTable({
         sortOrder: sortOrder as string | undefined,
         ...filterArgs,
       });
-
-      if (mountedRef.current) {
-        // 拦截器已剥掉 {code,msg} 外壳,result 本身就是业务数据
-        const list = result?.records || result?.list || [];
-        const total = result?.totalRow || result?.total || 0;
-        setRows(list);
-        setRowCount(total);
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      if (mountedRef.current) {
-        setRows([]);
-        setRowCount(0);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
-      isLoadingRef.current = false;
-    }
-  }, [paginationModel.page, paginationModel.pageSize, sortModel, extraParamsKey, filters?.values]);
+      return {
+        list: result?.records || result?.list || [],
+        total: result?.totalRow || result?.total || 0,
+      };
+    },
+    enabled: mounted,
+    placeholderData: keepPreviousData,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (query.error) console.error('Failed to fetch data:', query.error);
+  }, [query.error]);
+
+  const rows = useMemo(() => (query.isError ? [] : query.data?.list ?? []), [query.isError, query.data]);
+  const rowCount = query.isError ? 0 : query.data?.total ?? 0;
+  const loading = query.isFetching;
 
   const handlePaginationModelChange = useCallback((newModel: GridPaginationModel) => {
     setPaginationModel(newModel);

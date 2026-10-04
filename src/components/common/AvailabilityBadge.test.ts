@@ -13,7 +13,9 @@ describe('specOf', () => {
 
   it('站内能用的标绿', () => {
     expect(specOf('playable')).toMatchObject({ label: '站内可播', tone: 'good' });
-    expect(specOf('embeddable')).toMatchObject({ label: '站内可看', tone: 'good' });
+    expect(specOf('embeddable')).toMatchObject({ label: '站内可播', tone: 'good' });
+    // 2026-09-26 起不再嵌 iframe,能按规则解析的(resolvable,旧 embeddable)一律本站播放器播
+    expect(specOf('resolvable')).toMatchObject({ label: '站内可播', tone: 'good' });
     expect(specOf('readable')).toMatchObject({ label: '站内可读', tone: 'good' });
   });
 
@@ -44,5 +46,10 @@ describe('specOf', () => {
 
   it('确实坏了的才标红', () => {
     expect(specOf('pending_repair')).toMatchObject({ label: '修复中', tone: 'broken' });
+  });
+
+  it('音乐找不到音源说「去原平台听」', () => {
+    expect(specOf('bandwidth_limited', undefined, undefined, 'MUSIC')?.label).toBe('去原平台听');
+    expect(specOf('bandwidth_limited')?.label).toBe('去原站看');
   });
 });

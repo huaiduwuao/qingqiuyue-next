@@ -144,6 +144,8 @@ function LiveDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title?.replace(/【直播中】/, '') || '直播间'}
+        playId={id}
+        playType="LIVE"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <CollectButton contentId={id!} contentType="live" />

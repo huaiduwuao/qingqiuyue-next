@@ -17,6 +17,7 @@ import { fetchTopic, fetchTopicContents, fetchTopicInsights, type CommunityTopic
 import { isApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
@@ -25,6 +26,9 @@ import { TopicInsightSection } from '@/components/community/topic';
 import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
 import ShareButtons from '@/components/share/ShareButtons';
+import { TopicLiveSection } from '@/components/community/TopicLive';
+import { topicTrack } from '@/lib/topicTrack';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 import { useAuth, useAuthority } from '@/contexts/AuthContext';
 
 export default function TopicDetailPage() {
@@ -62,11 +66,17 @@ function TopicDetail() {
   const showAggregateFeed = !templates || templates.length === 0 || templates.includes('aggregateFeed');
 
   const back = () => (window.history.length > 1 ? router.back() : router.push('/home/recommend?tab=topic'));
+  // 旗舰意境(人生感悟、文明图谱)有自己完整的页面
+  const portal = topic?.portal;
+  useEffect(() => {
+    if (portal) router.replace(portal);
+  }, [portal, router]);
 
   // IntersectionObserver 监听 Hero 末尾的 sentinel:滚出 Hero 后,顶部条由 transparent 切到玻璃态
   // 默认 heroVisible=true(transparent),与今天 Hero 内嵌返回按钮的视觉一致;水合后 IO 接管
   const heroSentinelRef = useRef<HTMLDivElement>(null);
   const [heroVisible, setHeroVisible] = useState(true);
+  const hasTopic = !!topic;
   useEffect(() => {
     const el = heroSentinelRef.current;
     if (!el) return;
@@ -76,7 +86,8 @@ function TopicDetail() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+    // 首次渲染还在 loading,sentinel 不存在;数据到了再挂,否则顶栏永远停在透明态
+  }, [hasTopic]);
 
   if (isLoading) {
     return (
@@ -117,6 +128,8 @@ function TopicDetail() {
       {/* 1px sentinel:位于 Hero 末尾,IntersectionObserver 用它判断 Hero 是否仍在视口内 */}
       <div ref={heroSentinelRef} style={{ height: 1 }} aria-hidden />
       <Container maxWidth="md" sx={{ mt: 1 }}>
+        {/* 每个意境都跟着热点、搜索和用户长分支:此刻的热点、站内此刻、长出的枝、接一枝、意思相近的作品 */}
+        <TopicLiveSection topicId={String(topic.id)} />
         {showAggregateFeed && (
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
             {topic.hasContents && <Tab value="contents" label="作品" />}
@@ -156,8 +169,8 @@ function Hero({ topic, followers, onFollowChange, canManage }: { topic: Communit
   const bg = topic.cover ? `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.75)), center/cover url(${topic.cover})` : topicGradient(topic.title);
   return (
     <Box sx={{ background: bg, color: '#fff' }}>
-      {/* 这块彩色头图是页面第一个元素,客户端里会铺到状态栏下面,所以顶部要加安全区 */}
-      <Container maxWidth="md" sx={{ pt: 'calc(16px + var(--sat, 0px))', pb: 3 }}>
+      {/* 透明 DetailHeader 叠在这块头图上(60px + 安全区),内容从它下面开始 */}
+      <Container maxWidth="md" sx={{ pt: 'calc(64px + var(--sat, 0px))', pb: 3 }}>
         {/* 返回按钮已搬到页面顶部的 DetailHeader(Hero 内不再重复),滚动到任意位置都能一键返回 */}
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>
@@ -215,6 +228,7 @@ function TopicContents({ topicId }: { topicId: string | number }) {
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   const list: TopicContentItem[] = q.data?.pages.flatMap((p) => p.list) ?? [];
+  const sentinel = useAutoLoad(q.hasNextPage, q.isFetchingNextPage, q.fetchNextPage);
   if (q.isLoading) {
     return (
       <Box sx={gridSx}>
@@ -232,6 +246,8 @@ function TopicContents({ topicId }: { topicId: string | number }) {
           <Box
             key={String(c.id)}
             onClick={() => {
+              // 意境里点开了哪部作品:意境下的作品按它重排、个性化推荐也用它(lib/topicTrack)
+              topicTrack(`c.yj.${topicId}`, 'work', { workId: String(c.id) });
               const r = getDetailRoute(c.contentType, c.id);
               if (r) router.push(r);
             }}
@@ -240,6 +256,7 @@ function TopicContents({ topicId }: { topicId: string | number }) {
             <Box sx={{ position: 'relative', aspectRatio: '16/10', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
               <CoverImage src={c.cover} alt={c.title} sx={{ width: '100%', height: '100%' }} />
               {c.pinned && <Chip size="small" label="精选" sx={{ position: 'absolute', top: 6, left: 6, height: 18, fontSize: 10, fontWeight: 700, color: '#fff', bgcolor: 'var(--brand-color, #FE2C55)' }} />}
+              <PlayTag id={c.id} contentType={c.contentType} variant="overlay" top={6} right={6} />
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #fff)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36, [LIST_ROW]: { fontSize: 14, minHeight: 0 } }}>{c.title}</Typography>
@@ -250,11 +267,12 @@ function TopicContents({ topicId }: { topicId: string | number }) {
           </Box>
         ))}
       </ListLayout>
-      {q.hasNextPage && (
-        <Box sx={{ textAlign: 'center', mt: 2 }}>
-          <Button size="small" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>加载更多</Button>
+      {q.isFetchingNextPage && (
+        <Box sx={{ ...gridSx, mt: 1.5 }}>
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={170} />)}
         </Box>
       )}
+      <Box ref={sentinel} sx={{ height: '1px' }} />
     </>
   );
 }

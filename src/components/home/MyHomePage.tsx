@@ -3,7 +3,8 @@
 import { toEntityId } from '@/lib/id';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -51,7 +52,6 @@ import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import StarsIcon from '@mui/icons-material/Stars';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
@@ -60,9 +60,12 @@ import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
-import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
+import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
+import { useResponsive } from '@/hooks/useResponsive';
+import RedeemRoundedIcon from '@mui/icons-material/RedeemRounded';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
 import { postShare } from '@/apis/behavior';
@@ -70,6 +73,8 @@ import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
+import { WALLET_HREF } from '@/apis/wallet';
 
 type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
 
@@ -149,6 +154,9 @@ const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: b
   { key: 'ai', label: 'AI 笔记', icon: <AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} /> },
 ];
 
+import { ME_DRAWER_TABS } from './meDrawer';
+export { ME_DRAWER_TITLES, ME_DRAWER_TABS } from './meDrawer';
+
 const SUB_TABS: { key: string; label: string }[] = [
   { key: 'works', label: '作品' },
   { key: 'private', label: '私密作品' },
@@ -167,11 +175,13 @@ const TAB_UNIT: Record<string, string> = {
 };
 
 const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string; accent: string }[] = [
-  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/wallet', accent: ACCENT.red.main },
+  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 20 }} />, href: WALLET_HREF, accent: ACCENT.red.main },
   { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 20 }} />, href: '/user/points', accent: ACCENT.purple.main },
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
   { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
   { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/vip', accent: ACCENT.gold.main },
+  // 设置在左侧抽屉菜单里,这一格放积分商城(积分兑换)
+  { key: 'mall', label: '积分商城', icon: <RedeemRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/points-mall', accent: ACCENT.cyan.main },
 ];
 
 const DATE_RANGES = [
@@ -221,6 +231,8 @@ function isMyGroup(x: any): x is MyCollectionGroup {
   return x && typeof x === 'object' && 'count' in x && 'updatedAt' in x && !('contentType' in x);
 }
 
+const ME_FILTER_DEFAULTS = { mainTab: 'works', sub: 'works', kw: '', range: 'all' };
+
 /**
  * 「我的」标签页。未登录时这里以前渲染的是一张占位资料卡(昵称 —、关注 —、作品 0),
  * 看上去像"你的主页空着",而不是"你还没登录" —— 头部那个 登录 按钮因此成了移动端
@@ -235,7 +247,9 @@ export function MyHomePage() {
 
 function MeLoggedOut() {
   const router = useRouter();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
+    <>
     <Box
       sx={{
         display: 'flex',
@@ -264,7 +278,17 @@ function MeLoggedOut() {
       >
         登录 / 注册
       </Button>
+      <Button
+        variant="text"
+        startIcon={<SettingsRoundedIcon />}
+        onClick={() => setSettingsOpen(true)}
+        sx={{ mt: 0.5, textTransform: 'none', color: 'text.secondary' }}
+      >
+        设置
+      </Button>
     </Box>
+    <HomeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 }
 
@@ -273,20 +297,37 @@ function MyHomePageAuthed() {
   const qc = useQueryClient();
   const navigate = useContentNavigate();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const urlMainTab = searchParams.get('mainTab') || 'works';
   const [mainTab, setMainTab] = useState(urlMainTab);
-  const [subTab, setSubTab] = useState('works');
+  const { isMobile } = useResponsive();
+  // 手机上作品工具栏的搜索框收成一个图标,点开才占一行
+  const [searchOpen, setSearchOpen] = useState(false);
+  const visibleTabs = isMobile ? MAIN_TABS.filter((t) => !ME_DRAWER_TABS.has(t.key)) : MAIN_TABS;
+  // 手机上从侧边栏进的子页(观看历史/稍后再看…):单独成页,只留列表
+  const standalone = isMobile && ME_DRAWER_TABS.has(mainTab);
+  // 页签切换的入场方向:往右边的页签切 → 内容从右边滑进来,反之从左边(书架 ⇄ 作品等)
+  const tabIdx = MAIN_TABS.findIndex((t) => t.key === mainTab);
+  const [prevTabIdx, setPrevTabIdx] = useState(tabIdx);
+  const [tabDx, setTabDx] = useState(24);
+  if (prevTabIdx !== tabIdx) {
+    setPrevTabIdx(tabIdx);
+    setTabDx(tabIdx > prevTabIdx ? 24 : -24);
+  }
+  // 子页签 / 关键词 / 日期筛选存 URL,点进作品再返回时还原
+  const [meFilters, setMeFilters] = useUrlFilters(ME_FILTER_DEFAULTS);
+  const subTab = meFilters.sub;
+  const setSubTab = (v: string) => setMeFilters({ sub: v });
+  const dateRange = meFilters.range;
+  const setDateRange = (v: string) => setMeFilters({ range: v });
 
   // URL → state(从其它页面跳过来时,主 tab 跟着 URL 走)
   useEffect(() => {
     setMainTab(urlMainTab);
   }, [urlMainTab]);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(meFilters.kw);
   // 打字防抖后的关键词:它才是进 queryKey / 请求的那个,输入框自己保持即时响应
-  const [keywordQuery, setKeywordQuery] = useState('');
-  const [dateRange, setDateRange] = useState('all');
+  const [keywordQuery, setKeywordQuery] = useState(meFilters.kw);
   const [dateMenuAnchor, setDateMenuAnchor] = useState<null | HTMLElement>(null);
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -302,9 +343,12 @@ function MyHomePageAuthed() {
   const profile = profileQuery.data;
 
   useEffect(() => {
-    const t = setTimeout(() => setKeywordQuery(keyword.trim()), 300);
+    const t = setTimeout(() => {
+      setKeywordQuery(keyword.trim());
+      setMeFilters({ kw: keyword.trim() });
+    }, 300);
     return () => clearTimeout(t);
-  }, [keyword]);
+  }, [keyword]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 列表是分页的:以前这里只打一次 /me/list(后端默认 pageSize=20),页面却照着
   // COUNT(*) 写「共 N 个作品」—— N 上万、列表永远 20 条、往下滚也不会再请求。
@@ -482,18 +526,10 @@ function MyHomePageAuthed() {
 
   const switchTab = (key: string) => {
     setMainTab(key);
-    setSubTab('works');
     setSelected(new Set());
     setBatchMode(false);
-    // 同步到 URL,让头像弹窗等其它入口能 deep-link 回来
-    const params = new URLSearchParams(searchParams.toString());
-    if (key === 'works') {
-      params.delete('mainTab');
-    } else {
-      params.set('mainTab', key);
-    }
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // 同步到 URL,让头像弹窗等其它入口能 deep-link 回来;换主页签时子页签回到默认
+    setMeFilters({ mainTab: key, sub: 'works' });
   };
 
   return (
@@ -516,26 +552,29 @@ function MyHomePageAuthed() {
       />
 
       <Box sx={{ position: 'relative', p: { xs: 1.5, md: 3 } }}>
+        {!standalone && (<>
         {/* Profile header */}
         <Box
           sx={{
+            position: 'relative',
             display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
+            // 手机上头像在左、资料在右一行排开(以前竖排,头像卡要占小半屏)
+            flexDirection: 'row',
             gap: { xs: 1.5, sm: 2.5 },
-            alignItems: { sm: 'flex-start' },
-            p: { xs: 2, sm: 2.5 },
+            alignItems: 'flex-start',
+            p: { xs: 1.5, sm: 2.5 },
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
             border: '1px solid var(--border-color, transparent)',
             backdropFilter: 'blur(8px)',
-            mb: 2,
+            mb: { xs: 1, md: 2 },
           }}
         >
           <Box
             sx={{
               position: 'relative',
-              width: { xs: 72, sm: 80 },
-              height: { xs: 72, sm: 80 },
+              width: { xs: 60, sm: 80 },
+              height: { xs: 60, sm: 80 },
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
@@ -561,15 +600,15 @@ function MyHomePageAuthed() {
             ))}
             <Avatar
               src={profile?.user?.avatar || currentUser?.avatar}
-              sx={{ width: 56, height: 56, position: 'relative', zIndex: 1, border: '2px solid', borderColor: 'warning.main' }}
+              sx={{ width: { xs: 52, sm: 56 }, height: { xs: 52, sm: 56 }, position: 'relative', zIndex: 1, border: '2px solid', borderColor: 'warning.main' }}
             >
               {(profile?.user?.nickname || currentUser?.nickname || '我')[0]}
             </Avatar>
           </Box>
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-              <Typography sx={{ fontSize: { xs: 18, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 0.5, sm: 0.75 } }}>
+              <Typography noWrap sx={{ fontSize: { xs: 17, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
                 {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '—'}
               </Typography>
               <Box sx={{ width: 16, height: 16, borderRadius: 0.5, bgcolor: 'rgba(255,180,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -578,7 +617,7 @@ function MyHomePageAuthed() {
             </Box>
 
             {/* 统计行:关注/粉丝/获赞 统一成 数字在上、标签在下 的抖音式列,窄屏不折行 */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2.5, sm: 3 }, mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2.25, sm: 3 }, mb: { xs: 0, sm: 1 } }}>
               {[
                 { label: '关注', value: profile?.stats?.following, href: '/account/center?section=following' },
                 { label: '粉丝', value: profile?.stats?.followers, href: '/account/center?section=followers' },
@@ -597,14 +636,15 @@ function MyHomePageAuthed() {
               ))}
               <Box
                 onClick={() => router.push('/home/recommend?tab=me&mainTab=live')}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', cursor: 'pointer' }}
+                sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5, ml: 'auto', cursor: 'pointer' }}
               >
                 <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', animation: 'pulse 1.6s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
                 <Typography sx={{ fontSize: 11, color: 'primary.main', fontWeight: 600 }}>{profile?.stats?.lives ?? 0}人正在直播</Typography>
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+            {/* 手机上收起账号号码/年龄/地区这一行,头像卡只留名字、数据和按钮 */}
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
               <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)' }}>抖音号: {profile?.user?.douyinId ?? '—'}</Typography>
               {profile?.user?.age != null && (
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(91, 141, 239, 0.15)', border: '1px solid rgba(91, 141, 239, 0.3)' }}>
@@ -619,13 +659,13 @@ function MyHomePageAuthed() {
             </Box>
 
             {profile?.user?.bio && (
-              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
+              <Typography noWrap sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
                 {profile.user.bio}
               </Typography>
             )}
 
             {/* Quick action buttons:窄屏三个等宽按钮独占一行,不再挤在名字下面乱折行 */}
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+            <Box sx={{ display: 'flex', gap: 1, mt: { xs: 1, sm: 1.5 }, '& .MuiButton-root': { minHeight: { xs: 30, sm: 'auto' }, py: { xs: 0.25, sm: undefined }, whiteSpace: 'nowrap', minWidth: 0 }, '& .MuiButton-startIcon': { display: { xs: 'none', sm: 'inherit' } } }}>
               <Button
                 size="small"
                 variant="outlined"
@@ -659,11 +699,59 @@ function MyHomePageAuthed() {
           </Box>
         </Box>
 
-        {/* Quick links row:竖排 图标在上/标签在下,窄屏 3 列 / 宽屏 5 列,5 个入口不再有一个掉单 */}
+        {/* 手机:资产一行 —— 钻石余额 / 积分 / 订单 / 会员 / 积分商城,数字在上、名字在下,点进各自页面。
+            (电脑端是下面那排带图标的六宫格) */}
         <Box
           sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)' },
+            display: { xs: 'grid', md: 'none' },
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            mb: 1,
+            py: 1,
+            borderRadius: 2.5,
+            bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
+            border: '1px solid var(--border-color, transparent)',
+          }}
+        >
+          {[
+            { key: 'wallet', label: '钻石', value: (walletQ.data?.balance ?? 0).toLocaleString(), href: WALLET_HREF },
+            { key: 'points', label: '积分', value: (pointQ.data?.points ?? 0).toLocaleString(), href: '/user/points' },
+            { key: 'orders', label: '订单', value: String(orderQ.data?.total ?? orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0), href: '/account/orders' },
+            { key: 'vip', label: '会员', value: (vipQ.data as any)?.tiers?.some((t: any) => t.active) ? 'VIP' : '开通', href: '/account/vip', warn: true },
+            { key: 'mall', label: '积分商城', icon: <RedeemRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/points-mall' },
+          ].map((a) => (
+            <Box
+              key={a.key}
+              component={Link}
+              href={a.href}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.25,
+                minWidth: 0,
+                textDecoration: 'none',
+                color: 'var(--text-primary, currentColor)',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {a.icon ? (
+                <Box sx={{ height: 20, display: 'flex', alignItems: 'center', color: ACCENT.cyan.main }}>{a.icon}</Box>
+              ) : (
+                <Typography noWrap sx={{ fontSize: 15, fontWeight: 700, lineHeight: '20px', maxWidth: '100%', color: a.warn ? 'warning.main' : 'inherit' }}>
+                  {a.value}
+                </Typography>
+              )}
+              <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)', whiteSpace: 'nowrap' }}>{a.label}</Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Quick links row:竖排 图标在上/标签在下,6 列(电脑端)。手机上是上面那条资产行 */}
+        <Box
+          sx={{
+            display: { xs: 'none', md: 'grid' },
+            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
             gap: 0.5,
             mb: 2,
             p: 1,
@@ -685,7 +773,8 @@ function MyHomePageAuthed() {
               const pts = pointQ.data?.points ?? 0;
               badge = pts > 0 ? pts.toLocaleString() : null;
             } else if (q.key === 'order') {
-              const cnt = orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0;
+              // /me/orders?size=1 只拉一条,records.length 最多是 1;有 total 用 total
+              const cnt = orderQ.data?.total ?? orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0;
               badge = cnt > 0 ? String(cnt) : null;
             } else if (q.key === 'vip') {
               const vip = vipQ.data as any;
@@ -752,32 +841,58 @@ function MyHomePageAuthed() {
               '&::-webkit-scrollbar': { display: 'none' },
             }}
           >
-          {MAIN_TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const isActive = mainTab === t.key;
             return (
               <Box
                 key={t.key}
                 onClick={() => switchTab(t.key)}
+                // 从侧边栏进的子页排在页签栏末尾,窄屏上会落在屏幕外:把选中项横向滚进可视区(只动横向)
+                ref={isActive ? (el: HTMLDivElement | null) => {
+                  const bar = el?.parentElement;
+                  if (!el || !bar) return;
+                  const over = el.offsetLeft + el.offsetWidth - (bar.scrollLeft + bar.clientWidth);
+                  if (over > 0) bar.scrollLeft += over + 40; // 右缘有 32px 的渐隐遮罩
+                  else if (el.offsetLeft < bar.scrollLeft) bar.scrollLeft = el.offsetLeft;
+                } : undefined}
                 sx={{
+                  position: 'relative',
+                  flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  px: 1.5,
-                  py: 1.25,
+                  // 手机上和精选的频道栏一样:纯文字、14px、间距紧、选中项下方一小截品牌色短条
+                  px: { xs: 1.25, md: 1.5 },
+                  py: { xs: 1, md: 1.25 },
                   cursor: 'pointer',
-                  color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
+                  color: isActive
+                    ? { xs: 'var(--brand-color, #FE2C55)', md: 'var(--text-primary, currentColor)' }
+                    : 'var(--text-secondary, currentColor)',
                   fontSize: 13,
                   fontWeight: isActive ? 600 : 400,
-                  borderBottom: '2px solid',
+                  borderBottom: { xs: 0, md: '2px solid' },
                   borderColor: isActive ? 'primary.main' : 'transparent',
-                  mb: '-1px',
+                  mb: { xs: 0, md: '-1px' },
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
                   '&:hover': { color: 'var(--text-primary, currentColor)' },
+                  '& > svg': { display: { xs: 'none', md: 'inline-block' } },
+                  '&::after': isActive ? {
+                    content: '""',
+                    display: { xs: 'block', md: 'none' },
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: 2,
+                    width: 18,
+                    height: 3,
+                    ml: '-9px',
+                    borderRadius: 1.5,
+                    bgcolor: 'var(--brand-color, #FE2C55)',
+                  } : undefined,
                 }}
               >
                 {t.icon}
-                <Typography component="span" sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{t.label}</Typography>
+                <Typography component="span" sx={{ fontSize: { xs: 14, md: 13 }, fontWeight: isActive ? { xs: 700, md: 600 } : 400 }}>{t.label}</Typography>
               </Box>
             );
           })}
@@ -841,7 +956,7 @@ function MyHomePageAuthed() {
               top: 0,
               right: 0,
               bottom: '1px',
-              width: 56,
+              width: 32,
               pointerEvents: 'none',
               display: { xs: 'flex', sm: 'none' },
               alignItems: 'center',
@@ -854,12 +969,111 @@ function MyHomePageAuthed() {
               color: 'var(--text-muted, currentColor)',
             }}
           >
-            <ChevronRightIcon sx={{ fontSize: 16 }} />
           </Box>
         </Box>
 
+        </>)}
+
         {/* Sub tabs + tools (only for 作品 tab) */}
-        {showSubTabs && (
+        {showSubTabs && isMobile && (
+          // 手机:子页签一行横滑,搜索/日期是两个图标;以前搜索框 + 日期按钮折成第二行
+          <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, flex: 1, minWidth: 0, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+                {SUB_TABS.map((t) => {
+                  const isActive = subTab === t.key;
+                  return (
+                    <Box
+                      key={t.key}
+                      onClick={() => setSubTab(t.key)}
+                      sx={{
+                        flexShrink: 0,
+                        px: 1.25,
+                        py: 0.5,
+                        borderRadius: 1.5,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? '#fff' : 'var(--text-secondary, currentColor)',
+                        bgcolor: isActive ? 'primary.main' : 'var(--bg-hover, transparent)',
+                        border: '1px solid',
+                        borderColor: isActive ? 'primary.main' : 'var(--border-color, transparent)',
+                      }}
+                    >
+                      {t.label}
+                    </Box>
+                  );
+                })}
+              </Box>
+              <IconButton
+                size="small"
+                aria-label="搜索作品"
+                onClick={() => setSearchOpen((o) => !o)}
+                sx={{ color: searchOpen || keyword ? 'primary.main' : 'var(--text-secondary, currentColor)' }}
+              >
+                <SearchIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+              <IconButton
+                size="small"
+                aria-label="日期筛选"
+                onClick={(e) => setDateMenuAnchor(e.currentTarget)}
+                sx={{ color: dateRange !== 'all' ? 'primary.main' : 'var(--text-secondary, currentColor)' }}
+              >
+                <CalendarMonthIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+            {(searchOpen || keyword) && (
+              <TextField
+                fullWidth
+                autoFocus={searchOpen && !keyword}
+                size="small"
+                placeholder="搜索你发布的作品"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ fontSize: 14, color: 'var(--text-muted, currentColor)' }} />
+                      </InputAdornment>
+                    ),
+                    sx: { bgcolor: 'var(--bg-hover, transparent)', fontSize: 13, borderRadius: 1.5, '& fieldset': { borderColor: 'var(--border-color, transparent)' } },
+                  },
+                }}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+        )}
+        {/* 日期菜单两端共用(手机从图标打开,桌面从按钮打开) */}
+        <Menu
+          anchorEl={dateMenuAnchor}
+          open={!!dateMenuAnchor}
+          onClose={() => setDateMenuAnchor(null)}
+        >
+          {DATE_RANGES.map((d) => (
+            <Box
+              key={d.key}
+              onClick={() => {
+                setDateRange(d.key);
+                setDateMenuAnchor(null);
+              }}
+              sx={{
+                px: 2,
+                py: 1,
+                fontSize: 12,
+                cursor: 'pointer',
+                minWidth: 120,
+                color: dateRange === d.key ? 'primary.main' : 'text.primary',
+                fontWeight: dateRange === d.key ? 600 : 400,
+                '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
+              }}
+            >
+              {d.label}
+            </Box>
+          ))}
+        </Menu>
+        {showSubTabs && !isMobile && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
               {SUB_TABS.map((t) => {
@@ -931,33 +1145,6 @@ function MyHomePageAuthed() {
             >
               {DATE_RANGES.find((d) => d.key === dateRange)?.label || '日期筛选'}
             </Button>
-            <Menu
-              anchorEl={dateMenuAnchor}
-              open={!!dateMenuAnchor}
-              onClose={() => setDateMenuAnchor(null)}
-            >
-              {DATE_RANGES.map((d) => (
-                <Box
-                  key={d.key}
-                  onClick={() => {
-                    setDateRange(d.key);
-                    setDateMenuAnchor(null);
-                  }}
-                  sx={{
-                    px: 2,
-                    py: 1,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    minWidth: 120,
-                    color: dateRange === d.key ? 'primary.main' : 'text.primary',
-                    fontWeight: dateRange === d.key ? 600 : 400,
-                    '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
-                  }}
-                >
-                  {d.label}
-                </Box>
-              ))}
-            </Menu>
           </Box>
         )}
 
@@ -972,7 +1159,8 @@ function MyHomePageAuthed() {
           </Box>
         )}
 
-        {/* Content area */}
+        {/* Content area:换页签时整块重挂,带方向地滑入 */}
+        <Box key={mainTab} sx={{ '--qq-tab-dx': `${tabDx}px`, animation: 'qq-tab-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         {listQuery.isLoading ? (
           // 第一页还在路上时别写「还未发布过作品」——那是空态,不是加载中
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -1033,20 +1221,15 @@ function MyHomePageAuthed() {
             showPrivacy={mainTab === 'works'}
           />
         )}
+        </Box>
 
         {/* 无限滚动:哨兵 + 加载态 + 到底提示 */}
         {!listQuery.isLoading && loadedList.length > 0 && (
           <>
             <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
-            {listQuery.isFetchingNextPage ? (
+            {listQuery.isFetchingNextPage || listQuery.hasNextPage ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={18} />
-              </Box>
-            ) : listQuery.hasNextPage ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <Button size="small" variant="text" onClick={() => listQuery.fetchNextPage()}>
-                  加载更多
-                </Button>
+                {listQuery.isFetchingNextPage && <CircularProgress size={18} />}
               </Box>
             ) : (
               <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>
@@ -1057,10 +1240,7 @@ function MyHomePageAuthed() {
         )}
       </Box>
 
-      {/* 移动端没有左侧栏,免责声明 / 采集说明 / 备案号挂在「我的」页底部 */}
-      <SiteLegalFooter
-        sx={{ display: { xs: 'block', md: 'none' }, position: 'relative', textAlign: 'center', px: 2, pt: 3, pb: 2, '& > div:first-of-type': { justifyContent: 'center' } }}
-      />
+      {/* 免责声明 / 采集说明 / 备案号:桌面在左侧栏底部,手机在首页左上角侧边栏底部 */}
 
       <Snackbar
         open={!!toast}
@@ -1148,7 +1328,7 @@ function WorkGridView({
                   size="small"
                   checked={isSelected}
                   onClick={(e) => { e.stopPropagation(); onToggle(it.id); }}
-                  sx={{ color: 'text.secondary', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
+                  sx={{ color: 'rgba(255,255,255,0.85)', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
                 />
               </Box>
             )}
@@ -1164,6 +1344,10 @@ function WorkGridView({
                 <Box sx={{ position: 'absolute', top: 6, left: 6, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}>
                   <Typography sx={{ fontSize: 9, color: badge.color, fontWeight: 700 }}>{badge.label}</Typography>
                 </Box>
+              )}
+              {/* 右上角批量模式下让给勾选框 */}
+              {!batchMode && (
+                <PlayTag variant="overlay" id={it.id} contentType={it.contentType} top={6} right={6} sx={{ maxWidth: 'calc(100% - 12px)' }} />
               )}
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
@@ -1287,6 +1471,7 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
                 看到 {formatDuration(Math.floor(it.durationSec * 0.6))} · {formatViews(it.views)} 播放 · {formatRelativeTime(it.postedAt)}
               </Typography>
             </Box>
+            <PlayTag id={it.id} contentType={it.contentType} sx={{ flexShrink: 0 }} />
             <VisibilityRoundedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
           </Box>
         );
@@ -1329,6 +1514,8 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
               <Box sx={{ position: 'absolute', top: 6, right: 6, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)' }}>
                 <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 600 }}>已添加 {formatRelativeTime(it.postedAt)}</Typography>
               </Box>
+              {/* 右上是添加时间、左上是批量勾选框,能不能播放左下 */}
+              <PlayTag variant="overlay" id={it.id} contentType={it.contentType} top="auto" left={6} bottom={6} sx={{ maxWidth: 'calc(100% - 12px)' }} />
             </Box>
             <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 0.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -1597,16 +1784,31 @@ function EditProfileDrawer({
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.98))' } } }}
+      // --bg-surface 是半透明的(浅色 0.7),整页铺满时底下的「我的」全透出来;抽屉要实底。
+      // 手机上全屏:高度跟 --app-height(键盘弹起时跟着缩,保存按钮不被顶走),
+      // 客户端里上下让出状态栏/手势条(--sat/--sab 见 globals.css)
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: '100%', sm: 420 },
+            height: { xs: 'var(--app-height, 100%)', sm: '100%' },
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            pt: 'var(--sat, 0px)',
+            pb: 'var(--sab, 0px)',
+            boxSizing: 'border-box',
+          },
+        },
+      }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
         <Typography sx={{ fontSize: 16, fontWeight: 700 }}>编辑资料</Typography>
         <IconButton size="small" onClick={onClose} aria-label="关闭">
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5 }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 2, sm: 2.5 } }}>
         <Stack spacing={2.5}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
             <Avatar src={avatar} sx={{ width: 80, height: 80, border: 2, borderColor: 'warning.main' }}>
@@ -1743,7 +1945,7 @@ function EditProfileDrawer({
         </Stack>
       </Box>
 
-      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
+      <Box sx={{ px: 2, py: 1.5, flexShrink: 0, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
         <Button fullWidth variant="outlined" onClick={onClose} sx={{ borderRadius: 2, textTransform: 'none' }}>
           取消
         </Button>

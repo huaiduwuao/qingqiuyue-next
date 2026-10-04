@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 任务 / 设置),
+ * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 后期 / 任务 / 设置),
  * 中间内容,右侧「数字员工活动」面板(当前任务实时日志 + 修改意见输入)。
  */
 
@@ -37,6 +37,7 @@ import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
@@ -52,11 +53,12 @@ import OverviewSection from './sections/OverviewSection';
 import ScriptSection from './sections/ScriptSection';
 import EntitySection from './sections/EntitySection';
 import StoryboardSection from './sections/StoryboardSection';
+import PostSection from './sections/PostSection';
 import TasksSection from './sections/TasksSection';
 import SettingsSection from './sections/SettingsSection';
 import { BOARD_STEPS, FiveStepBoard } from './FiveStepBoard';
 
-export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'tasks' | 'settings';
+export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'post' | 'tasks' | 'settings';
 
 const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: '概览', icon: <DashboardRoundedIcon fontSize="small" /> },
@@ -65,6 +67,7 @@ const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: 'scenes', label: '场景', icon: <LandscapeRoundedIcon fontSize="small" /> },
   { id: 'props', label: '道具', icon: <CategoryRoundedIcon fontSize="small" /> },
   { id: 'storyboard', label: '分镜', icon: <ViewCarouselRoundedIcon fontSize="small" /> },
+  { id: 'post', label: '后期', icon: <MovieFilterRoundedIcon fontSize="small" /> },
   { id: 'tasks', label: '任务', icon: <TaskAltRoundedIcon fontSize="small" /> },
   { id: 'settings', label: '设置', icon: <SettingsRoundedIcon fontSize="small" /> },
 ];
@@ -87,10 +90,22 @@ export interface SectionProps {
 export default function Workbench({ projectId, onExit }: { projectId: number; onExit: () => void }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down('md'));
-  const [section, setSectionState] = useState<SectionId>('overview');
+  const [section, setSection0] = useState<SectionId>('overview');
+  // 手机上整页一起滚、页签吸顶:切分区时如果已经往下滚过,回到新分区的开头(页签正下方),
+  // 不然停在上一个分区滚到的位置,新分区从中间开始看
+  const tabsAnchorRef = useRef<HTMLDivElement>(null);
+  const setSectionState = (s: SectionId) => {
+    setSection0(s);
+    const a = tabsAnchorRef.current;
+    if (narrow && a && a.getBoundingClientRect().top < (a.closest('main')?.getBoundingClientRect().top ?? 0)) a.scrollIntoView({ block: 'start' });
+  };
   const [episodeId, setEpisodeId] = useState(0);
   const [feedbackTarget, setFeedbackTarget] = useState<FeedbackTarget | null>(null);
   const [activityOpen, setActivityOpen] = useState(true);
+  // 手机上活动面板是从底部弹出的一层,一进来就盖住大半屏:默认收起,点「活动」再打开
+  useEffect(() => {
+    if (narrow) setActivityOpen(false);
+  }, [narrow]);
   const overview = useOverview(projectId);
   const { liveTask, connected } = useProjectEvents(projectId);
   const start = useStartTask(projectId);
@@ -128,14 +143,17 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
   const projectSteps: Step[] = ['pipeline', 'screenwriter', 'visual_design'];
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 120px)' }}>
+    // 手机上不定高、内容区也不单独滚:整个工作台跟着外层一起滚,分区页签吸顶。
+    // 以前顶栏 + 看板 + 页签钉死占了四成屏,内容只剩中间一小块自己滚
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 'auto', md: '100%' }, minHeight: { md: 'calc(100vh - 120px)' } }}>
       {/* 顶栏 */}
       <Paper square elevation={0} sx={{ px: { xs: 1.5, md: 2 }, py: 1, borderBottom: 1, borderColor: 'divider' }}>
         <Stack sx={{ alignItems: 'center', flexWrap: 'wrap' }} direction="row" spacing={1} useFlexGap>
           <IconButton size="small" onClick={onExit} aria-label="返回项目列表">
             <ArrowBackRoundedIcon />
           </IconButton>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
+          {/* 手机上标题占满第一行(减去返回键),运行/发布等按钮自动换到第二行,不再把标题挤成几个字 */}
+          <Box sx={{ minWidth: 0, flex: 1, flexBasis: { xs: 'calc(100% - 48px)', md: 0 } }}>
             <Typography sx={{ fontWeight: 700 }} variant="subtitle1" noWrap>
               {p?.title ?? '加载中…'}
             </Typography>
@@ -145,7 +163,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
           </Box>
           {running ? (
             <Stack sx={{ alignItems: 'center' }} direction="row" spacing={1}>
-              <Chip size="small" color="primary" icon={<SmartToyRoundedIcon />} label={`${AGENT_LABELS[running.agent] ?? running.agent} · ${running.title} ${running.progress}%`} />
+              <Chip size="small" color="primary" icon={<SmartToyRoundedIcon />} label={`${AGENT_LABELS[running.agent] ?? running.agent} · ${running.title} ${running.progress}%`} sx={{ maxWidth: { xs: 'calc(100vw - 96px)', md: 'none' } }} />
               <Tooltip title="取消当前任务">
                 <IconButton size="small" color="error" onClick={() => dramaAPI.cancelTask(running.id)}>
                   <StopRoundedIcon />
@@ -208,6 +226,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
         {publish.isSuccess && publish.data && (
           <Alert severity="success" sx={{ mt: 1 }} onClose={() => publish.reset()}>
             已作为短剧作品提交:{publish.data.episodes} 集、{publish.data.shots} 个镜头
+            {publish.data.finals ? `,其中 ${publish.data.finals} 集用的是合成成片` : ''}
             {publish.data.missing_render > 0 ? `(${publish.data.missing_render} 个镜头还没有画面,出图后再点"更新作品"即可补上)` : ''}
             ,状态 {publish.data.status === 'REVIEWING' ? '审核中' : publish.data.status}。
           </Alert>
@@ -231,15 +250,19 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
             onStartStep={(bs) => {
               // 启动该看板步对应后端 step 列表的第一个 step;同一个 step 也可以再次启动覆盖
               const firstBackend = bs.backendSteps[0];
-              start.mutate({ step: firstBackend });
+              // 分镜之后的环节都是按集跑的,不带 episode_id 后端直接报「缺少 episode_id」
+              const ep = overview.data?.episodes.find((x) => x.id === episodeId) ?? overview.data?.episodes[0];
+              start.mutate({ step: firstBackend, input: ep ? { episode_id: ep.id, episode_no: ep.no } : {} });
               setActivityOpen(true);
             }}
           />
         </Box>
       )}
 
+      {/* 吸顶在创作中心外层滚动区的顶边:那一层手机上有 12px 内边距,top 抵掉它,不然页签上面露一条内容 */}
+      <Box ref={tabsAnchorRef} />
       {narrow && (
-        <Tabs value={section} onChange={(_, v) => setSectionState(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs value={section} onChange={(_, v) => { if (v !== '__activity') setSectionState(v); }} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider', position: 'sticky', top: -12, zIndex: 3, bgcolor: 'background.default' }}>
           {SECTIONS.map((s) => (
             <Tab key={s.id} value={s.id} label={s.label} sx={{ minWidth: 72 }} />
           ))}
@@ -261,7 +284,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
         )}
 
         {/* 中间内容 */}
-        <Box sx={{ flex: 1, minWidth: 0, overflow: 'auto', p: { xs: 1.5, md: 2.5 } }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflow: { xs: 'visible', md: 'auto' }, p: { xs: 1.5, md: 2.5 } }}>
           {overview.isError ? (
             <Alert severity="error" action={<Button onClick={onExit}>返回</Button>}>
               {(overview.error as Error).message}
@@ -274,6 +297,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
               {section === 'scenes' && <EntitySection {...sectionProps} kind="scene" />}
               {section === 'props' && <EntitySection {...sectionProps} kind="prop" />}
               {section === 'storyboard' && <StoryboardSection {...sectionProps} />}
+              {section === 'post' && <PostSection {...sectionProps} />}
               {section === 'tasks' && <TasksSection {...sectionProps} />}
               {section === 'settings' && <SettingsSection {...sectionProps} />}
             </>
@@ -332,13 +356,16 @@ function ActivityPanel({
       elevation={floating ? 8 : 0}
       square={!floating}
       sx={{
-        width: floating ? 'min(100vw - 24px, 420px)' : 340,
+        width: floating ? 'auto' : 340,
         flexShrink: 0,
         borderLeft: floating ? 0 : 1,
         borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',
-        ...(floating ? { position: 'fixed', right: 12, bottom: 12, top: 'auto', maxHeight: '70vh', zIndex: 1200, borderRadius: 2 } : {}),
+        // 手机:底部弹层,左右铺满,盖住底部导航(zIndex 高于它),底边让出手势条
+        ...(floating
+          ? { position: 'fixed', left: 0, right: 0, bottom: 0, top: 'auto', maxHeight: '75vh', zIndex: 1300, borderRadius: '16px 16px 0 0', pb: 'var(--sab, 0px)' }
+          : {}),
       }}
     >
       <Stack direction="row" sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', alignItems: 'center' }}>

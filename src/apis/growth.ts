@@ -38,12 +38,13 @@ export async function getGrowthSummary(): Promise<GrowthSummary> {
 
 // ========== 装扮 ==========
 
-export type CosmeticKind = 'avatar_frame' | 'title' | 'name_color';
+export type CosmeticKind = 'avatar_frame' | 'title' | 'name_color' | 'plaza_aura';
 
 export const COSMETIC_LABEL: Record<CosmeticKind, string> = {
   avatar_frame: '头像框',
   title: '称号',
   name_color: '名字颜色',
+  plaza_aura: '广场光环',
 };
 
 export interface UserCosmetic {

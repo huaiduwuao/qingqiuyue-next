@@ -28,6 +28,7 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+import { PlayTag } from '@/components/common/PlayTag';
 import { poet as fetchPoet, lifespanText, type FacetItem } from '@/apis/poetry';
 import PoetTimeline from '@/components/poetry/PoetTimeline';
 import PoetMoodSummary from '@/components/poetry/PoetMoodSummary';
@@ -232,7 +233,10 @@ function PoetPageContent() {
                       '&:hover': { bgcolor: 'action.hover' },
                     }}
                   >
-                    <Typography sx={{ fontSize: 15, fontWeight: 500 }}>{w.title}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontSize: 15, fontWeight: 500, minWidth: 0 }}>{w.title}</Typography>
+                      <PlayTag id={w.id} contentType="POETRY" variant="inline" sx={{ flexShrink: 0 }} />
+                    </Box>
                     {w.excerpt && (
                       <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>
                         {w.excerpt}

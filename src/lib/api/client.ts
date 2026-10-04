@@ -205,6 +205,12 @@ function createApiClient(baseURL: string): ApiClient {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      // FormData 不能带实例默认的 application/json:axios 1.x 的 transformRequest 见到 JSON
+      // Content-Type 会把 FormData 序列化成 JSON,文件直接丢失(头像 / 私信图片 / 创世上传都这样
+      // 静默坏过)。去掉后 axios 原样发出 FormData,由浏览器补 multipart boundary。
+      if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        config.headers.delete('Content-Type');
+      }
       // 转换分页参数: pageNumber → page,并补一份 page_size。
       // Gin 的 form tag 只认逗号前的名字(`form:"page_size,pageSize"` 里的 pageSize 不是别名),
       // 后端大多数分页结构体只绑 page_size,只发 pageSize 时分页大小会被忽略。

@@ -89,12 +89,14 @@ export function FilterBar({ fields, values, onChange, onReset, onSearch, searchi
         const w = f.width ?? 160;
         return (
           <FormControl key={f.key} size="small" sx={{ minWidth: w }}>
-            <InputLabel id={`filter-${f.key}-label`}>{f.label}</InputLabel>
+            {/* displayEmpty 让空值显示「全部」,标签必须常驻上浮 + 描边留缺口,否则标签和「全部」叠成重影 */}
+            <InputLabel id={`filter-${f.key}-label`} shrink>{f.label}</InputLabel>
             <Select
               labelId={`filter-${f.key}-label`}
               label={f.label}
               value={values[f.key] ?? ''}
               displayEmpty
+              notched
               onChange={(e) => handleFieldChange(f.key, e.target.value)}
               sx={{ fontSize: 13, '& .MuiSelect-select': { py: 0.75 } }}
             >

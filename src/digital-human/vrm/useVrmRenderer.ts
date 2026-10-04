@@ -76,7 +76,8 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
         controls.enableDamping = true;
         controls.maxDistance = 12;
         controls.minDistance = 1.0;
-        controls.maxPolarAngle = Math.PI * 0.95;
+        // 镜头不能转到地面以下(看见地底):最低到稍高于水平,再低由 VrmStage 每帧按脚下高度兜底
+        controls.maxPolarAngle = Math.PI * 0.49;
         controls.minPolarAngle = 0.05;
       }
 
@@ -118,10 +119,14 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
     s.camera.updateProjectionMatrix();
   }, [fov]);
 
+  // 外部接管渲染(广场的后期:泛光 / 调色);返回 false = 这一帧照常画
+  const renderOverrideRef = useRef<((r: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, t: number) => boolean) | null>(null);
   function tickFn(dt: number) {
     const s = stateRef.current;
     if (!s) return;
     if (s.controls) s.controls.update();
+    const ov = renderOverrideRef.current;
+    if (ov && ov(s.renderer, s.scene, s.camera, clockRef.current.elapsed)) return;
     s.renderer.render(s.scene, s.camera);
   }
   function startInternal() {
@@ -149,6 +154,8 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
     state,
     /** 注册每帧回调（覆盖前一个） */
     setOnFrame: (fn: (dt: number, t: number) => void) => { onFrameRef.current = fn; },
+    /** 接管每帧的渲染(null = 还原成 renderer.render) */
+    setRenderOverride: (fn: ((r: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, t: number) => boolean) | null) => { renderOverrideRef.current = fn; },
     start: startInternal,
     stop: stopInternal,
     /** 触发 resize（用于 canvas 容器尺寸变化时） */

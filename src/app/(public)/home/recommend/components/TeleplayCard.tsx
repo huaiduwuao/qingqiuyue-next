@@ -14,6 +14,7 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import { usableDirectUrl } from '@/apis/stream';
 import { CoverImage } from '@/components/common/CoverImage';
 import { RANK_BG } from '@/constants/gradients';
+import { PlayTag } from '@/components/common/PlayTag';
 
 interface Episode {
   id: string | number;
@@ -173,6 +174,9 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
         {rank}
       </Box>
 
+      {/* 能不能播:排名角标下方(右上让给播放量) */}
+      <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={42} />
+
       {item.viewCount !== undefined && (
         <Box
           sx={{
@@ -187,7 +191,7 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
             borderRadius: 1,
             bgcolor: 'rgba(0,0,0,0.5)',
             backdropFilter: 'blur(4px)',
-            color: 'text.primary',
+            color: '#fff',
             fontSize: 10,
             fontFamily: 'monospace',
           }}
@@ -240,7 +244,7 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
           sx={{
             fontSize: 12,
             fontWeight: 500,
-            color: 'text.primary',
+            color: '#fff',
             lineHeight: 1.3,
             display: '-webkit-box',
             WebkitLineClamp: 2,

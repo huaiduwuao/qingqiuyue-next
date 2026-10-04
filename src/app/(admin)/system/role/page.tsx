@@ -150,6 +150,7 @@ export default function SystemRolePage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         columns={columns}
         hasPermission={can}
         fetchData={async (params) => {

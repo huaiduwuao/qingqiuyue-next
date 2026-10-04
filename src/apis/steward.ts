@@ -136,8 +136,10 @@ export const fleet = async () =>
 export const releases = async (limit = 20) =>
   stewardClient.get<{ list: Release[] }>('/releases', { params: { limit } }).then((r) => r?.list ?? []);
 
-export const operations = async (limit = 50) =>
-  stewardClient.get<{ list: Operation[] }>('/operations', { params: { limit } }).then((r) => r?.list ?? []);
+export const operations = async (limit = 50, status?: OpStatus | '') =>
+  stewardClient
+    .get<{ list: Operation[] }>('/operations', { params: status ? { limit, status } : { limit } })
+    .then((r) => r?.list ?? []);
 
 export const operation = async (id: string) =>
   stewardClient.get<OperationDetail>(`/operations/${id}`);

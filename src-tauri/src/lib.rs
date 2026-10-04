@@ -136,6 +136,29 @@ fn is_dev() -> bool {
     std::env::var("TAURI_DEBUG").is_ok() || cfg!(debug_assertions)
 }
 
+/// 窗口放不进屏幕可用区域(去掉菜单栏和程序坞)时缩小并居中。
+///
+/// tauri.conf.json 里的默认窗口是 1200×800 内容区,加上标题栏 ~28pt;13 寸 MacBook(1440×900)去掉菜单栏和
+/// 程序坞只剩 ~800pt,窗口底部就压在程序坞下面 —— 推荐页的底部导航 / 进度条正好被挡住(2026-09-28 用户反馈)。
+/// work_area 在 macOS 上是 NSScreen.visibleFrame,Windows 上是去掉任务栏的工作区。
+#[cfg(desktop)]
+fn fit_window_to_work_area(w: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = w.current_monitor() else { return };
+    let area = monitor.work_area();
+    let (Ok(outer), Ok(inner)) = (w.outer_size(), w.inner_size()) else { return };
+    let (max_w, max_h) = (area.size.width, area.size.height);
+    if outer.width <= max_w && outer.height <= max_h {
+        return;
+    }
+    let (deco_w, deco_h) = (outer.width.saturating_sub(inner.width), outer.height.saturating_sub(inner.height));
+    let (new_w, new_h) = (outer.width.min(max_w), outer.height.min(max_h));
+    log::info!("[window] {}x{} 超出可用区域 {}x{},缩到 {}x{}", outer.width, outer.height, max_w, max_h, new_w, new_h);
+    let _ = w.set_size(tauri::PhysicalSize::new(new_w.saturating_sub(deco_w), new_h.saturating_sub(deco_h)));
+    let x = area.position.x + ((max_w - new_w) / 2) as i32;
+    let y = area.position.y + ((max_h - new_h) / 2) as i32;
+    let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
 fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
@@ -170,6 +193,8 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_shell::init())
+        // 本地流解析:前端按服务器下发的规则调源站接口(可请求的域名见 capabilities/default.json)
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             get_system_info,
@@ -180,6 +205,13 @@ pub fn run() {
         ])
         .setup(|app| {
             log::info!("[qingqiuyue-desktop] setup complete");
+            #[cfg(desktop)]
+            {
+                use tauri::Manager;
+                if let Some(w) = app.get_webview_window("main") {
+                    fit_window_to_work_area(&w);
+                }
+            }
 
             // qingqiuyue://social-login?... —— 系统浏览器里授权完成后,微信回调把人送回这里。
             // Windows/Linux 上开发运行时协议没写进注册表,register_all 补一下;打包安装的版本由安装器注册。

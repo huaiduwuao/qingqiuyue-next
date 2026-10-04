@@ -54,6 +54,7 @@ const FIELDS: Record<Kind, FieldDef[]> = {
     { key: 'visual_prompt', label: '视觉身份提示词(英文,所有镜头复用)', multiline: true, hint: '固定这段就是跨集一致性的关键;改了要重出相关镜头' },
     { key: 'negative_prompt', label: '负面词(英文)', multiline: true },
     { key: 'voice_style', label: '声线' },
+    { key: 'voice', label: '配音音色', hint: '留空按性别自动分配;可选值见「后期」里的音色列表' },
     { key: 'seed', label: '种子(数字,固定则更稳定)' },
   ],
   scene: [

@@ -138,7 +138,7 @@ export function ActivityCard({
               fontWeight: 600,
             }}
           >
-            <LocalFireDepartmentIcon sx={{ fontSize: 11, color: '#FFB400' }} />
+            <LocalFireDepartmentIcon sx={{ fontSize: 11, color: 'var(--fg-amber)' }} />
             {formatBigNumber(a.heat)}
           </Box>
         )}
@@ -283,13 +283,13 @@ export function ActivityCard({
             gap: 0.75,
           }}
         >
-          <RedeemRoundedIcon sx={{ fontSize: 14, color: '#FFB400' }} />
+          <RedeemRoundedIcon sx={{ fontSize: 14, color: 'var(--fg-amber)' }} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               sx={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: '#FFB400',
+                color: 'var(--fg-amber)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

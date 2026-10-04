@@ -8,6 +8,40 @@ export const FEN_PER_DIAMOND = 10;
 /** 最低提现钻石数(walletapp.MinWithdrawAmount,10 钻 = ¥1) */
 export const MIN_WITHDRAW_DIAMONDS = 10;
 
+/** 钱包在个人中心里的位置(旧的 /account/wallet 会跳到这里) */
+export const WALLET_HREF = '/account/center?tab=wallet';
+
+/** 钻石数的展示文本:1234 → "1,234 钻" */
+export function formatDiamonds(diamonds: number | null | undefined): string {
+  return `${Math.round(Number(diamonds) || 0).toLocaleString('zh-CN')} 钻`;
+}
+
+/** 榜单等窄位置用的短格式:860 → "860 钻",12345 → "1.2 万钻" */
+export function formatDiamondsShort(diamonds: number | null | undefined): string {
+  const n = Math.round(Number(diamonds) || 0);
+  return n >= 10000 ? `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万钻` : `${n.toLocaleString('zh-CN')} 钻`;
+}
+
+/** 元 → 钻。只用于兼容后端仍按元给的老字段(新字段直接是钻石) */
+export function yuanToDiamonds(yuan: number | null | undefined): number {
+  return Math.round((Number(yuan) || 0) * (100 / FEN_PER_DIAMOND));
+}
+
+/** 分 → 钻。团队收入、实现成交额在库里按分记,数值都由钻石折来,整除无零头 */
+export function fenToDiamonds(fen: number | null | undefined): number {
+  return Math.round((Number(fen) || 0) / FEN_PER_DIAMOND);
+}
+
+/** 需求赏金(钻):新接口给 payDiamonds,老数据只有按元的 pay */
+export function demandPayDiamonds(d: { payDiamonds?: number | null; pay?: number | string | null }): number {
+  return d.payDiamonds != null ? Number(d.payDiamonds) : yuanToDiamonds(Number(d.pay ?? 0));
+}
+
+/** 任务标价(钻):新接口给 rewardDiamonds,老数据只有按元的 reward */
+export function taskRewardDiamonds(t: { rewardDiamonds?: number | null; reward?: number | null }): number {
+  return t.rewardDiamonds != null ? Number(t.rewardDiamonds) : yuanToDiamonds(t.reward ?? 0);
+}
+
 /** 钻石数 → 等值人民币(元)文本,去掉无意义的小数:10 → "1",15 → "1.5" */
 export function diamondsToYuan(diamonds: number): string {
   const yuan = (diamonds * FEN_PER_DIAMOND) / 100;
@@ -32,7 +66,33 @@ export interface WalletTransaction {
   balanceAfter: number;  // 钻
   refId: string;
   remark: string;
+  sourceType?: string; // demand_settle 等,配合 sourceId 跳回来源
+  sourceId?: number;
   createTime: string;
+}
+
+/** 一类收入 / 支出的今日 · 本月 · 累计(钻) */
+export interface IncomeBucket {
+  key: string;
+  label: string;
+  today: number;
+  month: number;
+  total: number;
+}
+
+/** GET /wallet/income:收益按来源汇总(悬赏/作品付费/打赏/订阅/礼物/平台奖励)+ 支出去向 */
+export interface WalletIncome {
+  today: number;
+  month: number;
+  total: number;
+  sources: IncomeBucket[];
+  expenses: IncomeBucket[];
+  /** 流水筛选项:in:<来源> / out:<去向> */
+  filters: { key: string; label: string }[];
+}
+
+export async function getWalletIncome(): Promise<WalletIncome> {
+  return accountClient<WalletIncome>('/wallet/income');
 }
 
 // 提现申请
@@ -56,9 +116,9 @@ export async function getWalletBalance(): Promise<WalletBalance> {
 // 别名:兼容旧代码
 export const getWallet = getWalletBalance;
 
-// 获取钱包流水
-export async function getWalletTransactions(params?: { page?: number; size?: number }) {
-  return accountClient('/wallet/transactions', { params });
+// 获取钱包流水。filter:in / out / in:<来源> / out:<去向>(取值见 WalletIncome.filters)
+export async function getWalletTransactions(params?: { page?: number; size?: number; filter?: string }) {
+  return accountClient<{ list: WalletTransaction[]; total: number; page: number }>('/wallet/transactions', { params });
 }
 
 // 打赏创作者

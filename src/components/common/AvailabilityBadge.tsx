@@ -11,7 +11,7 @@
  * 没有一本能读完,而界面上没有任何地方说出过这件事。
  *
  * 措辞原则:
- *   - 能用的说"站内可看/可读",不说"免费""高清"这类没有依据的形容。
+ *   - 能用的说"站内可播/可读",不说"免费""高清"这类没有依据的形容。
  *   - 不能用的说清**为什么**,并且严格区分"我们弄坏了"和"我们没收录"——
  *     后者说成"修复中"会凭空制造一堆永远修不完、也不该修的预期。
  *   - 部分可读要给出具体程度(共 900 章,站内 20 章),含糊的"部分"没有用。
@@ -39,6 +39,8 @@ export interface AvailabilityBadgeProps {
   /** 已入库正文的章节数 / 目录总章节数,partial_text 时用来说清程度。 */
   readyItems?: number;
   totalItems?: number;
+  /** 内容类型(大写 code):音乐的措辞是「听」不是「看」。 */
+  contentType?: string;
   /** inline 跟在标题旁;overlay 贴在封面角上。 */
   variant?: 'inline' | 'overlay';
   top?: number | string;
@@ -73,14 +75,20 @@ export function specOf(
   status?: PlaybackStatus | string,
   readyItems?: number,
   totalItems?: number,
+  contentType?: string,
 ): Spec | null {
   switch (status) {
     // ── 播放轴 ──
     case 'playable':
       return { label: '站内可播', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
+    case 'resolvable':
     case 'embeddable':
-      return { label: '站内可看', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
+      return { label: '站内可播', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
     case 'bandwidth_limited':
+      // 音乐:没有可匿名播放的整首(版权 / 会员),去原平台听。
+      if (contentType === 'MUSIC') {
+        return { label: '去原平台听', tone: 'external', icon: <OpenInNewRoundedIcon /> };
+      }
       // 内容没坏,是我们不替源站付视频带宽。说"去原站看",不说"不可用"。
       return { label: '去原站看', tone: 'external', icon: <OpenInNewRoundedIcon /> };
     case 'live_offline':
@@ -143,6 +151,7 @@ export function AvailabilityBadge({
   status,
   readyItems,
   totalItems,
+  contentType,
   variant = 'inline',
   top = 8,
   left,
@@ -150,7 +159,7 @@ export function AvailabilityBadge({
   bottom,
   sx,
 }: AvailabilityBadgeProps) {
-  const spec = specOf(status, readyItems, totalItems);
+  const spec = specOf(status, readyItems, totalItems, contentType);
   if (!spec) return null;
 
   const base = variant === 'overlay' ? overlaySx(spec.tone) : inlineSx(spec.tone);

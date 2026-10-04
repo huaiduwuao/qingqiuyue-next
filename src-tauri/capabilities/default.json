@@ -26,6 +26,77 @@
     "core:window:allow-inner-position",
     "core:window:allow-outer-position",
     "core:window:allow-inner-size",
-    "core:window:allow-outer-size"
+    "core:window:allow-outer-size",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*.bilibili.com/*"
+        },
+        {
+          "url": "https://*.bilibili.com:*/*"
+        },
+        {
+          "url": "https://*.bilivideo.com/*"
+        },
+        {
+          "url": "https://*.bilivideo.com:*/*"
+        },
+        {
+          "url": "https://*.bilivideo.cn/*"
+        },
+        {
+          "url": "https://*.bilivideo.cn:*/*"
+        },
+        {
+          "url": "https://*.akamaized.net/*"
+        },
+        {
+          "url": "https://*.akamaized.net:*/*"
+        },
+        {
+          "url": "https://*.mountaintoys.cn/*"
+        },
+        {
+          "url": "https://*.mountaintoys.cn:*/*"
+        },
+        {
+          "url": "https://*.hdslb.com/*"
+        },
+        {
+          "url": "https://*.hdslb.com:*/*"
+        },
+        {
+          "url": "https://*.acfun.cn/*"
+        },
+        {
+          "url": "https://*.acfun.cn:*/*"
+        },
+        {
+          "url": "https://*.douyin.com/*"
+        },
+        {
+          "url": "https://*.douyin.com:*/*"
+        },
+        {
+          "url": "https://*.douyinvod.com/*"
+        },
+        {
+          "url": "https://*.douyinvod.com:*/*"
+        },
+        {
+          "url": "https://*.ixigua.com/*"
+        },
+        {
+          "url": "https://*.ixigua.com:*/*"
+        },
+        {
+          "url": "https://*.kuaishou.com/*"
+        },
+        {
+          "url": "https://*.kuaishou.com:*/*"
+        }
+      ]
+    }
   ]
 }

@@ -1,62 +1,43 @@
 # 唤醒词模型目录
 
-openWakeWord ONNX 模型文件,需放在此目录:
+数字人"小月"唤醒分两级:
 
-- `melspectrogram.onnx` (约 5MB, openWakeWord 标准特征提取器,自动从 openWakeWord pip 包下载)
-- `xiaoyue.onnx` (约 30MB, "小月" 唤醒词模型,需自训)
+1. **本地模型**(`src/lib/voice/wake-word.ts`):openWakeWord 特征流水线 + 自训小模型,连续 3 步(240ms)超阈值才算命中。
+   它能过滤掉绝大多数说话,但分不清"小鱼/小谢/小业"这类只差一个韵母的词;
+2. **ASR 复核**(`src/lib/voice/always-listening.ts` 的 `verifyThenWake`):本地命中后把前 2.4s 音频送 ASR,
+   转写里真有"小月"(或晓月/小悦等同音写法)才答应。只在本地命中时调用,一小时零星几次。ASR 出错时放行。
 
-## 部署步骤
+| 文件 | 说明 |
+|---|---|
+| `melspectrogram.onnx` | openWakeWord v0.5.1 特征模型:音频 → mel |
+| `embedding_model.onnx` | openWakeWord v0.5.1 特征模型:76 帧 mel → 96 维语音向量 |
+| `xiaoyue_v2.onnx` | "小月"唤醒小模型,输入 `[1,16,96]`,输出分数 |
+| `xiaoyue_v2.json` | 模型 meta:训练时按"每小时误唤醒 ≤0.5 次"选出的阈值 |
 
-### 方式 A:用现成模型(快速,但不准)
+## 模型从哪来
 
-```bash
-# 1. 装 openWakeWord
-pip install openwakeword
+训练在服务器**沙盒**里跑(脚本 `qingqiuyue-go/internal/handler/wake_train_sandbox.py`,
+镜像 `qingqiuyue-go/docker/sandbox/python-trainer`):
 
-# 2. 下载内置 melspectrogram + 英文 "hey jarvis" 模型作为 fallback
-python -c "
-from openwakeword import download_models
-download_models(target_directory='public/wake')
-# 这会下 melspectrogram.onnx + 几个英文模型
-# 把 'hey_jarvis.onnx' 重命名/复制为 xiaoyue.onnx(注意:英文模型不识别中文,仅用于测试流程)
-"
-```
+1. 后台 `/system/record-wake` 录"小月"(或点「用已有样本重新训练」)
+2. core-api 把录音 + 训练脚本提交成沙盒任务,沙盒里合成多音色"小月"、
+   中文日常句子、易混词,加上 openWakeWord 公开的 ~150 小时负样本特征一起训练
+3. 训练完 core-api 自动把模型拉回来,经公开接口 `/api/core/wake-word/{meta,model}` 下发,
+   **数字人页刷新即生效,不用重新发前端**
 
-### 方式 B:训练"小月"模型(推荐,中文实际可用)
+本目录里的 `xiaoyue_v2.*` 只是兜底:接口拿不到模型时(新环境、没训练过)才用它。
 
-```bash
-# 1. 准备 50-100 条自己念的"小月"音频 (1-3 秒,WAV 16kHz mono)
-#    用手机的"录音机"App 录,存到 scripts/data/positive/
+## 排查
 
-# 2. 跑训练脚本(自动下载负样本 + 背景噪声)
-pip install openwakeword torch torchaudio numpy scipy
-python scripts/train_wake_word.py
-
-# 3. 训练输出在 models/xiaoyue/
-#    复制到 public/wake/:
-cp models/xiaoyue/xiaoyue.onnx public/wake/xiaoyue.onnx
-#    melspectrogram.onnx 从 openWakeWord pip 包拷过来:
-python -c "
-import openwakeword, shutil, os
-src = os.path.join(os.path.dirname(openwakeword.__file__), 'resources', 'melspectrogram.onnx')
-shutil.copy(src, 'public/wake/melspectrogram.onnx')
-"
-```
-
-### 方式 C:临时禁用 openWakeWord(纯 ASR fallback)
-
-如果暂时不想要本地推理,改 `src/lib/voice/wake-word.ts:63` 的 `melUrl` 为空(在 `init()` 中加一个 cfg.modelUrl 验证),让 wake word 走 ASR 文本匹配路径。体验差但能跑。
-
-## 验证
-
-打开浏览器 Console,点 mic 按钮,看日志:
+浏览器 Console 看 `[wake]` 日志:
 
 ```
-[voice] started, waiting for wake word: [小月,清秋月,清秋]
-[wake] loading melspectrogram model: /wake/melspectrogram.onnx
-[wake] loading wake word model: /wake/xiaoyue.onnx
-[wake] openWakeWord init success, label=小月
-[voice] wake word mode: openwakeword
+[wake] openWakeWord init success, label=小月 model=/api/core/wake-word/model threshold=0.66 patience=3
+[wake] avg step 6.1ms, max score 20s=0.031
+[wake] detected "小月" score=0.973 threshold=0.66
+[voice] wake confirmed by ASR: "小月"          ← 真唤醒
+[voice] wake rejected by ASR: "小鱼游来游去"  ← 本地误命中,被 ASR 拦下
 ```
 
-如果看到 `openWakeWord init failed` 或 `vad-fallback` 表示模型没加载成功。
+每 20 秒打一次这段时间的最高分:不说话 / 说别的话时应远低于阈值。
+想换阈值可以在 `getDefaultWakeWordConfig()` 里填 `sensitivity`(越高越不容易误唤醒)。

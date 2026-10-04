@@ -23,10 +23,17 @@ export interface BoostListPage {
   total: number;
 }
 
-export async function fetchBoostList(page: number, pageSize = 20): Promise<BoostListPage> {
+export async function fetchBoostList(
+  page: number,
+  pageSize = 20,
+  filter: { action?: 'boost' | 'suppress' | ''; contentId?: string } = {},
+): Promise<BoostListPage> {
   const res = await contentClient<{ list?: BoostItem[]; records?: BoostItem[]; total?: number; totalRow?: number }>(
     '/recommend/boost/list',
-    { method: 'GET', params: { page, size: pageSize } },
+    {
+      method: 'GET',
+      params: { page, size: pageSize, action: filter.action || undefined, contentId: filter.contentId || undefined },
+    },
   );
   const d = res;
   const list = (d?.list as BoostItem[]) ?? (d?.records as BoostItem[]) ?? [];
@@ -82,4 +89,25 @@ export async function fetchRecommendOverview(days = 7): Promise<RecommendOvervie
 export async function fetchProfileStats(): Promise<ProfileStats> {
   const res = await contentClient<ProfileStats>('/recommend/stats/profile', { method: 'GET' });
   return res as ProfileStats;
+}
+
+// ── 内容向量回填(i2i 召回的数据来源) ──────────────────────────────────────
+
+export interface EmbeddingStats {
+  enabled: boolean;
+  reason?: string;
+  model?: string;
+  running?: boolean;
+  currentType?: string;
+  embeddedSinceStart?: number;
+  ratePerSec?: number;
+  lastError?: string;
+  lastErrorAt?: string;
+  startedAt?: string;
+  coverage?: Record<string, number>; // 各类型已建向量条数
+  catalog?: Record<string, number>;  // 各类型内容总数
+}
+
+export async function fetchEmbeddingStats(): Promise<EmbeddingStats> {
+  return contentClient<EmbeddingStats>('/recommend/stats/embeddings', { method: 'GET' });
 }

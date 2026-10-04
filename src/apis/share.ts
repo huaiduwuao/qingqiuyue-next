@@ -54,14 +54,17 @@ export async function createTask(params: {
   contentType: string;
   contentId: EntityId;
   title: string;
-  videoId?: string;          // 抖音/快手必填:用户在三方创作者中心上传后得到的 video_id
+  videoId?: string;          // 可选:三方创作者中心上传后得到的 video_id;留空由后端自动上传本站视频
   coverUrl?: string;
   tags?: string[];
   shareCardImageUrl?: string;
   topicId?: string;
   scheduledAt?: number; // Unix 秒,定时发布
 }) {
-  const { socialAccountId, contentType, contentId, scheduledAt, ...payload } = params;
+  const { socialAccountId, contentType, contentId, scheduledAt, videoId, ...rest } = params;
+  // 空 videoId 不发:后端据此判断要不要自己上传本站视频
+  const trimmedVideoId = videoId?.trim();
+  const payload = trimmedVideoId ? { ...rest, videoId: trimmedVideoId } : rest;
   return adminClient<ShareTask>('/share/create', {
     method: 'POST',
     // 内容 id 超 2^53 时 Number() 会截成另一条内容,任务记错内容、幂等键也跟着错;按字符串原样发

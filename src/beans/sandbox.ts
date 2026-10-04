@@ -107,6 +107,8 @@ export interface SandboxTaskListReq {
   pageSize?: number;
   status?: string;
   imageId?: number;
+  /** 任务 ID / 标题模糊匹配 */
+  keyword?: string;
 }
 
 // SandboxTaskStatusResp 任务状态响应

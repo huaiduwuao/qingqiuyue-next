@@ -441,15 +441,24 @@ function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise
  * 标签先按原长度打码再找句末标点:<ui:{"url":"https://a.b"}/> 里的句点不能当成句子结尾。
  * 末尾没闭合的标签(还在流式传输中)整个留到下一轮。
  */
+/**
+ * 模型有时在回答末尾写一段 <annotation>…</annotation> 旁注(自述这句为什么这么答),
+ * 不是说给用户的:气泡里不显示,也不朗读。
+ */
+const ANNOTATION_RE = /<annotation\b[^>]*>[\s\S]*?<\/annotation>/g;
+
 export function cutSpeakable(raw: string, from: number, final: boolean): { chunk: string; next: number } {
   let pending = raw.slice(from);
   if (!final) {
     const open = pending.lastIndexOf('<');
     const tail = open >= 0 ? pending.slice(open) : '';
-    const heads = ['<emotion:', '<action:', '<mouth:', '<ui:'];
+    const heads = ['<emotion:', '<action:', '<mouth:', '<ui:', '<annotation'];
     if (tail && !tail.includes('/>') && heads.some((h) => tail.startsWith(h) || h.startsWith(tail))) {
       pending = pending.slice(0, open);
     }
+    // 旁注 <annotation>…</annotation> 还没写完:先别读到它,等闭合了整段剥掉
+    const ann = pending.search(/<annotation\b[^>]*>(?![\s\S]*<\/annotation>)/);
+    if (ann >= 0) pending = pending.slice(0, ann);
   }
   if (!pending) return { chunk: '', next: from };
   if (final) return { chunk: pending, next: from + pending.length };
@@ -466,6 +475,8 @@ function maskDirectives(text: string): string {
   // <ui:{json}/>:用剥离器找出它剥掉了哪些区间太绕,直接按「<ui: 到下一个 />」打码即可 ——
   // 多码一点只会让句子切得晚一些,不会切错。
   out = out.replace(/<ui:[\s\S]*?\/>/g, (m) => '\u0001'.repeat(m.length));
+  // 旁注里有句号,不能在它中间切句
+  out = out.replace(ANNOTATION_RE, (m) => '\u0001'.repeat(m.length));
   return out;
 }
 
@@ -547,7 +558,11 @@ export function stripAvatarDirectives(text: string): string {
   return extractUiDirectives(text).stripped
     .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
     .replace(/<action:[a-zA-Z_]+\/>/g, '')
-    .replace(/<mouth:speak\/>/g, '');
+    .replace(/<mouth:speak\/>/g, '')
+    .replace(ANNOTATION_RE, '')
+    // 流式输出里还没闭合的旁注:先藏起来,闭合后上面那条整段剥掉
+    .replace(/<annotation\b[^>]*>[\s\S]*$/, '')
+    .trimEnd();
 }
 
 /**
@@ -808,6 +823,11 @@ export interface UseChatAvatarWSOptions {
    */
   onScreen?: (cmd: ScreenCommand) => void;
   /**
+   * 言出法随:world_place 在结果回来后交付(要服务端挑好的素材),world_edit / scene_go 在调用时交付。
+   * result 是 world_place 的 JSON 结果(见 agentmanager engine/tools_world.go)。
+   */
+  onWorldTool?: (e: { name: 'world_place' | 'world_edit' | 'scene_go' | 'room_design'; args: Record<string, any>; result?: any }) => void;
+  /**
    * AG-UI 模式:当前还没有服务端会话时,发送前调用它建一个并返回 id(失败返回 null);
    * firstText 是这条消息,可直接用作会话标题。
    * 没有它,第一条消息的 session_id 为空,后端不落库、会话列表里也看不到这段对话。
@@ -833,6 +853,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   // 形象指令是延后执行的(等那句话出声),执行时要用最新的 options ——
   // 发消息那一刻的闭包里 stageHandle 可能还没就绪。
   const optionsRef = React.useRef(options);
+  // 言出法随:world_place 的结果回来时要知道参数,按工具调用 id 记一下
+  const worldCallsRef = React.useRef(new Map<string, { name: string; args: Record<string, any> }>());
   optionsRef.current = options;
   React.useEffect(() => {
     const cb = () => optionsRef.current.onSpeechEnd?.();
@@ -1578,6 +1600,14 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 return;
               }
 
+              // 言出法随:摆东西要等服务端挑好素材(结果里),挪 / 删 / 换场景现在就执行
+              if (name === 'world_place' || name === 'world_edit' || name === 'scene_go' || name === 'room_design') {
+                // 摆东西 / 布置方案要等服务端配好素材(结果里)
+                if (name === 'world_place' || name === 'room_design') worldCallsRef.current.set(toolCallId, { name, args });
+                else optionsRef.current.onWorldTool?.({ name, args });
+                return;
+              }
+
               // 生成式 UI 工具 → 3D 场景面板(列表 / 网格 / 表单)
               if (name === SCENE_PANEL_DISMISS_TOOL) {
                 options.onScenePanel?.(null);
@@ -1594,6 +1624,13 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               options.onToolCalls?.([{ name, args }]);
             },
             onToolResult: (toolCallId, content) => {
+              const wc = worldCallsRef.current.get(toolCallId);
+              if (wc) {
+                worldCallsRef.current.delete(toolCallId);
+                let result: any = null;
+                try { result = JSON.parse(content); } catch { /* ERROR: 开头的纯文本 */ }
+                if (result) optionsRef.current.onWorldTool?.({ name: wc.name as 'world_place' | 'room_design', args: wc.args, result });
+              }
               setChatLog((c) => c.map((m) => (m.who === 'tool' && m.tool?.id === toolCallId
                 ? { ...m, tool: { ...m.tool, status: content.startsWith('ERROR:') ? 'error' : 'done', result: content } }
                 : m)));

@@ -9,6 +9,10 @@ import Button from '@mui/material/Button';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Aurora from '@/components/reactbits/Aurora';
 import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
@@ -17,8 +21,9 @@ import FadeContent from '@/components/reactbits/FadeContent';
 import { getAuthOptions, type AuthOptions } from '@/apis/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
-import { startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
+import { inWechatBrowser, startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
 import { createOauthState } from '@/lib/auth/oauthState';
+import { canWechatAppLogin, wechatAppLogin, WechatAppCancelled } from '@/lib/auth/wechatApp';
 import { PasswordLoginForm } from './_components/PasswordLoginForm';
 import { SmsLoginForm } from './_components/SmsLoginForm';
 import { RegisterForm } from './_components/RegisterForm';
@@ -57,6 +62,38 @@ export default function LoginPage() {
 
   const onSession = useCallback((sessionId: string) => login(sessionId), [login]);
 
+  // 手机上微信登录只有网站应用的扫码页(qrconnect):二维码就显示在要扫它的那台手机上。
+  // 真正的手机登录要客户端接微信 SDK(移动应用)或微信内用公众号网页授权,都还没有;
+  // 在那之前,跳过去之前先说清楚在手机上怎么扫。
+  const [wechatTipOpen, setWechatTipOpen] = useState(false);
+  const inWechat = inWechatBrowser();
+  // 微信里 + 后台配好了服务号:走服务号网页授权,点一下「允许」就登录,不用扫码
+  const viaMp = inWechat && !!options.wechatMp;
+  // 安卓客户端 + 后台配好了移动应用 + 装了微信:跳微信点「同意」直接回来,不用扫码
+  const viaApp = !!options.wechatApp && canWechatAppLogin();
+  const [appBusy, setAppBusy] = useState(false);
+  const [wxError, setWxError] = useState<string | null>(null);
+  const onWechatClick = () => {
+    const touch = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
+    if (viaApp) void loginWithWechatApp();
+    else if (touch && !viaMp) setWechatTipOpen(true);
+    else void loginWithWechat();
+  };
+
+  const loginWithWechatApp = async () => {
+    const target = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect')) ?? DEFAULT_AFTER_LOGIN;
+    rememberRedirect(target);
+    setAppBusy(true);
+    setWxError(null);
+    try {
+      await login(await wechatAppLogin(target));
+    } catch (e) {
+      if (!(e instanceof WechatAppCancelled)) setWxError(e instanceof Error ? e.message : '微信登录失败,请重试');
+    } finally {
+      setAppBusy(false);
+    }
+  };
+
   const loginWithWechat = async () => {
     // 微信回调会带 from 回到前端;这里给它登录后真正要去的页面,而不是登录页自己。
     const target = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect')) ?? DEFAULT_AFTER_LOGIN;
@@ -65,8 +102,8 @@ export default function LoginPage() {
     // 在 tauri.localhost 下根本到不了网关。走完之后 qingqiuyue:// 回跳,见 DeepLinkBridge。
     // 回调页只认本浏览器发起的这一次登录(见 lib/auth/oauthState)
     const state = createOauthState();
-    if (await startWechatLoginInBrowser(target, state)) return;
-    window.location.href = wechatLoginUrl(target, state);
+    if (!viaMp && (await startWechatLoginInBrowser(target, state))) return;
+    window.location.href = wechatLoginUrl(target, state, viaMp ? 'wechat_mp' : 'wechat');
   };
 
   const tabs: { value: Mode; label: string }[] = [
@@ -167,11 +204,17 @@ export default function LoginPage() {
               <Button
                 fullWidth
                 variant="outlined"
-                onClick={loginWithWechat}
+                onClick={onWechatClick}
+                disabled={appBusy}
                 sx={{ textTransform: 'none', borderColor: '#07C160', color: '#07C160', borderRadius: 2 }}
               >
-                微信登录
+                {appBusy ? '等待微信授权…' : '微信登录'}
               </Button>
+              {wxError && (
+                <Alert severity="error" sx={{ mt: 1 }} onClose={() => setWxError(null)}>
+                  {wxError}
+                </Alert>
+              )}
             </>
           )}
         </Box>
@@ -182,6 +225,42 @@ export default function LoginPage() {
           {mode === 'register' ? '注册' : '登录'}即代表同意《用户协议》与《隐私政策》
         </Typography>
       </FadeContent>
+
+      <Dialog open={wechatTipOpen} onClose={() => setWechatTipOpen(false)} fullWidth maxWidth="xs" slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>在手机上用微信登录</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, fontSize: 13, color: 'text.secondary', lineHeight: 1.7 }}>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.7 }}>
+            下一页会显示一个微信登录二维码,手机没法扫自己屏幕上的码:
+          </Typography>
+          {inWechat ? (
+            <Typography component="div" sx={{ fontSize: 13, color: 'text.primary', lineHeight: 1.8 }}>
+              长按二维码,选「识别图中的二维码」即可。
+            </Typography>
+          ) : (
+            <Typography component="div" sx={{ fontSize: 13, color: 'text.primary', lineHeight: 1.8 }}>
+              1. 截屏保存这个二维码
+              <br />
+              2. 打开微信 → 扫一扫 → 右上角「相册」选这张截图
+              <br />
+              3. 在微信里确认登录后,回到这里即可
+            </Typography>
+          )}
+          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>也可以用账号密码{options.sms ? '或短信验证码' : ''}登录,或在电脑上扫码。</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWechatTipOpen(false)}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setWechatTipOpen(false);
+              void loginWithWechat();
+            }}
+            sx={{ bgcolor: '#07C160', '&:hover': { bgcolor: '#06AD56' } }}
+          >
+            打开二维码
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <ForgotPasswordDialog
         open={forgotOpen}

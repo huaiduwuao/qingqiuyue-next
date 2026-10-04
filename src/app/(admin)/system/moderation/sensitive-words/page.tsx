@@ -47,6 +47,18 @@ const columns: GridColDef<SensitiveWordItem>[] = [
   },
   { field: 'category', headerName: '类别', width: 140 },
   {
+    field: 'status',
+    headerName: '状态',
+    width: 100,
+    renderCell: (params) => (
+      <Chip
+        label={params.value === 'active' ? '启用' : params.value === 'deleted' ? '已删除' : params.value}
+        color={params.value === 'active' ? 'success' : 'default'}
+        size="small"
+      />
+    ),
+  },
+  {
     field: 'createdAt',
     headerName: '创建时间',
     width: 180,
@@ -61,6 +73,7 @@ export default function ModerationSensitiveWordsPage() {
   const [word, setWord] = useState('');
   const [category, setCategory] = useState('');
   const [level, setLevel] = useState(2);
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -111,14 +124,51 @@ export default function ModerationSensitiveWordsPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         title="敏感词管理"
         columns={columns}
-        fetchData={async () => {
-          const res = await listSensitiveWords();
+        fetchData={async (params) => {
+          const res = await listSensitiveWords({
+            keyword: params.keyword,
+            category: params.category,
+            level: params.level,
+            status: params.status,
+          });
+          // 后端返回全量数组,这里按页切片
+          const all: SensitiveWordItem[] = Array.isArray(res) ? res : res?.records || res?.list || [];
+          const start = (params.pageNumber - 1) * params.pageSize;
           return {
-            records: res?.records || res?.list || [],
-            totalRow: res?.totalRow || res?.total || 0,
+            records: all.slice(start, start + params.pageSize),
+            totalRow: all.length,
           };
+        }}
+        filters={{
+          fields: [
+            { key: 'keyword', label: '敏感词', type: 'text' },
+            { key: 'category', label: '类别', type: 'text', width: 160 },
+            {
+              key: 'level',
+              label: '级别',
+              type: 'select',
+              options: [
+                { label: '提示', value: '1' },
+                { label: '拦截', value: '2' },
+              ],
+            },
+            {
+              key: 'status',
+              label: '状态',
+              type: 'select',
+              options: [
+                { label: '启用', value: 'active' },
+                { label: '已删除', value: 'deleted' },
+                { label: '全部状态', value: 'all' },
+              ],
+            },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
         }}
         onDelete={canDelete ? handleDelete : undefined}
         toolBarRender={() =>

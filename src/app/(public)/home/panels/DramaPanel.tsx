@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,11 +11,15 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
-import { useContentNavigate } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { RankStrip } from '@/components/common/RankStrip';
 import { getFacets, FacetOption } from '@/apis/facets';
+import { PlayTag } from '@/components/common/PlayTag';
 
 /**
  * 短剧频道 —— 只有竖屏短剧。
@@ -42,6 +46,8 @@ type DramaSeries = {
   views?: number;
   likes?: number;
   episodes?: number;
+  /** 集数角标「全81集 / 更新至40集」,后端从源站总集数、站内分集等处取最大值;不知道时为空 */
+  episodeLabel?: string;
   freeEpisodes?: number;
   author?: string;
   description?: string;
@@ -81,7 +87,7 @@ function statusKey(s: string | undefined | null): DramaSeries['status'] | null {
 	if (v === 'HOT' || v === 'DONE' || v === 'EXCLUSIVE') return v;
 	return null;
 }
-const DEFAULT_STATUS_COLOR = { bg: 'rgba(255,255,255,0.06)', fg: 'text.secondary' } as const;
+const DEFAULT_STATUS_COLOR = { bg: 'var(--bg-active)', fg: 'text.secondary' } as const;
 const DEFAULT_GENRE_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
 
 // 题材标签的配色。按归一化题材码索引;词表新增题材时退回中性色,不会崩。
@@ -101,10 +107,18 @@ function genreColorOf(codes: string[] | undefined): string {
   return (first && GENRE_COLOR[first]) || DEFAULT_GENRE_COLOR;
 }
 
+const DRAMA_DEFAULTS = { genre: '', dramaStatus: 'ALL', sort: 'hot' };
+
 export function DramaPanel() {
-  const [genre, setGenre] = useState('');
-  const [status, setStatus] = useState<DramaSeries['status'] | 'ALL'>('ALL');
-  const [sort, setSort] = useState('hot');
+  // 列表一出来就把短剧详情页(复用 teleplay 详情)的代码预取好,点进去只剩数据这一个来回
+  useDetailRoutePrefetch(['SHORT_DRAMA']);
+  // 筛选条件存 URL,点进详情再返回时还原
+  const [filters, setFilters] = useUrlFilters(DRAMA_DEFAULTS);
+  const { genre, sort } = filters;
+  const status = filters.dramaStatus as DramaSeries['status'] | 'ALL';
+  const setGenre = (v: string) => setFilters({ genre: v });
+  const setStatus = (v: DramaSeries['status'] | 'ALL') => setFilters({ dramaStatus: v });
+  const setSort = (v: string) => setFilters({ sort: v });
 
   // 题材选项按当前库存现算,每项带条数。
   const facetsQuery = useQuery({
@@ -164,7 +178,7 @@ export function DramaPanel() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { root: findScrollRoot(sentinel), rootMargin: PREFETCH_MARGIN }
     );
 
     observer.observe(sentinel);
@@ -181,7 +195,7 @@ export function DramaPanel() {
           p: { xs: 2, md: 3 },
           borderRadius: 3,
           background: SECTION_TINT.RED_PURPLE_YELLOW,
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid var(--border-color)',
           overflow: 'hidden',
         }}
       >
@@ -275,7 +289,7 @@ export function DramaPanel() {
           {genreLabelOf(genreOptions, genre) || '全部'}短剧
         </Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按播放量排序'}
+          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按全网热度排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
@@ -369,7 +383,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 }
 
 function Top10Podium({ list, genreLabel, status, sort }: { list: DramaSeries[]; genreLabel: string; status: DramaSeries['status'] | 'ALL'; sort: string }) {
-  const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
+  const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按全网热度排序';
   const titleParts: string[] = [];
   if (genreLabel) titleParts.push(genreLabel);
   if (status !== 'ALL') titleParts.push(STATUS_LABEL[status]);
@@ -377,37 +391,18 @@ function Top10Podium({ list, genreLabel, status, sort }: { list: DramaSeries[]; 
   const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: 2.5,
-        borderRadius: 2.5,
-        background: SECTION_TINT.RED_PURPLE_YELLOW,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
+    <Box sx={{ mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <WhatshotIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}短剧</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'warning.main', letterSpacing: 0.5 }}>TOP 10</Typography>
+        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 0.5 }}>{subtitle}</Typography>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}短剧</Typography>
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>{subtitle}</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
+      <RankStrip>
         {ordered.map((d) => (
           <RankCard key={d.id} item={d} />
         ))}
-      </Box>
+      </RankStrip>
     </Box>
   );
 }
@@ -420,12 +415,12 @@ function RankCard({ item }: { item: DramaSeries }) {
   const badgeBg = isTop3
     ? medal!.badge
     : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
-  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const badgeColor = isTop3 ? medal!.txt : '#fff';
   const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
   const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
   const sk = statusKey(item.status);
   const statusInfo = sk ? STATUS_COLOR[sk] : DEFAULT_STATUS_COLOR;
-  const statusLabel = sk ? STATUS_LABEL[sk] : (item.status || '其他');
+  const statusLabel = sk ? STATUS_LABEL[sk] : null;
 
   return (
     <Box
@@ -447,13 +442,17 @@ function RankCard({ item }: { item: DramaSeries }) {
         <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
+        {/* 左上是名次、右上是状态/评分,能不能播挂在名次下面 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={36} />
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
-            {statusLabel}
-          </Box>
-          {item.rating !== undefined && (
+          {statusLabel && (
+            <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
+              {statusLabel}
+            </Box>
+          )}
+          {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
+              <StarRoundedIcon sx={{ fontSize: 9 }} />{item.rating.toFixed(1)}
             </Box>
           )}
         </Box>
@@ -462,7 +461,7 @@ function RankCard({ item }: { item: DramaSeries }) {
             {item.title}
           </Typography>
           <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {item.genre || '其他'} · {formatViews(item.views)} 播放
+            {[item.genre || '其他', item.episodeLabel, `${formatViews(item.views)} 播放`].filter(Boolean).join(' · ')}
           </Typography>
         </Box>
       </Box>
@@ -502,21 +501,30 @@ function DramaCard({ item }: { item: DramaSeries }) {
             '.MuiBox-root:hover > &': { opacity: 1 },
           }}
         >
-          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
+          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: '#fff' }} />
         </Box>
+        {/* 右上角是状态/评分一列,能不能播放左上 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType || 'SHORT_DRAMA'} left={6} top={6} />
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {(() => {
+            // status 是自由文本(库里常见 "active"),认不出就不画角标,别把原始值露给用户
             const k = statusKey(item.status);
-            const c = k ? STATUS_COLOR[k] : DEFAULT_STATUS_COLOR;
+            if (!k) return null;
+            const c = STATUS_COLOR[k];
             return (
               <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: c.bg, color: c.fg, fontSize: 9, fontWeight: 700 }}>
-                {k ? STATUS_LABEL[k] : (item.status || '其他')}
+                {STATUS_LABEL[k]}
               </Box>
             );
           })()}
-          {item.rating !== undefined && (
+          {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 10 }} />{(item.rating ?? 0).toFixed(1)}
+              <StarRoundedIcon sx={{ fontSize: 10 }} />{item.rating.toFixed(1)}
+            </Box>
+          )}
+          {!!item.episodeLabel && (
+            <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, fontWeight: 600 }}>
+              {item.episodeLabel}
             </Box>
           )}
         </Box>
@@ -537,7 +545,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
           {item.title}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'var(--bg-hover)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
             {item.genre || '其他'}
           </Box>
           <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatViews(item.views)} 播放</Typography>

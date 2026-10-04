@@ -82,9 +82,10 @@ describe('scenePanelFromToolCall', () => {
 
   it('工具名映射与后端 tools_ui.go / tools_ops.go / runs/tool.go 对齐', () => {
     // ui_show_operation 在 engine/tools_ops.go(部署操作卡片),ui_show_run 在 runs/tool.go(后台运行卡片),
-    // ui_show_content 在 engine/tools_content_ui.go(作品卡片),其余在 tools_ui.go
+    // ui_show_content 在 engine/tools_content_ui.go(作品卡片),ui_show_source_draft 在 engine/tools_source_setup.go
+    // (接入助手的草稿卡片),其余在 tools_ui.go
     expect(Object.keys(SCENE_PANEL_TOOLS).sort()).toEqual(
-      ['ui_show_content', 'ui_show_form', 'ui_show_grid', 'ui_show_list', 'ui_show_operation', 'ui_show_plan', 'ui_show_run'],
+      ['ui_show_content', 'ui_show_form', 'ui_show_grid', 'ui_show_list', 'ui_show_operation', 'ui_show_plan', 'ui_show_run', 'ui_show_source_draft'],
     );
     expect(SCENE_PANEL_DISMISS_TOOL).toBe('ui_dismiss');
   });
@@ -98,6 +99,11 @@ describe('stripAvatarDirectives', () => {
 
   it('不动普通文本里的尖括号', () => {
     expect(stripAvatarDirectives('a < b 且 c > d')).toBe('a < b 且 c > d');
+  });
+
+  it('剥掉模型写的 <annotation> 旁注,流式里没闭合的也先藏起来', () => {
+    expect(stripAvatarDirectives('与尔同销万古愁。\n\n<annotation>用户要求朗读《将进酒》。</annotation>')).toBe('与尔同销万古愁。');
+    expect(stripAvatarDirectives('好的。<annotation>正在写')).toBe('好的。');
   });
 
   it('保留标签之间的文字顺序', () => {

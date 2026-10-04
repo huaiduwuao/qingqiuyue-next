@@ -21,6 +21,13 @@ import { alpha } from '@mui/material/styles';
 import { adminClient } from '@/lib/api/client';
 import { useApp } from '@/contexts/AppContext';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection } from '@/components/mobile/MobileSection';
+import { MobileEmpty, MobileSkeletonRows } from '../personal/mobileKit';
 
 // 成就类型定义
 interface Achievement {
@@ -52,6 +59,8 @@ const ACHIEVEMENT_ICONS: Record<string, React.ReactNode> = {
 export default function AchievementPage() {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
+  const { isMobile } = useResponsive();
+  const [picked, setPicked] = useState<Achievement | null>(null);
   const { data: achievements = [], isLoading } = useQuery({
     queryKey: ['achievements', currentUserId],
     queryFn: fetchAchievements,
@@ -69,6 +78,98 @@ export default function AchievementPage() {
         <Typography sx={{ color: 'text.secondary' }}>
           请先登录后查看成就
         </Typography>
+      </Box>
+    );
+  }
+
+  // 手机:16 张大卡改成 4 列小徽章(已解锁在前),点开看说明和奖励
+  if (isMobile) {
+    const sorted = [...achievements].sort((a, b) => Number(b.unlocked) - Number(a.unlocked));
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <MobileSection>
+          <Box sx={{ pt: 1.75, display: 'flex', alignItems: 'baseline', gap: 1 }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 700 }}>
+              已解锁 {unlockedCount}/{totalCount}
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'warning.main', fontFamily: 'monospace' }}>{progressPercent.toFixed(0)}%</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progressPercent}
+            sx={{
+              mt: 1,
+              height: 6,
+              borderRadius: 3,
+              bgcolor: 'action.hover',
+              '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #FFB400 0%, #FE2C55 100%)', borderRadius: 3 },
+            }}
+          />
+        </MobileSection>
+
+        <MobileSection title="全部成就" flush={isLoading || achievements.length === 0}>
+          {isLoading ? (
+            <MobileSkeletonRows count={2} height={72} />
+          ) : achievements.length === 0 ? (
+            <MobileEmpty>暂无成就数据</MobileEmpty>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', rowGap: 1.75, columnGap: 1 }}>
+              {sorted.map((a) => (
+                <Box
+                  key={a.id}
+                  component="button"
+                  type="button"
+                  onClick={() => setPicked(a)}
+                  sx={{
+                    all: 'unset',
+                    cursor: 'pointer',
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    WebkitTapHighlightColor: 'transparent',
+                    '&:active': { opacity: 0.6 },
+                  }}
+                >
+                  <AchievementBadge a={a} size={48} />
+                  <Typography noWrap sx={{ maxWidth: '100%', fontSize: 11, fontWeight: 600, color: a.unlocked ? 'text.primary' : 'text.disabled' }}>
+                    {a.name}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </MobileSection>
+
+        <Dialog open={!!picked} onClose={() => setPicked(null)} fullWidth maxWidth="xs">
+          {picked && (
+            <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pt: 3, textAlign: 'center' }}>
+              <AchievementBadge a={picked} size={72} />
+              <Typography sx={{ mt: 1, fontSize: 17, fontWeight: 700 }}>{picked.name}</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{picked.info}</Typography>
+              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                {picked.unlocked ? (
+                  <Chip icon={<CheckCircleIcon />} label="已解锁" size="small" sx={{ bgcolor: alpha('#5DDB96', 0.15), color: 'var(--fg-green)', '& .MuiChip-icon': { color: 'var(--fg-green)' } }} />
+                ) : (
+                  <Chip icon={<LockIcon />} label="未解锁" size="small" />
+                )}
+                <Chip icon={<StarIcon />} label={`奖励 ${picked.reward_point || 0} 积分`} size="small" variant="outlined" sx={{ borderColor: 'warning.main', color: 'warning.main', '& .MuiChip-icon': { color: 'warning.main' } }} />
+              </Box>
+              {picked.unlocked && picked.unlock_time && (
+                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+                  {new Date(picked.unlock_time * 1000).toLocaleDateString('zh-CN')} 解锁
+                </Typography>
+              )}
+            </DialogContent>
+          )}
+          <DialogActions>
+            <Button variant="text" onClick={() => setPicked(null)}>
+              知道了
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     );
   }
@@ -205,8 +306,8 @@ export default function AchievementPage() {
                         size="small"
                         sx={{
                           bgcolor: alpha('#5DDB96', 0.15),
-                          color: '#5DDB96',
-                          '& .MuiChip-icon': { color: '#5DDB96' },
+                          color: 'var(--fg-green)',
+                          '& .MuiChip-icon': { color: 'var(--fg-green)' },
                         }}
                       />
                     ) : (
@@ -229,6 +330,52 @@ export default function AchievementPage() {
             </Card>
           ))}
         </ListLayout>
+      )}
+    </Box>
+  );
+}
+
+/** 手机版的成就徽章:圆形图标,未解锁置灰 + 右下角小锁 */
+function AchievementBadge({ a, size }: { a: Achievement; size: number }) {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: a.unlocked ? 'warning.main' : 'text.disabled',
+        bgcolor: a.unlocked ? alpha('#FFB400', 0.15) : 'action.hover',
+        border: '2px solid',
+        borderColor: a.unlocked ? alpha('#FFB400', 0.5) : 'transparent',
+        filter: a.unlocked ? 'none' : 'grayscale(1)',
+        '& > svg': { fontSize: Math.round(size * 0.5) },
+      }}
+    >
+      {ACHIEVEMENT_ICONS[a.icon] || ACHIEVEMENT_ICONS.default}
+      {!a.unlocked && (
+        <Box
+          sx={{
+            position: 'absolute',
+            right: -2,
+            bottom: -2,
+            width: Math.round(size * 0.36),
+            height: Math.round(size * 0.36),
+            borderRadius: '50%',
+            bgcolor: 'text.disabled',
+            border: '2px solid',
+            borderColor: 'background.paper',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <LockIcon sx={{ fontSize: Math.round(size * 0.2), color: 'background.paper' }} />
+        </Box>
       )}
     </Box>
   );

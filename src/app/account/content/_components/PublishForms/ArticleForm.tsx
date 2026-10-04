@@ -59,9 +59,9 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (!body.trim()) return '请输入正文内容';

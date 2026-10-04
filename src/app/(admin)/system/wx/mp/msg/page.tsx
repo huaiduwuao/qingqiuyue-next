@@ -11,6 +11,7 @@ import Snackbar from '@mui/material/Snackbar';
 import TextField from '@mui/material/TextField';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AdminCrudPage, formatDateTime, type CrudFormField } from '@/components/admin/AdminCrudPage';
+import type { FilterField } from '@/components/tables/FilterBar';
 import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 import { formatApiError } from '@/lib/api/client';
 import { replyWxMsg } from '@/apis/wx-mp';
@@ -22,6 +23,13 @@ const fields: CrudFormField[] = [
   { key: 'repType', label: '消息类型' },
   { key: 'wxUserId', label: '用户' },
   { key: 'repEvent', label: '类型' },
+];
+
+const filters: FilterField[] = [
+  { key: 'type', label: '方向', type: 'select', options: [{ label: '收到', value: 'receive' }, { label: '已回复', value: 'reply' }] },
+  { key: 'openId', label: '用户 OpenID', type: 'text', placeholder: '精确匹配' },
+  { key: 'nickName', label: '昵称', type: 'text' },
+  { key: 'appId', label: 'AppID', type: 'text', placeholder: '精确匹配' },
 ];
 
 /** 公众号消息:上行消息由微信回调写入(internal/wxmp),这里可以在 48 小时内用客服消息回复。 */
@@ -65,7 +73,7 @@ export default function WxMpMsgPage() {
   return (
     <>
       <WxMpStatusBar />
-      <AdminCrudPage title="微信消息" entity="消息" api={api} columns={columns} fields={fields} />
+      <AdminCrudPage title="微信消息" entity="消息" api={api} columns={columns} fields={fields} filters={filters} />
       <Dialog open={!!target} onClose={() => setTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>回复公众号消息</DialogTitle>
         <DialogContent>

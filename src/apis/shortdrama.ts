@@ -1,9 +1,9 @@
 /**
  * AI 短剧生成工作台(agentmanager-api /shortdrama)。
  *
- * 后端:internal/agentmanager/shortdrama。七个数字员工(编剧 / 角色美术 / 分镜 / 视觉生成 / 节奏 /
- * 质检 / 反馈优化)按环节(step)以任务(Task)形式运行,产物落成项目 / 角色 / 场景 / 道具 / 剧集 /
- * 镜头实体;出图出片经 gen-api(ComfyUI)。
+ * 后端:internal/agentmanager/shortdrama。十个数字员工(编剧 / 角色美术 / 分镜 / 视觉生成 / 节奏 /
+ * 质检 / 反馈优化 / 译配 / 后期合成 / 发行运营)按环节(step)以任务(Task)形式运行,产物落成项目 /
+ * 角色 / 场景 / 道具 / 剧集 / 镜头实体;出图出片经 gen-api(ComfyUI),配音走 TTS,成片由 ffmpeg 合成。
  *
  * agentmanager 的响应不套 {code,msg,data} 壳,错误是 {error}。事件流用 fetch 读 SSE
  * (EventSource 不能带 Authorization 头)。
@@ -22,6 +22,10 @@ export type Step =
   | 'pacing'
   | 'visual_gen'
   | 'qc'
+  | 'localize'
+  | 'dubbing'
+  | 'compose'
+  | 'distribute'
   | 'feedback'
   | 'pipeline';
 
@@ -49,10 +53,77 @@ export interface Capability {
   minCost: number;
 }
 
+/** 一个可选语种 */
+export interface Lang {
+  code: string;
+  name: string;
+  en: string;
+  cjk: boolean;
+  /** 当前 TTS 能不能配这个语种;不能的只出字幕 */
+  dubbing: boolean;
+}
+
+/** 一个分发平台及其文案限制 */
+export interface Platform {
+  code: string;
+  name: string;
+  lang: string;
+  title_max: number;
+  caption_max: number;
+  tags: number;
+  max_sec: number;
+}
+
+/** 后期能力:哪样没配,对应的按钮就不可点 */
+export interface PostCapability {
+  tts: boolean;
+  tts_online: boolean;
+  voices: string[] | null;
+  storage: boolean;
+  ffmpeg: boolean;
+  fonts: boolean;
+  languages: Lang[];
+  platforms: Platform[];
+}
+
 export interface Capabilities {
   capabilities: Record<'t2i' | 'i2i' | 't2v' | 'i2v', Capability>;
   llm_ready: boolean;
+  /** 旧后端没有这个字段 */
+  post?: PostCapability;
   error?: string;
+}
+
+/** 某语种的成片 */
+export interface FinalCut {
+  url: string;
+  srt_url?: string;
+  vtt_url?: string;
+  duration: number;
+  width: number;
+  height: number;
+  shots: number;
+  dubbed: number;
+  cues: number;
+  burned: boolean;
+  bgm: boolean;
+  size?: number;
+  at: string;
+}
+
+/** 某平台的发布文案 */
+export interface PlatformCopy {
+  title: string;
+  caption: string;
+  hashtags: string[];
+}
+
+/** 某语种的配音 */
+export interface ShotAudio {
+  url: string;
+  duration: number;
+  voice: string;
+  hash: string;
 }
 
 export interface Project {
@@ -78,6 +149,8 @@ export interface Project {
   /** 发布成的作品 id(module_content,SHORT_DRAMA);0 = 还没发布。再次发布更新同一件作品 */
   content_id: number;
   published_at: string | null;
+  /** 各目标语种的项目文案与人名对照表 */
+  localized?: Record<string, { title?: string; logline?: string; synopsis?: string; names?: Record<string, string> }> | null;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +162,8 @@ export interface PublishResult {
   episodes: number;
   shots: number;
   missing_render: number;
+  /** 用了合成成片的集数 */
+  finals?: number;
 }
 
 export interface Character {
@@ -107,6 +182,8 @@ export interface Character {
   palette: string;
   outfit: string;
   voice_style: string;
+  /** 配音音色;空 = 按性别自动 */
+  voice?: string;
   ref_image_url: string;
   seed: number;
   sort_order: number;
@@ -175,6 +252,10 @@ export interface Episode {
   qc: { score?: number; summary?: string; issues?: QCIssue[]; flagged?: number; at?: string };
   status: string;
   duration_sec: number;
+  /** 后期产物,键是语种代码 */
+  localized?: Record<string, { title?: string; synopsis?: string; hook?: string; cliffhanger?: string }> | null;
+  finals?: Record<string, FinalCut> | null;
+  distribution?: Record<string, Record<string, PlatformCopy>> | null;
 }
 
 export interface QCIssue {
@@ -220,6 +301,9 @@ export interface Shot {
   qc_score: number;
   status: ShotStatus;
   version: number;
+  /** 台词译文,键是语种代码;行结构与 dialogue 一致 */
+  translations?: Record<string, string> | null;
+  audio?: Record<string, ShotAudio> | null;
 }
 
 export interface TaskLog {
@@ -347,6 +431,16 @@ export const dramaAPI = {
   reorderShots: (epId: number, ids: number[]) => call<{ status: string }>(`/episodes/${epId}/shots/reorder`, json({ ids })),
   updateShot: (id: number, fields: Partial<Shot>) => call<{ shot: Shot }>(`/shots/${id}`, put(fields)),
   deleteShot: (id: number) => call<{ status: string }>(`/shots/${id}`, del),
+
+  /** 字幕文本(按当前镜头与配音时长现算,和成片同一条时间线) */
+  subtitles: async (epId: number, lang: string, format: 'srt' | 'vtt' = 'srt'): Promise<string> => {
+    const res = await authFetch(`${BASE}/episodes/${epId}/subtitles?lang=${encodeURIComponent(lang)}&format=${format}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+    }
+    return res.text();
+  },
 };
 
 /** 解析 SSE 文本块(和 runs/api.ts 同一套约定)。 */
@@ -418,7 +512,8 @@ export interface GenWorkflowAdmin {
   status: 'active' | 'draft' | 'disabled';
   sortOrder: number;
   placeholder: boolean;
-  placeholders: string[];
+  /** 后端没有参数时给的是 null,不是空数组 */
+  placeholders: string[] | null;
 }
 
 async function aiCall<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -449,9 +544,11 @@ export const ANGLES: Record<string, string> = { eye_level: '平视', low: '仰�
 export const BEATS: Record<string, string> = { setup: '铺垫', rising: '上升', turn: '转折', payoff: '爽点', cliffhanger: '悬念', breather: '喘息' };
 export const STEP_LABELS: Record<Step, string> = {
   screenwriter: '剧本框架', script: '分场剧本', visual_design: '视觉设定', storyboard: '分镜', pacing: '节奏',
-  visual_gen: '出图/出片', qc: '质检', feedback: '反馈优化', pipeline: '一键生成',
+  visual_gen: '出图/出片', qc: '质检', localize: '译配', dubbing: '配音', compose: '成片合成', distribute: '分发文案',
+  feedback: '反馈优化', pipeline: '一键生成',
 };
 export const AGENT_LABELS: Record<string, string> = {
   'drama-screenwriter': '编剧', 'drama-character': '角色/美术', 'drama-storyboard': '分镜师', 'drama-visual': '视觉生成',
   'drama-pacing': '节奏控制', 'drama-qc': '质检', 'drama-feedback': '反馈优化',
+  'drama-localizer': '译配', 'drama-editor': '后期合成', 'drama-publisher': '发行运营',
 };

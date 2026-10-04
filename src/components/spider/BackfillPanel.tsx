@@ -45,6 +45,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import AvailabilityBadge from '@/components/common/AvailabilityBadge';
+import { useSessionState } from './useSessionState';
 import {
   startContentBackfill,
   getContentBackfillStatus,
@@ -112,14 +113,16 @@ function typeChipColor(t: string): 'primary' | 'secondary' | 'success' | 'warnin
 export default function BackfillPanel({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [picked, setPicked] = useState<ModuleContentItem | null>(null);
+  // 选中的内容和发起的任务存 sessionStorage:后台切菜单会卸载本面板,
+  // 以前切回来任务卡就没了(任务在后端照跑)。
+  const [picked, setPicked] = useSessionState<ModuleContentItem | null>('spider:backfill:picked', null);
   const [typeFilter, setTypeFilter] = useState('');
   const [authorHint, setAuthorHint] = useState('');
   const [strategy, setStrategy] = useState('revisit');
   // 指定源:内容的 source 是版权站(七猫/起点)时,框架默认只建目录不抓正文。
   // 这里勾上的源会被强行插进候选池,用来把 bqg616 这类正文源接上。
   const [forceDomains, setForceDomains] = useState<string[]>([]);
-  const [taskId, setTaskId] = useState<number | null>(null);
+  const [taskId, setTaskId] = useSessionState<number | null>('spider:backfill:task', null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const trimmed = keyword.trim();
@@ -585,9 +588,10 @@ function BackfillTaskCard({ taskId, onDone }: { taskId: number; onDone?: () => v
 /** 最近补全任务列表(运营看历史)。 */
 function RecentBackfillList() {
   const [expanded, setExpanded] = useState(false);
+  const [status, setStatus] = useState('');
   const q = useQuery({
-    queryKey: ['backfill-recent', expanded],
-    queryFn: () => listContentBackfillRecent({ page: 1, pageSize: expanded ? 20 : 5 }),
+    queryKey: ['backfill-recent', expanded, status],
+    queryFn: () => listContentBackfillRecent({ page: 1, pageSize: expanded ? 20 : 5, status: status || undefined }),
     refetchInterval: 15_000,
   });
   const list = q.data?.list ?? [];
@@ -598,6 +602,10 @@ function RecentBackfillList() {
         <Typography variant="subtitle2">最近补全任务</Typography>
         {q.isFetching && <CircularProgress size={12} />}
         <Box sx={{ flex: 1 }} />
+        <TextField select size="small" label="状态" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 110 }}>
+          <MenuItem value="">全部</MenuItem>
+          {Object.entries(STATUS_META).map(([k, v]) => <MenuItem key={k} value={k}>{v.label}</MenuItem>)}
+        </TextField>
         <Button size="small" onClick={() => setExpanded((v) => !v)} sx={{ textTransform: 'none' }}>
           {expanded ? '收起' : '查看全部'}
         </Button>
@@ -605,7 +613,7 @@ function RecentBackfillList() {
 
       {list.length === 0 ? (
         <Typography variant="caption" color="text.disabled">
-          暂无补全任务
+          {status ? '没有该状态的补全任务' : '暂无补全任务'}
         </Typography>
       ) : (
         list.map((it) => <BackfillRecentRow key={it.task_id} item={it} />)

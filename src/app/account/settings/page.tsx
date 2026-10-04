@@ -127,7 +127,8 @@ export default function AccountSettingsPage() {
   return (
     <Container maxWidth="lg" sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain', px: { xs: 1.5, md: 3 } }}>
       <Box sx={{ py: { xs: 2, md: 4 } }}>
-        <Typography variant="h4" sx={{ mb: 3 }}>设置</Typography>
+        {/* 手机顶栏已显示页面名,不再重复一个大标题 */}
+        <Typography variant="h4" sx={{ mb: 3, display: { xs: 'none', md: 'block' } }}>设置</Typography>
         <LoginGate mode="replace" message="登录后查看设置">
         <Card>
           <CardContent>

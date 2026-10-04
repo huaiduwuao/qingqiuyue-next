@@ -27,6 +27,10 @@ import {
   LiveFormLazy,
 } from '../../_components/PublishForms';
 import { TypePicker } from './TypePicker';
+import { TaskDeliveryBanner, TaskDeliverDialog } from './TaskDelivery';
+import type { SavedContent } from '../../_components/useContentForm';
+import { PUBLISH_TYPES } from '../../_components/publishTypes';
+import { rewardTaskHref, takeTaskDeliveryParams, type TaskDeliveryContext } from '@/lib/bountyDelivery';
 import { PublishStepper } from './PublishStepper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -116,19 +120,19 @@ const QUALITY_PRESETS: { id: HdResolution; label: string; bitrate: string; size:
 ];
 
 const STATUS_META: Record<HdStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  transcoding: { label: '转码中', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} /> },
-  reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <RateReviewRoundedIcon sx={{ fontSize: 12 }} /> },
+  transcoding: { label: '转码中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} /> },
+  reviewing: { label: '审核中', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', icon: <RateReviewRoundedIcon sx={{ fontSize: 12 }} /> },
   review_failed: { label: '审核未通过', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', icon: <GavelRoundedIcon sx={{ fontSize: 12 }} /> },
-  published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
+  published: { label: '已发布', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
   failed: { label: '转码失败', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} /> },
   scheduled: { label: '已定时', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: <RocketLaunchRoundedIcon sx={{ fontSize: 12 }} /> },
 };
 
 const RESOLUTION_META: Record<HdResolution, { color: string; bg: string; label: string }> = {
   '4K': { color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', label: '4K' },
-  '2K': { color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', label: '2K' },
-  '1080P': { color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', label: '1080P' },
-  '720P': { color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', label: '720P' },
+  '2K': { color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', label: '2K' },
+  '1080P': { color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', label: '1080P' },
+  '720P': { color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)', label: '720P' },
 };
 
 // SEED_REVIEWERS, SEED, and shared constants are imported from ./data
@@ -273,6 +277,49 @@ export default function HdPublishPage() {
 
   const router = useRouter();
   const navigateToContent = useContentNavigate();
+
+  // ---- 悬赏任务模式(奖励中心「去创作交付」带 ?task=&taskTitle=&demand=&ptype= 进来)----
+  // 只在 mount 时读一次 URL 并立刻去掉这些参数;没有参数时以上 dispatcher 行为完全不变。
+  const [taskCtx, setTaskCtx] = useState<TaskDeliveryContext | null>(null);
+  // 任务模式下刚发布成功的作品 id(十进制字符串),非空时弹「用它交付」
+  const [deliverWorkId, setDeliverWorkId] = useState<string | null>(null);
+  useEffect(() => {
+    const ctx = takeTaskDeliveryParams();
+    if (!ctx) return;
+    setTaskCtx(ctx);
+    const pt = ctx.ptype;
+    if (pt && PUBLISH_TYPES.some((t) => t.id === pt)) {
+      setSelectedType(pt as PublishHubType);
+      setShowTypePicker(false);
+    }
+  }, []);
+  const backToTask = React.useCallback(() => {
+    if (taskCtx) router.push(rewardTaskHref(taskCtx.taskId, taskCtx.demandId));
+  }, [router, taskCtx]);
+  /** 发布成功(12 个表单 + 视频上传共用):任务模式下拿到新作品 id 就问要不要直接交付 */
+  const handlePublished = React.useCallback(
+    (saved?: SavedContent) => {
+      if (!taskCtx) return;
+      const id = saved?.id === undefined || saved?.id === null ? '' : String(saved.id);
+      if (/^[1-9]\d*$/.test(id)) setDeliverWorkId(id);
+      else setSnack({ msg: '作品已发布;回到任务里「从我的作品选择」即可交付', severity: 'info' });
+    },
+    [taskCtx, setSnack],
+  );
+  const handleFormSuccess = React.useCallback(
+    (saved?: SavedContent) => {
+      setShowTypePicker(true);
+      handlePublished(saved);
+    },
+    [handlePublished],
+  );
+  const handleDelivered = React.useCallback(() => {
+    const ctx = taskCtx;
+    setDeliverWorkId(null);
+    setTaskCtx(null);
+    setSnack({ msg: '已交付,等待发布者验收', severity: 'success' });
+    if (ctx) window.setTimeout(() => router.push(rewardTaskHref(ctx.taskId, ctx.demandId)), 800);
+  }, [router, taskCtx, setSnack]);
 
   // upload dialog state
   const [uploadTitle, setUploadTitle] = useState('');
@@ -679,8 +726,10 @@ export default function HdPublishPage() {
       setSnack({ msg: '文件地址缺失,请重新选择', severity: 'error' });
       return;
     }
+    let saved: SavedContent | undefined;
     try {
-      await createMutation.mutateAsync(uploadTitle.trim());
+      // 与表单同一个 POST /module/content,返回 {id, status}(id 为十进制字符串)
+      saved = (await createMutation.mutateAsync(uploadTitle.trim())) as SavedContent | undefined;
     } catch (e: any) {
       // catch 后立即 return,不再继续往下走创建 progress:5% / sizeMB:0 的假 item —
       // 历史上假 item 加进列表但永远卡 5%,KPI 数字不变,用户感知为"界面死了"。
@@ -714,10 +763,21 @@ export default function HdPublishPage() {
     setUploadSubtitles([]);
     setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
     resetUpload();
+    handlePublished(saved && typeof saved === 'object' ? saved : undefined);
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {taskCtx && <TaskDeliveryBanner ctx={taskCtx} onBack={backToTask} onExit={() => setTaskCtx(null)} />}
+      <TaskDeliverDialog
+        ctx={taskCtx}
+        workId={deliverWorkId}
+        onLater={() => {
+          setDeliverWorkId(null);
+          setShowTypePicker(true);
+        }}
+        onDelivered={handleDelivered}
+      />
       {/* 落地态 1:未选类型 — 13 类型卡片网格,挑了再进入正常流程 */}
       {showTypePicker && <TypePicker onPick={handlePickFromType} />}
 
@@ -752,18 +812,18 @@ export default function HdPublishPage() {
             <Box sx={{ flex: 1 }} />
           </Box>
           <PublishStepper activeStep={0} />
-          {selectedType === 'picture-album' && <ImageFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'article' && <ArticleFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'novel' && <NovelFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'news' && <NewsFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'music' && <MusicFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'comics' && <ComicsFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'vshow' && <VshowFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'film' && <FilmFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'animation' && <AnimationFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'live' && <LiveFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'picture-album' && <ImageFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'article' && <ArticleFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'novel' && <NovelFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'news' && <NewsFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'music' && <MusicFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'comics' && <ComicsFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'vshow' && <VshowFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'film' && <FilmFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'animation' && <AnimationFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'live' && <LiveFormLazy onSuccess={handleFormSuccess} />}
         </Box>
       )}
 
@@ -787,7 +847,7 @@ export default function HdPublishPage() {
         >
           {[
             { label: '今日上传', value: String(stats.todayUploads), suffix: '个', icon: <CloudUploadRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-            { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+            { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
           ].map((s) => (
             <Box
               key={s.label}
@@ -1170,7 +1230,7 @@ export default function HdPublishPage() {
                         height: 16,
                         fontSize: 9,
                         bgcolor: 'rgba(93, 219, 150, 0.12)',
-                        color: '#5DDB96',
+                        color: 'var(--fg-green)',
                         '& .MuiChip-label': { px: 0.5 },
                       }}
                     />
@@ -1338,7 +1398,7 @@ export default function HdPublishPage() {
                   justifyContent: 'center',
                 }}
               >
-                <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />
+                <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.7)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45))' }} />
                 {detail.hasCover && (
                   <Typography
                     sx={{
@@ -1403,7 +1463,7 @@ export default function HdPublishPage() {
                         py: 0.1,
                         borderRadius: 0.5,
                         bgcolor: 'rgba(255, 180, 0, 0.12)',
-                        color: '#FFB400',
+                        color: 'var(--fg-amber)',
                         fontSize: 9,
                         fontWeight: 700,
                       }}
@@ -1448,7 +1508,7 @@ export default function HdPublishPage() {
                     </Box>
                     <Box>
                       <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>点赞率</Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#5DDB96' }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-green)' }}>
                         {detail.views ? `${((detail.likes ?? 0) / detail.views * 100).toFixed(1)}%` : '-'}
                       </Typography>
                     </Box>
@@ -1599,7 +1659,7 @@ export default function HdPublishPage() {
                             <Box sx={{ textAlign: 'right' }}>
                               {detail.review.queuePosition !== undefined ? (
                                 <>
-                                  <Typography sx={{ fontSize: 10, color: '#FFB400', fontWeight: 600 }}>
+                                  <Typography sx={{ fontSize: 10, color: 'var(--fg-amber)', fontWeight: 600 }}>
                                     队列第 {detail.review.queuePosition} 位
                                   </Typography>
                                   {detail.review.estimatedWaitMin !== undefined && (
@@ -1609,7 +1669,7 @@ export default function HdPublishPage() {
                                   )}
                                 </>
                               ) : (
-                                <Typography sx={{ fontSize: 10, color: '#25F4EE', fontWeight: 600 }}>
+                                <Typography sx={{ fontSize: 10, color: 'var(--fg-cyan)', fontWeight: 600 }}>
                                   正在审核
                                 </Typography>
                               )}
@@ -1652,11 +1712,11 @@ export default function HdPublishPage() {
                       const isLast = i === detail.review!.checks.length - 1;
                       const node: { bg: string | ((t: any) => string); color: string | ((t: any) => string); icon: React.ReactNode } =
                         c.status === 'passed'
-                          ? { bg: 'rgba(93, 219, 150, 0.18)', color: '#5DDB96', icon: <VerifiedRoundedIcon sx={{ fontSize: 12 }} /> }
+                          ? { bg: 'rgba(93, 219, 150, 0.18)', color: 'var(--fg-green)', icon: <VerifiedRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'failed'
                           ? { bg: 'rgba(254, 44, 85, 0.18)', color: '#FE2C55', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'running'
-                          ? { bg: 'rgba(37, 244, 238, 0.18)', color: '#25F4EE', icon: <AutorenewRoundedIcon sx={{ fontSize: 12 }} /> }
+                          ? { bg: 'rgba(37, 244, 238, 0.18)', color: 'var(--fg-cyan)', icon: <AutorenewRoundedIcon sx={{ fontSize: 12 }} /> }
                           : c.status === 'skipped'
                           ? { bg: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', color: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>—</Box> }
                           : { bg: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', color: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'text.disabled', icon: <Box sx={{ fontSize: 10 }}>{i + 1}</Box> };
@@ -1693,7 +1753,7 @@ export default function HdPublishPage() {
                                 </Typography>
                               )}
                               {c.status === 'running' && (
-                                <Typography sx={{ fontSize: 9, color: '#25F4EE', fontWeight: 600 }}>
+                                <Typography sx={{ fontSize: 9, color: 'var(--fg-cyan)', fontWeight: 600 }}>
                                   进行中
                                 </Typography>
                               )}
@@ -1776,8 +1836,8 @@ export default function HdPublishPage() {
                         <Box sx={{ flex: 1 }} />
                         {detail.review.result === 'pass' && detail.review.reviewerVerdict && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <VerifiedRoundedIcon sx={{ fontSize: 12, color: '#5DDB96' }} />
-                            <Typography sx={{ fontSize: 9, color: '#5DDB96', fontWeight: 600 }}>
+                            <VerifiedRoundedIcon sx={{ fontSize: 12, color: 'var(--fg-green)' }} />
+                            <Typography sx={{ fontSize: 9, color: 'var(--fg-green)', fontWeight: 600 }}>
                               {getReviewer(detail.review.reviewerVerdict.reviewerId)?.name ?? '审核员'} 已签字
                             </Typography>
                           </Box>
@@ -1870,7 +1930,7 @@ export default function HdPublishPage() {
                                   height: 14,
                                   fontSize: 9,
                                   bgcolor: 'rgba(93, 219, 150, 0.12)',
-                                  color: '#5DDB96',
+                                  color: 'var(--fg-green)',
                                   '& .MuiChip-label': { px: 0.5 },
                                 }}
                               />

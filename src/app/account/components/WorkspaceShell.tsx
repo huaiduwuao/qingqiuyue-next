@@ -1,17 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
-import Drawer from '@mui/material/Drawer';
-import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
-import MenuIcon from '@mui/icons-material/Menu';
+import Link from 'next/link';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 
 export interface WorkspaceNavItem {
   id: string;
@@ -35,6 +34,11 @@ interface WorkspaceShellProps {
   onSelect: (id: string) => void;
   /** 附属信息栏:大屏显示在右侧,小屏排在主内容之后。 */
   aside?: React.ReactNode;
+  /**
+   * 侧栏底部「去另一个中心」的入口(电脑端)。创作中心 ⇄ 悬赏中心以前互不相通,
+   * 这里互相放一个带一句说明的跳转。手机上两个中心本来就是底部导航的两个 tab,不重复放。
+   */
+  crossLinks?: { label: string; description?: string; href: string; icon?: React.ReactNode }[];
   children: React.ReactNode;
 }
 
@@ -102,16 +106,11 @@ function NavList({ groups, selected, onSelect }: Pick<WorkspaceShellProps, 'grou
 
 /**
  * 账号工作台(创作者中心、奖励中心)共用的外壳:左侧分组导航 + 主内容区 + 可选附属栏;
- * 小屏时导航收进抽屉,顶部显示当前页面名。
+ * 小屏时导航变成顶部一条横滑页签(不再是抽屉:全站只有首页那一个侧边栏)。
  */
-export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside, children }: WorkspaceShellProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const current = groups.flatMap((g) => g.items).find((i) => i.id === selected);
-
-  const select = (id: string) => {
-    onSelect(id);
-    setDrawerOpen(false);
-  };
+export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside, crossLinks, children }: WorkspaceShellProps) {
+  const items = groups.flatMap((g) => g.items);
+  const select = onSelect;
 
   const sidebar = (
     <Box sx={{ width: SIDEBAR_WIDTH, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
@@ -121,6 +120,41 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
       </Box>
       <Divider sx={{ mx: 2 }} />
       <NavList groups={groups} selected={selected} onSelect={select} />
+      {!!crossLinks?.length && (
+        <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {crossLinks.map((l) => (
+            <Box
+              key={l.href}
+              component={Link}
+              href={l.href}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.25,
+                p: 1.25,
+                borderRadius: 1.5,
+                textDecoration: 'none',
+                color: 'text.primary',
+                border: '1px solid',
+                borderColor: 'divider',
+                transition: 'border-color .2s, background-color .2s',
+                '&:hover': { borderColor: 'primary.main', bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
+              }}
+            >
+              {l.icon && <Box sx={{ display: 'flex', color: 'primary.main', '& svg': { fontSize: 20 } }}>{l.icon}</Box>}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{l.label}</Typography>
+                {l.description && (
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {l.description}
+                  </Typography>
+                )}
+              </Box>
+              <ChevronRightRoundedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 
@@ -137,28 +171,68 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
       <Box sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, borderRight: '1px solid', borderColor: 'divider' }}>
         {sidebar}
       </Box>
-      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ display: { md: 'none' } }}>
-        {sidebar}
-      </Drawer>
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* 窄屏目录入口。这条是移动端打开工作台导航(赏金广场/工作台/看板…)的唯一入口 ——
-            外层 AccountLayout 的汉堡开的是另一套(个人中心/内容管理/设置),不能互相替代。
-            这里只放汉堡不放标题:页面名外层 AppBar 已经显示了,重复一行会白占几十像素。 */}
+        {/* 窄屏:工作台导航是顶栏下一条横滑页签(和 App 里的二级页签一样),不再是第二个 ≡ 抽屉 ——
+            左上角的 ≡ 全站只有一个(首页侧边栏,见 MobileMenuButton)。 */}
         <Box
+          component="nav"
+          aria-label="工作台导航"
           sx={{
             display: { xs: 'flex', md: 'none' },
-            alignItems: 'center',
             flexShrink: 0,
-            px: 0.5,
-            py: 0.25,
+            gap: 0.5,
+            px: 1,
+            py: 0.75,
+            overflowX: 'auto',
             borderBottom: '1px solid',
             borderColor: 'divider',
+            '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
-          <IconButton size="small" onClick={() => setDrawerOpen(true)} aria-label="打开工作台导航">
-            <MenuIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          {items.map((item) => {
+            const active = item.id === selected;
+            return (
+              <Box
+                key={item.id}
+                component="button"
+                type="button"
+                onClick={() => onSelect(item.id)}
+                aria-current={active ? 'page' : undefined}
+                // 选中项横向滚进可视区(深链进来时可能在最右边)
+                ref={active ? (el: HTMLButtonElement | null) => {
+                  const bar = el?.parentElement;
+                  if (!el || !bar) return;
+                  const left = el.offsetLeft - bar.offsetLeft;
+                  if (left + el.offsetWidth > bar.scrollLeft + bar.clientWidth || left < bar.scrollLeft) {
+                    bar.scrollLeft = left - 16;
+                  }
+                } : undefined}
+                sx={{
+                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  px: 1.25,
+                  py: 0.6,
+                  border: 0,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  whiteSpace: 'nowrap',
+                  color: active ? 'primary.main' : 'text.secondary',
+                  bgcolor: (t) => (active ? alpha(t.palette.primary.main, 0.12) : 'transparent'),
+                  WebkitTapHighlightColor: 'transparent',
+                  '& svg': { fontSize: 16 },
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </Box>
+            );
+          })}
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -173,15 +247,22 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
               // (md 以下才有底部导航)。与 /home/recommend 的 main 一致 —— 否则滚动到
               // 最后几条悬赏会被底部导航盖住,而且 main 的可视高度扣少了底部导航,
               // 长列表可滚动范围比应该的小。
-              p: { xs: 1.5, md: 3 },
-              pb: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+              // 不能写 p: { xs, md } 再写 pb:响应式的 p 生成在 media query 里、排在 pb 后面,
+              // 会把 pb 盖回 12px —— 手机上最后 56px 内容一直压在底部导航下面。四边分开写。
+              px: { xs: 1.5, md: 3 },
+              pt: { xs: 1.5, md: 3 },
+              pb: {
+                xs: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+                md: 'calc(24px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+              },
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
             }}
           >
             {children}
-            {aside && <Box sx={{ display: { lg: 'none' } }}>{aside}</Box>}
+            {/* 附属栏:大屏在右侧;平板排在正文之后;手机不显示(手机的一级页各自单独设计,不堆电脑版的附属信息) */}
+            {aside && <Box sx={{ display: { xs: 'none', md: 'block', lg: 'none' } }}>{aside}</Box>}
           </Box>
           {aside && (
             <Box component="aside" sx={{ display: { xs: 'none', lg: 'block' }, flexShrink: 0, overflow: 'auto', p: 3, pl: 0 }}>

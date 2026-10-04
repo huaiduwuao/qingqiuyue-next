@@ -12,6 +12,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert, { type AlertColor } from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 import SystemUpdateAltRoundedIcon from '@mui/icons-material/SystemUpdateAltRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import IconButton from '@mui/material/IconButton';
 import type { Update } from '@tauri-apps/plugin-updater';
 import {
   ANDROID_APK_URL,
@@ -28,7 +30,10 @@ import { useUpdateMode } from '@/components/client/ClientVersionCard';
  * - 桌面端:tauri-plugin-updater 读 latest.json、验签、下载安装;Windows 上 NSIS 安装器
  *   (passive)会自己退出并重启应用,macOS 装完后调 relaunch()。
  * - 安卓:比对 GitHub 上的最新版本号,「立即更新」交给系统浏览器下载 APK。
- * - 自动检查失败一律静默;「稍后」过的版本本次运行里不再自动弹,手动检查照样弹。
+ * - 自动检查失败一律静默;「稍后」过的版本本次运行里不再自动提示,手动检查照样弹。
+ * - 自动检查发现新版只在顶部给一条可关掉的小提示,不弹模态框:启动 10 秒正是在刷推荐流的时候,
+ *   突然一个对话框盖住整屏、还得点掉才能继续,体验很差。点「更新」才打开带更新说明的对话框;
+ *   用户自己点「检查更新」时直接弹对话框。
  */
 
 const FIRST_CHECK_DELAY_MS = 10_000;
@@ -50,6 +55,8 @@ function formatMb(bytes: number): string {
 export default function AppUpdater() {
   const mode = useUpdateMode();
   const [offer, setOffer] = useState<Offer | null>(null);
+  // 自动检查发现的新版本:只显示顶部小提示
+  const [nudge, setNudge] = useState<Offer | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<{ done: number; total?: number }>({ done: 0 });
   const [snack, setSnack] = useState<Snack>(null);
@@ -85,7 +92,9 @@ export default function AppUpdater() {
           releaseResource();
           updateRef.current = upd;
           setSnack(null);
-          setOffer({ version: upd.version, current: upd.currentVersion, notes: upd.body || '' });
+          const found = { version: upd.version, current: upd.currentVersion, notes: upd.body || '' };
+          if (manual) setOffer(found);
+          else setNudge(found);
         } else {
           const [current, latest] = await Promise.all([currentVersion(), fetchLatestRelease()]);
           if (!isNewerVersion(latest.version, current)) {
@@ -94,7 +103,9 @@ export default function AppUpdater() {
           }
           if (!manual && dismissedRef.current.has(latest.version)) return;
           setSnack(null);
-          setOffer({ version: latest.version, current, notes: latest.notes });
+          const found = { version: latest.version, current, notes: latest.notes };
+          if (manual) setOffer(found);
+          else setNudge(found);
         }
         setPhase('idle');
       } catch (e) {
@@ -132,6 +143,18 @@ export default function AppUpdater() {
     if (busyRef.current || !offer) return;
     dismissedRef.current.add(offer.version);
     setOffer(null);
+    releaseResource();
+  };
+
+  const openNudge = () => {
+    if (!nudge) return;
+    setOffer(nudge);
+    setNudge(null);
+  };
+  const dismissNudge = () => {
+    if (!nudge) return;
+    dismissedRef.current.add(nudge.version);
+    setNudge(null);
     releaseResource();
   };
 
@@ -238,6 +261,27 @@ export default function AppUpdater() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={!!nudge && !offer && !snack} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} sx={{ top: 'calc(8px + var(--sat, 0px)) !important' }}>
+        <Alert
+          severity="info"
+          variant="filled"
+          icon={<SystemUpdateAltRoundedIcon fontSize="inherit" />}
+          onClose={dismissNudge}
+          action={
+            <>
+              <Button color="inherit" size="small" onClick={openNudge} sx={{ fontWeight: 700 }}>
+                更新
+              </Button>
+              <IconButton color="inherit" size="small" aria-label="关闭" onClick={dismissNudge}>
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </>
+          }
+        >
+          新版本 {nudge?.version} 可用
+        </Alert>
+      </Snackbar>
 
       <Snackbar
         open={!!snack}

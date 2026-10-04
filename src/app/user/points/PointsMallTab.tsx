@@ -555,7 +555,7 @@ export function PointsMallTab({ initialPoints }: Props) {
                         backdropFilter: 'blur(2px)',
                       }}
                     >
-                      <Typography sx={{ fontSize: 18, fontWeight: 800, color: 'text.primary' }}>已兑完</Typography>
+                      <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>已兑完</Typography>
                     </Box>
                   )}
                 </Box>
@@ -590,8 +590,8 @@ export function PointsMallTab({ initialPoints }: Props) {
                   onClick={() => handleRedeem(it)}
                   startIcon={<RedeemRoundedIcon sx={{ fontSize: 14 }} />}
                   sx={{
-                    bgcolor: isGone || !canAfford ? 'rgba(255,255,255,0.08)' : 'primary.main',
-                    color: isGone || !canAfford ? 'text.disabled' : 'text.primary',
+                    bgcolor: isGone || !canAfford ? 'action.disabledBackground' : 'primary.main',
+                    color: isGone || !canAfford ? 'text.disabled' : 'primary.contrastText',
                     fontSize: 12,
                     fontWeight: 700,
                     py: 0.75,

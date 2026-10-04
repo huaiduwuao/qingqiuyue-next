@@ -165,8 +165,23 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
       onClose={close}
       fullWidth
       maxWidth="sm"
-      fullScreen={isMobile}
-      slotProps={{ paper: { sx: { bgcolor: 'background.paper', backgroundImage: 'none' } } }}
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            // 手机上不再全屏(铺满一屏显得太高):居中卡片、高度跟内容走,最高到状态栏/手势条之间
+            // 留 16px 边距。纸自己不滚,真超高时只有中间的步骤内容滚,标题和底部按钮始终在。
+            ...(isMobile && {
+              m: 2,
+              width: 'calc(100% - 32px)',
+              maxHeight: 'calc(var(--app-height, 100dvh) - var(--sat, 0px) - var(--sab, 0px) - 32px)',
+              overflow: 'hidden',
+              borderRadius: 3,
+            }),
+          },
+        },
+      }}
       aria-labelledby="first-run-title"
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, pt: 2, pb: 1 }}>
@@ -216,20 +231,22 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
           flexDirection: 'column',
         }}
       >
-        {step === 0 && <StepIntro seenWelcome={prefs.seenWelcome} />}
-        {step === 1 && (
-          <StepPick
-            entries={entries}
-            recommendedCodes={recommendedCodes}
-            loading={typesQuery.isLoading}
-            picked={picked}
-            onToggle={toggle}
-            max={MAX_PICKS}
-          />
-        )}
-        {step === 2 && <StepPreview entries={entries} picked={picked} />}
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', mx: -2, px: 2 }}>
+          {step === 0 && <StepIntro seenWelcome={prefs.seenWelcome} />}
+          {step === 1 && (
+            <StepPick
+              entries={entries}
+              recommendedCodes={recommendedCodes}
+              loading={typesQuery.isLoading}
+              picked={picked}
+              onToggle={toggle}
+              max={MAX_PICKS}
+            />
+          )}
+          {step === 2 && <StepPreview entries={entries} picked={picked} />}
+        </Box>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 'auto', pt: 2 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flexShrink: 0, pt: 2 }}>
           {step > 0 && (
             <Button size="small" onClick={onBack} sx={{ fontSize: 12 }}>
               上一步
@@ -346,7 +363,8 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' },
+            // 手机三列 + 说明只留一行:两列两行说明时 14 张卡片比一屏还高
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
             gap: 0.75,
           }}
         >
@@ -368,7 +386,7 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
                 }}
                 sx={{
                   position: 'relative',
-                  p: 1,
+                  p: { xs: 0.75, sm: 1 },
                   borderRadius: 1.5,
                   cursor: disabled ? 'not-allowed' : 'pointer',
                   opacity: disabled ? 0.45 : 1,
@@ -409,14 +427,14 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
                     }}
                   />
                 )}
-                <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.25 }}>{e.label}</Typography>
+                <Typography sx={{ fontSize: { xs: 13, sm: 13.5 }, fontWeight: 700, mb: 0.25, pr: recommended || selected ? 2.5 : 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.label}</Typography>
                 <Typography
                   sx={{
                     fontSize: 10.5,
                     color: 'text.secondary',
                     lineHeight: 1.4,
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: { xs: 1, sm: 2 },
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                   }}

@@ -15,8 +15,12 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import { getCreatorWorks, type WorksItem } from '@/apis/creator';
 import { openDmSession } from '@/apis/social';
+import { getDemand } from '@/apis/reward-demand';
+import type { RewardTask } from '@/beans/reward';
+import { buildTaskCreateHref, publishTypeForBountyCategory } from '@/lib/bountyDelivery';
 import { formatApiError } from '@/lib/api/client';
 import { getDetailRoute, TYPE_LABEL } from '@/lib/contentRoute';
 
@@ -54,10 +58,13 @@ export function WorkPickerDialog({
   open,
   onClose,
   onPick,
+  onCreateNew,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (w: TaskWorkRef) => void;
+  /** 带着任务上下文去发布页创作;不传时退回到新标签打开发布页(无上下文) */
+  onCreateNew?: () => void;
 }) {
   const [type, setType] = useState('');
   const worksQuery = useQuery({
@@ -87,9 +94,27 @@ export function WorkPickerDialog({
             ))}
           </TextField>
           <Box sx={{ flex: 1 }} />
-          <Button size="small" href="/account/content?tab=hd-publish" target="_blank" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
-            去发布新作品
-          </Button>
+          {onCreateNew ? (
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<EditNoteRoundedIcon sx={{ fontSize: 16 }} />}
+              onClick={onCreateNew}
+              sx={{ textTransform: 'none' }}
+            >
+              去创作交付
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              variant="text"
+              href="/account/content?tab=hd-publish"
+              target="_blank"
+              endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+            >
+              去发布新作品
+            </Button>
+          )}
         </Box>
         {worksQuery.isFetching && <LinearProgress sx={{ mb: 1 }} />}
         {worksQuery.isError && (
@@ -207,6 +232,37 @@ export function DeliveredWork({ work, onRemove }: { work: TaskWorkRef; onRemove?
       )}
     </Box>
   );
+}
+
+/**
+ * 「去创作交付」:同一标签页跳到创作者中心发布页,带上任务 id / 标题 / 需求 id 和按需求分类
+ * 预选的发布类型;发布成功后那边会直接提示用新作品交付。需求分类取不到时不预选,让用户自己挑。
+ */
+export function useGoCreateForTask() {
+  const router = useRouter();
+  const [going, setGoing] = useState(false);
+  const go = async (task: RewardTask) => {
+    if (!task.id) return;
+    setGoing(true);
+    let category: string | undefined;
+    if (task.demandId) {
+      try {
+        category = (await getDemand(task.demandId))?.category;
+      } catch {
+        // 需求详情拿不到不拦路:不预选类型,落在类型选择页
+      }
+    }
+    router.push(
+      buildTaskCreateHref({
+        taskId: String(task.id),
+        taskTitle: task.title || '',
+        demandId: task.demandId ? String(task.demandId) : undefined,
+        // 独立任务 / 需求取不到分类:不预选。需求分类为空按「短视频」(与需求表单一致)
+        ptype: category === undefined || category === null ? undefined : publishTypeForBountyCategory(category),
+      }),
+    );
+  };
+  return { go, going };
 }
 
 /** 与某用户开私信:建好(或找到)双方会话后跳到消息中心的那个会话。 */

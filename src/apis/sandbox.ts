@@ -15,6 +15,10 @@ import type {
 export async function listImages(params?: {
   page?: number;
   pageSize?: number;
+  /** name / display_name 模糊匹配 */
+  name?: string;
+  /** 仅管理员生效:不传 = 只看 active;'all' = 全部状态;其余按值过滤 */
+  status?: string;
 }): Promise<{ list?: SandboxImageResp[]; records?: SandboxImageResp[]; total?: number; totalRow?: number }> {
   return adminClient('/sandbox/images', { params });
 }

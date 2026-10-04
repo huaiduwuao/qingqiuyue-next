@@ -27,8 +27,8 @@ function StatRow({ stats }: { stats?: DashboardOverview['stats'] }) {
   const items = [
     { label: '总阅读', value: formatCount(stats?.totalViews || 0), color: '#5B8DEF' },
     { label: '总点赞', value: formatCount(stats?.totalLikes || 0), color: '#FE2C55' },
-    { label: '总收藏', value: formatCount(stats?.totalFavorites || 0), color: '#FFB400' },
-    { label: '总分享', value: formatCount(stats?.totalShares || 0), color: '#5DDB96' },
+    { label: '总收藏', value: formatCount(stats?.totalFavorites || 0), color: 'var(--fg-amber)' },
+    { label: '总分享', value: formatCount(stats?.totalShares || 0), color: 'var(--fg-green)' },
     { label: '总收益', value: `${formatCount(stats?.totalEarnings || 0)} 钻`, color: '#9C27B0' },
   ];
 
@@ -111,7 +111,7 @@ function ContentRanking({ contents }: { contents: ContentStats[] }) {
                 width: 20,
                 height: 20,
                 borderRadius: '50%',
-                bgcolor: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : 'action.disabled',
+                bgcolor: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : 'text.disabled',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
@@ -159,13 +159,13 @@ function FanPortrait({ profile }: { profile?: FanProfile }) {
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总粉丝</Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 28, fontWeight: 700, color: '#5DDB96' }}>
+          <Typography sx={{ fontSize: 28, fontWeight: 700, color: 'var(--fg-green)' }}>
             {formatCount(profile?.activeFans || 0)}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>活跃粉丝</Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 28, fontWeight: 700, color: '#FFB400' }}>
+          <Typography sx={{ fontSize: 28, fontWeight: 700, color: 'var(--fg-amber)' }}>
             {profile?.totalFans ? Math.round((profile.activeFans / profile.totalFans) * 100) : 0}%
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>活跃率</Typography>
@@ -281,7 +281,7 @@ function TrendTab() {
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总点赞</Typography>
         </Box>
         <Box sx={{ flex: 1, p: 2, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#5DDB96' }}>{formatCount(totalShares)}</Typography>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--fg-green)' }}>{formatCount(totalShares)}</Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总分享</Typography>
         </Box>
       </Box>

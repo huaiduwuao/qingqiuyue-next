@@ -42,6 +42,14 @@ describe('cutSpeakable —— 形象指令跟着它所在的那句话走', () =>
     expect(chunk).toBe('如果 a < b 就选 a。');
   });
 
+  it('<annotation> 旁注没闭合前不读,闭合后里面的句号也不切', () => {
+    const open = '好的,我来朗读。<annotation>用户要求朗读。';
+    expect(cutSpeakable(open, 0, false)).toEqual({ chunk: '好的,我来朗读。', next: 8 });
+    const closed = open + '以上。</annotation>';
+    const r = cutSpeakable(closed, 8, false);
+    expect(r.chunk.includes('<annotation>用户要求朗读。')).toBe(false);
+  });
+
   it('收尾时把剩下的(包括只有标签的尾巴)一次交出去', () => {
     const chunks = stream(['说完了。', '<action:bow/>']);
     expect(chunks).toEqual(['说完了。', '<action:bow/>']);

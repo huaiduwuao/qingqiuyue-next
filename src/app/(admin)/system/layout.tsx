@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,12 +11,19 @@ import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import Drawer from '@mui/material/Drawer';
 import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MenuItem from '@mui/material/MenuItem';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import UnfoldLessRoundedIcon from '@mui/icons-material/UnfoldLessRounded';
+import UnfoldMoreRoundedIcon from '@mui/icons-material/UnfoldMoreRounded';
+import InputBase from '@mui/material/InputBase';
+import Collapse from '@mui/material/Collapse';
 import { useAuth, useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { MENU_GROUPS, type MenuItemDef } from './menu-config';
@@ -34,6 +41,28 @@ const ROLE_LABEL: Record<string, { label: string; color: string }> = {
   AUDITOR: { label: '审核员', color: 'warning.main' },
   USER: { label: '用户', color: '#5B8DEF' },
 };
+
+// 侧栏分组的展开/收起记在本机(每个浏览器各自一份),值是 { 分组标题: 是否展开 }。
+// 没记过的分组默认只展开当前页面所在的那一组 —— 80 多个菜单全摊开根本找不到东西。
+const NAV_OPEN_KEY = 'admin_nav_groups';
+
+function loadNavOpen(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(NAV_OPEN_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveNavOpen(v: Record<string, boolean>) {
+  try {
+    localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(v));
+  } catch {
+    /* 隐私模式 / 存储被禁:只是记不住,不影响使用 */
+  }
+}
 
 const ROLE_PRIORITY = ['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'AUDITOR', 'USER'];
 
@@ -54,6 +83,9 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   // 手机端抽屉菜单(< md 侧栏隐藏,之前后台在手机上根本没法切页面)
   const [navOpen, setNavOpen] = useState(false);
+  // 侧栏分组展开状态(见 NAV_OPEN_KEY)与菜单搜索词
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>(loadNavOpen);
+  const [navQuery, setNavQuery] = useState('');
 
   // 当前菜单项 = 按 URL 最长前缀匹配出来的那一项(/system/role/detail → 角色管理)。
   // 之前这里是一份「标签页」状态 + 一张 PageComponents 注册表:点菜单只改状态、不改 URL,
@@ -123,8 +155,72 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     return match ?? null;
   }, [pathname, visibleGroups]);
 
+  // 搜索:按菜单名 / 路径 / 分组名过滤,命中的分组全部展开
+  const q = navQuery.trim().toLowerCase();
+  const shownGroups = useMemo(() => {
+    if (!q) return visibleGroups;
+    return visibleGroups
+      .map((g) => ({
+        ...g,
+        items: g.title.toLowerCase().includes(q)
+          ? g.items
+          : g.items.filter((it) => it.label.toLowerCase().includes(q) || it.path.toLowerCase().includes(q)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [q, visibleGroups]);
+
+  const activeGroupTitle = useMemo(
+    () => visibleGroups.find((g) => g.items.some((it) => it.path === activeItem?.path))?.title ?? null,
+    [visibleGroups, activeItem],
+  );
+
+  const isGroupOpen = (title: string) => (q ? true : groupOpen[title] ?? title === activeGroupTitle);
+
+  const setGroups = useCallback((next: Record<string, boolean>) => {
+    setGroupOpen(next);
+    saveNavOpen(next);
+  }, []);
+
+  const toggleGroup = (title: string) => {
+    if (q) return;
+    setGroups({ ...groupOpen, [title]: !isGroupOpen(title) });
+  };
+
+  const allOpen = visibleGroups.length > 0 && visibleGroups.every((g) => isGroupOpen(g.title));
+  const setAllGroups = (open: boolean) =>
+    setGroups(Object.fromEntries(visibleGroups.map((g) => [g.title, open])));
+
+  // 切菜单的卡顿:菜单项是普通 Box + router.push,没有任何预取,点下去要先拉目标页的
+  // RSC 数据(.txt)再拉它的 JS 分块,两轮往返(外网每轮 0.4s 起)期间界面毫无反应,
+  // 高亮、标题、内容全停在旧页。现在三件事:
+  //   · 悬停 / 聚焦 / 按下时 router.prefetch,点击时数据多半已经在路上或到了;
+  //   · 空闲时把展开分组里的菜单也预取掉(每个路由只预取一次);
+  //   · 点击即切高亮和标题,内容区顶端出进度条,直到新页面真正提交。
+  const [navPending, startNav] = useTransition();
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const prefetched = useRef(new Set<string>());
+  const prefetch = useCallback(
+    (path?: string) => {
+      if (!path || path === '#' || prefetched.current.has(path)) return;
+      prefetched.current.add(path);
+      router.prefetch(path);
+    },
+    [router],
+  );
+
+  // URL 变了(点菜单、前进后退、页面内跳转)就不再有"待切换"的目标。
+  // 过渡结束却没换 URL(跳转失败)时也要清掉,别让高亮一直停在没去成的菜单上。
+  useEffect(() => {
+    setPendingPath(null);
+  }, [pathname]);
+  useEffect(() => {
+    if (!navPending) setPendingPath(null);
+  }, [navPending]);
+
   const handleMenuClick = (item: MenuItemDef) => {
-    if (pathname !== item.path) router.push(item.path);
+    if (pathname === item.path) return;
+    setPendingPath(item.path);
+    startNav(() => router.push(item.path));
   };
 
   const handleReturnToFront = () => {
@@ -133,6 +229,35 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('admin_entry_path');
     router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
   };
+
+  // 空闲预取展开分组里的菜单(默认只展开当前页所在分组,量不大)。
+  const openPaths = useMemo(
+    () =>
+      visibleGroups
+        .filter((g) => (q ? false : groupOpen[g.title] ?? g.title === activeGroupTitle))
+        .flatMap((g) => g.items.map((it) => it.path)),
+    [visibleGroups, groupOpen, activeGroupTitle, q],
+  );
+  useEffect(() => {
+    if (!isAdmin || openPaths.length === 0) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const run = () => openPaths.forEach((p) => prefetch(p));
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(run, 1200);
+    return () => window.clearTimeout(t);
+  }, [isAdmin, openPaths, prefetch]);
+
+  // 点下去还没切过去时,高亮 / 标题先跟着目标走
+  const shownPath = pendingPath ?? activeItem?.path;
+  const shownLabel = pendingPath
+    ? visibleGroups.flatMap((g) => g.items).find((it) => it.path === pendingPath)?.label
+    : activeItem?.label;
 
   // 会话/当前用户还在拉的时候给个骨架,避免闪一下"无访问权限"— 菜单和权限都还没到。
   //
@@ -162,18 +287,117 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   // 菜单分组:桌面端侧栏和手机端抽屉共用一份
   const navGroups = (
     <>
-        {visibleGroups.map((group) => (
-          <Box key={group.title} sx={{ mb: 0.5 }}>
-            <Box sx={{ px: 3, pt: 1.5, pb: 0.5 }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, currentColor)', letterSpacing: 1, textTransform: 'uppercase' }}>
+        {/* 菜单搜索 + 全部展开/收起 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mx: 1.5, mb: 1 }}>
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: 1.25,
+              height: 32,
+              borderRadius: 1.5,
+              bgcolor: 'var(--bg-hover, rgba(127,127,127,0.08))',
+              border: '1px solid transparent',
+              '&:focus-within': { borderColor: 'var(--border-color, rgba(127,127,127,0.3))' },
+            }}
+          >
+            <SearchRoundedIcon sx={{ fontSize: 16, color: 'var(--text-muted, currentColor)' }} />
+            <InputBase
+              value={navQuery}
+              onChange={(e) => setNavQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setNavQuery('');
+                // 回车直接进第一个命中的菜单
+                if (e.key === 'Enter' && q && shownGroups[0]?.items[0]) {
+                  handleMenuClick(shownGroups[0].items[0]);
+                  setNavQuery('');
+                  setNavOpen(false);
+                }
+              }}
+              placeholder="搜索菜单"
+              inputProps={{ 'aria-label': '搜索菜单' }}
+              sx={{ flex: 1, fontSize: 12.5, color: 'var(--text-primary, currentColor)', '& input': { p: 0 } }}
+            />
+          </Box>
+          <Tooltip title={allOpen ? '全部收起' : '全部展开'}>
+            <span>
+              <IconButton
+                size="small"
+                disabled={!!q}
+                onClick={() => setAllGroups(!allOpen)}
+                aria-label={allOpen ? '全部收起' : '全部展开'}
+                sx={{ color: 'var(--text-muted, currentColor)', borderRadius: 1.5 }}
+              >
+                {allOpen ? <UnfoldLessRoundedIcon sx={{ fontSize: 18 }} /> : <UnfoldMoreRoundedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+        {q && shownGroups.length === 0 && (
+          <Typography sx={{ px: 3, py: 2, fontSize: 12, color: 'var(--text-muted, currentColor)' }}>没有匹配的菜单</Typography>
+        )}
+        {shownGroups.map((group) => {
+          const open = isGroupOpen(group.title);
+          const holdsActive = group.title === activeGroupTitle;
+          return (
+          <Box key={group.title} sx={{ mb: 0.25 }}>
+            <Box
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              onClick={() => toggleGroup(group.title)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleGroup(group.title);
+                }
+              }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                mx: 1.5,
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 1.5,
+                cursor: q ? 'default' : 'pointer',
+                userSelect: 'none',
+                color: holdsActive && !open ? 'var(--text-primary, currentColor)' : 'var(--text-muted, currentColor)',
+                '&:hover': q ? undefined : { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
+                '&:focus-visible': { outline: '2px solid var(--brand-color, #FE2C55)', outlineOffset: -2 },
+              }}
+            >
+              <Typography sx={{ flex: 1, fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'inherit' }}>
                 {group.title}
               </Typography>
+              {/* 收起时仍标出当前页面所在的分组 */}
+              {holdsActive && !open && (
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'var(--brand-color, #FE2C55)' }} />
+              )}
+              <Typography sx={{ fontSize: 10.5, color: 'var(--text-muted, currentColor)', opacity: 0.8, minWidth: 14, textAlign: 'right' }}>
+                {group.items.length}
+              </Typography>
+              <ExpandMoreRoundedIcon
+                sx={{
+                  fontSize: 16,
+                  transition: 'transform 0.18s',
+                  transform: open ? 'none' : 'rotate(-90deg)',
+                  opacity: q ? 0.3 : 1,
+                }}
+              />
             </Box>
+            <Collapse in={open} timeout={160} unmountOnExit>
             {group.items.map((item) => {
-              const isActive = activeItem?.path === item.path;
+              const isActive = shownPath === item.path;
               return (
                 <Box
                   key={item.id}
+                  onMouseEnter={() => prefetch(item.path)}
+                  onFocus={() => prefetch(item.path)}
+                  onPointerDown={() => prefetch(item.path)}
                   onClick={() => {
                     handleMenuClick(item);
                     setNavOpen(false);
@@ -184,8 +408,9 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
                     alignItems: 'center',
                     gap: 1.25,
                     mx: 1.5,
-                    px: 1.5,
-                    py: 1,
+                    pl: 2.25,
+                    pr: 1.5,
+                    py: 0.85,
                     borderRadius: 1.5,
                     cursor: 'pointer',
                     color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
@@ -218,13 +443,17 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
                 </Box>
               );
             })}
+            </Collapse>
           </Box>
-        ))}
+          );
+        })}
     </>
   );
 
   return (
     <Box
+      // 定高应用壳:音乐底栏的占位由内容滚动区自己留(见 globals.css 的 [data-app-shell])
+      data-app-shell
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -288,7 +517,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
         <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)', display: { xs: 'none', sm: 'block' } }}>/</Typography>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
-          {activeItem?.label || '控制台'}
+          {shownLabel || '控制台'}
         </Typography>
 
         <Box sx={{ flex: 1 }} />
@@ -446,8 +675,14 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         </Box>
 
         {/* 内容 */}
-        <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, WebkitOverflowScrolling: 'touch' }}>
+        <Box component="main" sx={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {navPending && (
+            <LinearProgress
+              aria-label="页面切换中"
+              sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2 }}
+            />
+          )}
+          <Box sx={{ flex: 1, overflow: 'auto', opacity: navPending ? 0.6 : 1, transition: 'opacity 0.15s', p: { xs: 1.5, md: 3 }, pb: { xs: 'calc(12px + var(--player-inset, 0px))', md: 'calc(24px + var(--player-inset, 0px))' }, WebkitOverflowScrolling: 'touch' }}>
             {children}
           </Box>
         </Box>

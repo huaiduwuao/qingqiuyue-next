@@ -50,8 +50,11 @@ export interface AdminSubmission {
 
 type ListResp<T> = { list?: T[] };
 
-export async function listActivities(): Promise<AdminActivity[]> {
-  const res = (await adminClient('/admin/activity')) as ListResp<AdminActivity>;
+/** 筛选在后端 SQL 里做,结果最多 200 条(不分页) */
+export async function listActivities(
+  params: { keyword?: string; category?: string; published?: string } = {},
+): Promise<AdminActivity[]> {
+  const res = (await adminClient('/admin/activity', { params })) as ListResp<AdminActivity>;
   return res?.list ?? [];
 }
 

@@ -28,6 +28,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import { coverBackground } from '@/lib/media';
 import OperationPanel from './OperationPanel';
+import SourceDraftPanel from './SourceDraftPanel';
 import RunPanel from './RunPanel';
 import PlanPanel from './PlanPanel';
 import ContentCards from './ContentCards';
@@ -111,6 +112,7 @@ export function ScenePanel({ panel, onSend, onClose, onOpen }: ScenePanelProps) 
           />
         )}
         {panel.kind === 'operation' && <OperationPanel operationId={panel.operationId} onSend={onSend} />}
+        {panel.kind === 'source_draft' && <SourceDraftPanel draftId={panel.draftId} onSend={onSend} />}
         {panel.kind === 'run' && <RunPanel runId={panel.runId} onSend={onSend} />}
         {panel.kind === 'plan' && <PlanPanel steps={panel.steps} />}
         {panel.kind === 'content' && (

@@ -29,6 +29,7 @@ import { listRealizations, myTeams } from '@/apis/team';
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend } from '../taskboard/status';
 import { useApp } from '@/contexts/AppContext';
+import { formatDiamonds, formatDiamondsShort } from '@/apis/wallet';
 
 type Props = Record<string, never>;
 
@@ -146,8 +147,8 @@ export default function PersonalHero(_props: Props) {
   });
   const myStats: Partial<MyStats> = myStatsQuery.data || {};
   const completedDemands = Number(myStats.completedDemands || 0);
-  const totalIncomeYuan = Number(myStats.totalIncomeYuan || 0);
-  const pendingIncomeYuan = Number(myStats.pendingIncomeYuan || 0);
+  const totalIncome = Number(myStats.totalIncomeDiamonds || 0);
+  const pendingIncome = Number(myStats.pendingIncomeDiamonds || 0);
   const approvedTasksCount = Number(myStats.approvedTasks || 0);
 
   return (
@@ -256,7 +257,7 @@ export default function PersonalHero(_props: Props) {
           <KpiCard
             icon={<CardGiftcardIcon sx={{ fontSize: 18 }} />}
             label="累计赚取"
-            value={'¥' + totalIncomeYuan.toLocaleString('zh-CN')}
+            value={formatDiamondsShort(totalIncome)}
             color="#FE2C55"
             loading={myStatsQuery.isLoading}
           />
@@ -268,9 +269,9 @@ export default function PersonalHero(_props: Props) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.5, borderRadius: 1, bgcolor: alpha('#FE2C55', 0.08) }}>
           <CardGiftcardIcon sx={{ fontSize: 12, color: '#FE2C55' }} />
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-            累计已结 <Box component="span" sx={{ color: '#FE2C55', fontWeight: 700, fontFamily: 'monospace' }}>¥{totalIncomeYuan.toLocaleString('zh-CN')}</Box>
-            {pendingIncomeYuan > 0 && (
-              <> · 待结 <Box component="span" sx={{ color: 'warning.main', fontWeight: 600, fontFamily: 'monospace' }}>¥{pendingIncomeYuan.toLocaleString('zh-CN')}</Box></>
+            赏金已结 <Box component="span" sx={{ color: '#FE2C55', fontWeight: 700, fontFamily: 'monospace' }}>{formatDiamonds(totalIncome)}</Box>
+            {pendingIncome > 0 && (
+              <> · 待结 <Box component="span" sx={{ color: 'warning.main', fontWeight: 600, fontFamily: 'monospace' }}>{formatDiamonds(pendingIncome)}</Box></>
             )}
             {approvedTasksCount > 0 && (
               <> · 已完成 {approvedTasksCount} 单</>

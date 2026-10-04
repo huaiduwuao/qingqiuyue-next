@@ -118,6 +118,9 @@ export default function SystemLogPage() {
     });
   };
 
+  // 项目列表失败时日志请求根本不会发(enabled=false),两处错误都要显示出来
+  const loadError = (projectsQ.error || logsQ.error) as Error | null;
+
   const runSearch = () => setSearchKey((k) => k + 1);
 
   return (
@@ -160,7 +163,7 @@ export default function SystemLogPage() {
           >
             {!projectsQ.data?.length && (
               <MenuItem value="__loading__" disabled>
-                {projectsQ.isLoading ? '加载中…' : '无项目'}
+                {projectsQ.isLoading ? '加载中…' : projectsQ.isError ? '加载失败' : '无项目'}
               </MenuItem>
             )}
             {projectsQ.data?.map((p) => (
@@ -300,17 +303,23 @@ export default function SystemLogPage() {
           lineHeight: 1.6,
         }}
       >
-        {logsQ.isError && (
+        {loadError && (
           <Box sx={{ p: 2, color: 'error.main', fontSize: 13 }}>
-            日志加载失败:{(logsQ.error as Error)?.message || '未知错误'}
-            <Typography sx={{ fontSize: 12, color: 'text.disabled', mt: 0.5 }}>
-              请确认 logtail-server 已启动,且网关 /logs 路由可达。
+            日志加载失败:{loadError.message || '未知错误'}
+            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', mt: 0.5 }}>
+              日志经 core-api /api/core/ops/logs 转发到 logtail-server,仅超级管理员可看。
             </Typography>
           </Box>
         )}
-        {!logsQ.isError && filtered.length === 0 && (
-          <Box sx={{ p: 2, color: 'text.disabled', fontSize: 13 }}>
-            {logsQ.isLoading ? '加载中…' : '暂无日志'}
+        {!loadError && filtered.length === 0 && (
+          <Box sx={{ p: 2, color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+            {projectsQ.isLoading || logsQ.isLoading
+              ? '加载中…'
+              : parsed.length > 0
+                ? '没有符合过滤条件的日志'
+                : effProject
+                  ? '暂无日志'
+                  : '没有可查看的服务日志'}
           </Box>
         )}
         {filtered.map((p, i) => {

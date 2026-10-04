@@ -67,6 +67,9 @@ export default function SpiderSitesPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [onlyActive, setOnlyActive] = useState(false);
+  const [category, setCategory] = useState('');
+  const [pausedFilter, setPausedFilter] = useState<'' | 'paused' | 'running'>('');
+  const [enabledFilter, setEnabledFilter] = useState<'' | 'enabled' | 'disabled'>('');
   const [crawlTarget, setCrawlTarget] = useState<SiteRow | null>(null);
   const [crawlPages, setCrawlPages] = useState('100');
   const [crawlIncremental, setCrawlIncremental] = useState(true);
@@ -96,14 +99,26 @@ export default function SpiderSitesPage() {
     onError: (e: any) => showMsg(e?.message || '入队失败', 'error'),
   });
 
+  // category 可能是逗号拼的多值(FILM,TELEPLAY),拆开做下拉选项
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sitesQ.data?.list || []) {
+      for (const c of (s.category || '').split(',')) if (c.trim()) set.add(c.trim().toUpperCase());
+    }
+    return Array.from(set).sort();
+  }, [sitesQ.data]);
+
   const rows = useMemo(() => {
     const kw = q.trim().toLowerCase();
     return (sitesQ.data?.list || []).filter((s) => {
       if (onlyActive && s.running + s.queued === 0) return false;
+      if (category && !(s.category || '').toUpperCase().split(',').map((c) => c.trim()).includes(category)) return false;
+      if (pausedFilter && s.paused !== (pausedFilter === 'paused')) return false;
+      if (enabledFilter && s.enabled !== (enabledFilter === 'enabled')) return false;
       if (!kw) return true;
       return s.name.toLowerCase().includes(kw) || s.domain.includes(kw) || (s.category || '').toLowerCase().includes(kw);
     });
-  }, [sitesQ.data, q, onlyActive]);
+  }, [sitesQ.data, q, onlyActive, category, pausedFilter, enabledFilter]);
   const stats = statsQ.data;
 
   return (
@@ -135,6 +150,20 @@ export default function SpiderSitesPage() {
         <TextField size="small" placeholder="按名称 / 域名 / 类型过滤" value={q} onChange={(e) => setQ(e.target.value)}
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
           sx={{ minWidth: 260, flex: '1 1 260px', maxWidth: 420 }} />
+        <TextField select size="small" label="分类" value={category} onChange={(e) => setCategory(e.target.value)} sx={{ minWidth: 130 }}>
+          <MenuItem value="">全部</MenuItem>
+          {categories.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+        </TextField>
+        <TextField select size="small" label="调度" value={pausedFilter} onChange={(e) => setPausedFilter(e.target.value as typeof pausedFilter)} sx={{ minWidth: 120 }}>
+          <MenuItem value="">全部</MenuItem>
+          <MenuItem value="running">调度中</MenuItem>
+          <MenuItem value="paused">已暂停</MenuItem>
+        </TextField>
+        <TextField select size="small" label="源状态" value={enabledFilter} onChange={(e) => setEnabledFilter(e.target.value as typeof enabledFilter)} sx={{ minWidth: 120 }}>
+          <MenuItem value="">全部</MenuItem>
+          <MenuItem value="enabled">源启用</MenuItem>
+          <MenuItem value="disabled">源停用</MenuItem>
+        </TextField>
         <FormControlLabel control={<Switch size="small" checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} />} label="只看有任务的" />
       </Box>
 

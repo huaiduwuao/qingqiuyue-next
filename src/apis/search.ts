@@ -1,11 +1,13 @@
 import { contentClient, adminClient } from '@/lib/api/client';
 
 // 真全文搜索 → content-api GET /api/content/search(Doris title LIKE + metadata 结构化筛选,Redis 缓存)
-// 返回 { list: [{id,title,cover,author,contentType,score}], total }
+// 返回 { list: [{id,title,cover,author,contentType,score}], total, page, hasMore }
+// total 是全部命中数(只在第一页算),page 从 1 开始,hasMore 表示还能再翻。
 // 除关键词 kw 外,支持按导演/演员/歌手/专辑/作者/类型/年代筛选(全可选,后端 AND 关系)。
 export interface SearchOptions {
   type?: string;
   size?: number;
+  page?: number;
   actor?: string;
   director?: string;
   artist?: string;
@@ -13,6 +15,8 @@ export interface SearchOptions {
   author?: string;
   genre?: string;
   year?: string | number;
+  /** 1 = 只要站内真的能看 / 能读的 */
+  usable?: 0 | 1;
 }
 
 // 站内结果少于 8 条时,后端把关键词交给全网检索(spider-api internal/discover),响应里带

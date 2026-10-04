@@ -26,7 +26,9 @@ import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { track, recordHistory } from '@/lib/track';
+import { backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 import AIGCBadge from '@/components/AIGCBadge';
 
 interface Video {
@@ -48,6 +50,10 @@ interface Video {
   tags: string[];
   /** 国家网信办 AIGC 合规:后端标记 true 时,前端展示「AI 生成」角标 */
   isAIGenerated?: boolean;
+  /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun),优先于 source */
+  playSourceUrl?: string;
+  playSourceLabel?: string;
+  availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
 }
 
 function VideoDetailContent() {
@@ -58,6 +64,8 @@ function VideoDetailContent() {
     queryKey: ['detail', 'video', id],
     queryFn: () => contentDetail('video', { id: id! }).then((r) => r as Partial<Video>),
     enabled: !!id,
+    // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询。
+    refetchInterval: backfillRefetchInterval,
   });
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
@@ -115,6 +123,8 @@ function VideoDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '视频详情'}
+        playId={id}
+        playType="VIDEO"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <CollectButton contentId={id!} contentType="video" />
@@ -129,19 +139,21 @@ function VideoDetailContent() {
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes="none" />}>
         {(data) => (
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 <VideoPlayer
+                  key={data.playSourceUrl || data.source || ''}
                   src={data.videoUrl || ''}
-                  sourceUrl={data.source || ''}
+                  sourceUrl={data.playSourceUrl || data.source || ''}
                   poster={data.cover}
                   initialDuration={data.duration}
                   autoPlay={false}
                   isAIGenerated={data.isAIGenerated === true}
                   dockTitle={data.title || "视频"}
+                  fitVideo
                 />
               </Container>
             </Box>

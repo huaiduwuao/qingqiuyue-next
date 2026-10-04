@@ -155,7 +155,7 @@ export default function TopPerformingContent() {
                       py: 0.125,
                       borderRadius: 0.5,
                       bgcolor: 'rgba(0, 0, 0, 0.6)',
-                      color: 'text.primary',
+                      color: '#fff',
                       fontSize: 9,
                       fontFamily: 'monospace',
                     }}

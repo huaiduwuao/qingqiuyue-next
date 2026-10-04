@@ -91,6 +91,8 @@ export default function DeploymentPage() {
   const [openOp, setOpenOp] = React.useState<string>('');
   const [action, setAction] = React.useState<ActionKind | null>(null);
   const [snack, setSnack] = React.useState<{ msg: string; sev: 'success' | 'error' } | null>(null);
+  const [opFilter, setOpFilter] = React.useState<Record<string, string | undefined>>({});
+  const [relFilter, setRelFilter] = React.useState<Record<string, string | undefined>>({});
   const toast = (msg: string, sev: 'success' | 'error' = 'success') => setSnack({ msg, sev });
 
   const fleetQ = useQuery({ queryKey: ['steward', 'fleet'], queryFn: st.fleet, refetchInterval: 5000, retry: false });
@@ -105,17 +107,21 @@ export default function DeploymentPage() {
 
   // fetchData 通过下标 allList 实现(全量切片);extraParams 用 tick 触发 refetch。
   const releasesAll = React.useRef<st.Release[]>([]);
-  const fetchReleases = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+  const fetchReleases = React.useCallback(async (params: { pageNumber: number; pageSize: number; source?: string }) => {
     releasesAll.current = await st.releases(20);
+    // 来源(构建 / 接管)只在前端筛
+    const list = params.source ? releasesAll.current.filter((r) => r.source === params.source) : releasesAll.current;
     const start = (params.pageNumber - 1) * params.pageSize;
-    return { records: releasesAll.current.slice(start, start + params.pageSize), totalRow: releasesAll.current.length };
+    return { records: list.slice(start, start + params.pageSize), totalRow: list.length };
   }, []);
 
   const opsAll = React.useRef<st.Operation[]>([]);
-  const fetchOps = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    opsAll.current = await st.operations(50);
+  const fetchOps = React.useCallback(async (params: { pageNumber: number; pageSize: number; status?: st.OpStatus; kind?: st.OpKind }) => {
+    // 状态走后端(取该状态最近 50 条);操作类型在前端筛
+    opsAll.current = await st.operations(50, params.status);
+    const list = params.kind ? opsAll.current.filter((o) => o.kind === params.kind) : opsAll.current;
     const start = (params.pageNumber - 1) * params.pageSize;
-    return { records: opsAll.current.slice(start, start + params.pageSize), totalRow: opsAll.current.length };
+    return { records: list.slice(start, start + params.pageSize), totalRow: list.length };
   }, []);
 
   // 注意:所有 hook 都必须排在这个早返回前面。非超管访问时 fleetQ.error 是 403 走这条
@@ -276,9 +282,16 @@ export default function DeploymentPage() {
         <Box>
           <Typography variant="h6" sx={{ mb: 1 }}>Release</Typography>
           <DataGridTable
+        queryKey={['steward']}
             columns={releaseColumns}
             fetchData={fetchReleases}
-            extraParams={{ tick: relTick }}
+            refreshKey={relTick}
+            filters={{
+              fields: [{ key: 'source', label: '来源', type: 'select', options: [{ label: '构建', value: 'build' }, { label: '接管', value: 'adopt' }], width: 120 }],
+              values: relFilter,
+              onChange: setRelFilter,
+              onReset: () => setRelFilter({}),
+            }}
           />
         </Box>
 
@@ -286,9 +299,19 @@ export default function DeploymentPage() {
         <Box>
           <Typography variant="h6" sx={{ mb: 1 }}>操作记录</Typography>
           <DataGridTable
+        queryKey={['steward']}
             columns={opsColumns}
             fetchData={fetchOps}
-            extraParams={{ tick: opTick }}
+            refreshKey={opTick}
+            filters={{
+              fields: [
+                { key: 'status', label: '状态', type: 'select', options: Object.entries(STATUS).map(([value, s]) => ({ label: s.label, value })), width: 130 },
+                { key: 'kind', label: '操作', type: 'select', options: Object.entries(KIND_LABEL).map(([value, label]) => ({ label, value })), width: 130 },
+              ],
+              values: opFilter,
+              onChange: setOpFilter,
+              onReset: () => setOpFilter({}),
+            }}
             customActions={[{
               label: '查看',
               color: 'primary',

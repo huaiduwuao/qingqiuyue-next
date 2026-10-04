@@ -43,6 +43,18 @@ import { useVrmScenePanel, type DisplayHosts } from './vrm/useVrmScenePanel';
 import { DISPLAY_SPECS, displayFocusPose, type DisplaySlot } from './vrm/sceneDisplays';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
+import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
+import type { WorldPeer } from './vrm/world/buildWorld';
+import type { PlacedObject } from './vrm/world/worldObjects';
+import type { RoomPeer } from './vrm/world/peerAvatars';
+import type { TimeMode } from './vrm/world/env/timeOfDay';
+import type { SeatSpot } from './vrm/world/interact';
+import type { BlockGrid, BlockOp } from './vrm/world/blocks';
+import type { TerrainData, TerrainPatch } from './vrm/world/terrain';
+import type { BlockHit } from './vrm/world/blockLayer';
+import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
+import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
+import type { AvatarParams } from '@/apis/world';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
@@ -96,6 +108,81 @@ export interface VrmStageHandle {
   /** 获取当前 (x, z) */
   getPosition: () => { x: number; z: number };
   getScreenshot: () => string | null;
+  /** 广场:走到某点(自动决定走/跑,超出广场会被收回来) */
+  walkTo: (x: number, z: number) => void;
+  /** 广场:角色头顶冒一句飘字 */
+  floatText: (text: string, color?: string) => void;
+  /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
+  setOverview: (on: boolean) => void;
+  /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[]; sit?: number | null; y?: number } | null;
+  /** 十期:某件能坐的摆设上的座位(世界坐标);from = 人现在在哪 */
+  seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
+  /** 十期:坐到某个座位上(不过碰撞,直接落座);走动 / 走向别处时自动站起来 */
+  sitAt: (spot: SeatSpot) => void;
+  /** 十期:站起来(站到座位前面);没坐着就什么都不做 */
+  standUp: () => void;
+  /** 十期:正坐着的座位(null = 站着) */
+  sitting: () => SeatSpot | null;
+  /** 十二期:换一份积木网格(null = 这里没有) */
+  setBlockGrid: (grid: BlockGrid | null) => void;
+  /** 地形:换一整张(null = 没有)/ 盖上改到的一块 / 点到地形哪儿 / 笔刷预览圈 */
+  setTerrain: (t: TerrainData | null) => void;
+  /** 液面换了(服务端打包的一整张;null = 没水) */
+  setTerrainWater: (b64: string | null) => void;
+  applyTerrainPatch: (p: TerrainPatch) => void;
+  terrainPick: (clientX: number, clientY: number) => { x: number; y: number; z: number } | null;
+  setTerrainBrush: (b: { x: number; z: number; r: number; color?: number } | null) => void;
+  /** 十二期:网格改好了,画面跟着改 */
+  applyBlockOps: (ops: readonly BlockOp[]) => void;
+  /** 十二期:搭建中(点击不走路,交给搭建面板) */
+  setBuilding: (on: boolean) => void;
+  /** 潜水按钮:按住 = 往下潜 */
+  setDiving: (on: boolean) => void;
+  /** 现在泡在液体里没有(潜水按钮要不要出来) */
+  inLiquid: () => boolean;
+  /** 十二期:屏幕上这一点打中哪块积木 / 地面哪一格 */
+  blockPick: (clientX: number, clientY: number) => BlockHit | null;
+  /** 十二期:预览框 */
+  setBlockGhost: (a: { x: number; y: number; z: number } | null, b?: { x: number; y: number; z: number }, remove?: boolean) => void;
+  /** 广场:其他在线的人 */
+  setPeers: (peers: WorldPeer[]) => void;
+  /** 广场:自己脚下的光环(颜色 / rainbow / null) */
+  setAura: (value: string | null) => void;
+  /** 广场:在任意世界坐标冒一句飘字(许愿池上方冒别人的愿望) */
+  floatTextAt: (text: string, x: number, y: number, z: number, color?: string) => void;
+  /** 广场:某位人物头顶冒一句话 */
+  characterSay: (id: string, text: string) => void;
+  /** 言出法随:整批设置 / 增改 / 删掉摆出来的东西 */
+  setPlacements: (list: PlacedObject[]) => void;
+  upsertPlacement: (p: PlacedObject) => void;
+  removePlacement: (id: string) => void;
+  /** 广场:换场景后回到舞台前、镜头复位 */
+  enterScene: () => void;
+  /** 创世 · 布置房间:选中哪一件(脚下高亮);null = 取消 */
+  selectPlacement: (id: string | null) => void;
+  /** 创世 · 布置房间:某件摆放在场景里的组(gizmo 挂它身上) */
+  getPlacementGroup: (id: string) => import('three').Group | null;
+  /** 创世:three 的几样东西(布置房间的 gizmo 要用);还没初始化 = null */
+  /**
+   * 八期:按当前画面截一张图(房间封面):先画一帧再立刻读,中间裁成 16:9、缩到 maxW 宽的 JPEG data URL;
+   * userData.noCapture 的东西(选中圈、gizmo)这一帧不画。画不出返回 null
+   */
+  captureFrame: (maxW?: number) => string | null;
+  getThree: () => { THREE: typeof import('three'); scene: import('three').Scene; camera: import('three').PerspectiveCamera; renderer: import('three').WebGLRenderer; controls: any; canvas: HTMLCanvasElement } | null;
+  /** 创世 · 泼溅外壳:实时改对齐 / 按包围盒自动摆正 */
+  setRoomAlign: (a: RoomShellAlign) => void;
+  autoFitRoom: () => RoomShellAlign | null;
+  /** 创世 · 捏人:把参数套到当前形象上(换模型后自动重套) */
+  applyAvatarParams: (p: AvatarParams | null) => void;
+  /** 创世 · 捏人:当前模型能调什么(脸型形变、眼骨、颜色分类) */
+  getAvatarInfo: () => AvatarInfo | null;
+  /** 创世二期 · 房间里的其他人(真形象,插值走动) */
+  setRoomPeers: (list: RoomPeer[]) => void;
+  /** 创世二期 · 某人头顶冒一句话 */
+  peerSay: (id: string, text: string) => void;
+  /** 四期语音:同伴嘴型的音量来源(谁此刻嘴张多大,0..1);null 关掉 */
+  setPeerVoiceLevels: (fn: ((id: string) => number) | null) => void;
 }
 
 export interface VrmStageProps {
@@ -139,6 +226,27 @@ export interface VrmStageProps {
   onDisplayHosts?: (hosts: DisplayHosts | null) => void;
   /** 舞台后面垫了别的渲染层(3DGS 场景)时置 true:three 不画背景和雾 */
   transparentBackground?: boolean;
+  /**
+   * 开启「广场」:舞台外铺一整座能逛的广场(地标、星光),WASD/方向键走动、点地面前往、
+   * 点角色戳一戳,角色朝着走的方向转身。关着就是原来的小舞台 + WASD 转镜头。
+   */
+  world?: boolean;
+  /** 广场里发生的事(捡到星光、进出地标、戳一戳、按 F 互动),由页面层记账 */
+  onWorldEvent?: (e: WorldEvent) => void;
+  /** 当前场景(后台配置的地标);不传 = 星光广场 */
+  worldDef?: WorldDef;
+  /** 当前场景里的人物 */
+  characters?: WorldCharacter[];
+  /** 广场画质:high(湖山天光 + 后期 + 草)/ low(不做后期和草)/ off(只有广场本身) */
+  worldQuality?: 'high' | 'low' | 'off';
+  /** 用户手动选的时辰;null = 场景默认 */
+  worldTime?: TimeMode | null;
+  /** 创世:正在布置房间(点东西 = 选中) */
+  worldEditing?: boolean;
+  /** 创世:捏人参数(换模型后自动重新套上) */
+  avatarParams?: AvatarParams | null;
+  /** 形象加载完成(捏人面板据此刷新能调的项) */
+  onAvatarLoaded?: (info: AvatarInfo) => void;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -213,7 +321,24 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     onScenePanelHost,
     onDisplayHosts,
     transparentBackground,
+    world = false,
+    worldDef = DEFAULT_WORLD,
+    characters,
+    worldQuality = 'high',
+    worldTime = null,
+    onWorldEvent,
+    worldEditing = false,
+    avatarParams = null,
+    onAvatarLoaded,
   } = props;
+  const avatarParamsRef = useRef(avatarParams);
+  avatarParamsRef.current = avatarParams;
+  const onAvatarLoadedRef = useRef(onAvatarLoaded);
+  onAvatarLoadedRef.current = onAvatarLoaded;
+  const worldOnRef = useRef(world);
+  worldOnRef.current = world;
+  const worldDefRef = useRef(worldDef);
+  worldDefRef.current = worldDef;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
   // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
@@ -283,9 +408,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     active: false, startTime: 0, duration: 0, fromX: 0, fromZ: 0, toX: 0, toZ: 0, style: 'walk',
   });
   // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
-  const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>({ moving: false, phase: 0, style: 'idle' });
+  const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>({ moving: false, phase: 0, style: 'idle', dist: 0 });
   // 行走步进（每帧 dt 累积）
   const walkStepRef = useRef(0);
+  // 十期:坐着的座位(null = 站着)
+  const sitRef = useRef<SeatSpot | null>(null);
+  // 十二期:脚下积木的高度(站在平台 / 台阶上)
+  const groundYRef = useRef(0);
 
   // Phase 3: 物理（vrmDataRef 之后才能访问 scene）
   const vrmSceneForPhysics = vrmDataRef.current?.scene ?? null;
@@ -344,7 +473,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const preFocusPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
 
   // 3. 统一动画状态机（替代 useVrmDance）
-  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics });
+  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, sitRef });
   animApiRef.current = animApi;
 
   // 4. lip sync
@@ -360,6 +489,67 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const camApi = useVrmCamera({ camera: rendererState?.camera ?? null, controls: rendererState?.controls ?? null });
   camApiRef.current = camApi;
 
+  // 6. 广场(可选)
+  const onWorldEventRef = useRef(onWorldEvent);
+  onWorldEventRef.current = onWorldEvent;
+  const worldApi = useVrmWorld({
+    enabled: world && !debugNoThree,
+    THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+    scene: rendererState?.scene ?? null,
+    camera: rendererState?.camera ?? null,
+    canvas: rendererState ? canvasRef.current : null,
+    preset: sceneApi.preset,
+    def: worldDef,
+    characters,
+    quality: worldQuality,
+    timeMode: worldTime,
+    renderer: (rendererState as any)?.renderer ?? null,
+    getAvatar: () => vrmDataRef.current?.scene ?? null,
+    walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
+    editing: worldEditing,
+    onEvent: (e) => onWorldEventRef.current?.(e),
+  });
+  const worldApiRef = useRef(worldApi);
+  worldApiRef.current = worldApi;
+  // 广场开着时由它接管渲染(有后期就走后期,没有就照常画)
+  useEffect(() => {
+    if (!rendererState) return;
+    rendererApi.setRenderOverride(world ? (r, sc, cam, t) => worldApiRef.current.render(r, sc, cam, t) : null);
+    return () => rendererApi.setRenderOverride(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rendererState, world]);
+  /** 角色朝向(绕 Y,0 = 面朝 +Z 即默认机位);走动时转向前进方向,停下一会儿转回来看镜头 */
+  const yawRef = useRef(0);
+  const idleSinceRef = useRef(0);
+  const overviewPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
+  /** 俯瞰时把视角拉宽(舞台相机 30° 太窄,拉到 55° 才装得下整座广场);null = 回到原视角 */
+  const fovTargetRef = useRef<number | null>(null);
+  const baseFovRef = useRef<number | null>(null);
+  // 广场比舞台大得多:允许镜头拉远一些(太远会出天空球)
+  useEffect(() => {
+    const c = rendererState?.controls;
+    if (!c) return;
+    c.maxDistance = world ? 24 : 12;
+  }, [rendererState, world]);
+
+  /** 捏人:把 avatarParamsRef 里的参数套到当前模型上,并按新的脚底位置重新贴地 */
+  function applyAvatarNow() {
+    const cached = vrmDataRef.current;
+    const rs = rendererStateRef.current;
+    if (!cached || !rs?.THREE_NS) return;
+    try {
+      const r = applyAvatarParams(rs.THREE_NS, cached.vrm, avatarParamsRef.current);
+      yOffsetRef.current = r.footOffset;
+      cached.scene.position.y = r.footOffset;
+      if (modelMetricsRef.current) {
+        modelMetricsRef.current = { ...modelMetricsRef.current, height: r.height, footOffsetY: r.footOffset };
+        physics.setModelMetrics(modelMetricsRef.current);
+      }
+    } catch (e) {
+      devLog.warn('[VrmStage] 捏人参数没套上', e);
+    }
+  }
+
   // 加载 VRM
   useEffect(() => {
     if (!rendererState) return;
@@ -371,6 +561,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         if (cancelled) return;
         vrmDataRef.current = cached;
         vrmRef.current = cached.vrm;
+        // 开发时方便在控制台 / 测试页里量骨骼(线上不挂)
+        if (process.env.NODE_ENV !== 'production') (window as unknown as { __vrm?: unknown }).__vrm = cached.vrm;
         vrmSceneRef.current = cached.scene;
         expressionManagerRef.current = cached.expressionManager;
         // 检测 VRM 版本 + 列出可用的 expression（调试用）
@@ -399,6 +591,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // VRM 模型默认是 T-pose，手臂水平外伸
         // 大臂 rotation.z ≈ ±1.4 rad 让手臂垂到身体两侧
         setNaturalPose(cached.vrm);
+        // 捏人参数:套上后脚底位置会变,重新量
+        applyAvatarNow();
+        onAvatarLoadedRef.current?.(inspectAvatar(cached.vrm));
         setLoading(false);
       } catch (e: any) {
         devLog.error('[VrmStage] load failed', e);
@@ -414,13 +609,38 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, modelUrl]);
 
+  // 捏人参数变了:直接套到当前模型上(不重新加载)
+  useEffect(() => { applyAvatarNow(); }, [avatarParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // WASD/QE 键盘控制 — 自由轨道
+  // 广场模式:WASD/方向键走、Shift 跑、Q/E 转镜头、空格跳、F 互动
   const keysRef = useRef<Record<string, boolean>>({});
+  // 潜水:按住 C(或手机上的潜水按钮)往下潜,松开慢慢浮回去;diveRef = 现在潜了多深(米)
+  const diveRef = useRef(0);
+  const diveHoldRef = useRef(false);
+  const pushAtRef = useRef(0);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
+      if (worldOnRef.current) {
+        if (k === ' ' || k === 'spacebar') {
+          e.preventDefault();
+          if (!e.repeat) handleInternalRef.current?.setAction('jump');
+          return;
+        }
+        if (k === 'f') {
+          if (!e.repeat) onWorldEventRef.current?.({ type: 'interact' });
+          return;
+        }
+        if (['w', 'a', 's', 'd', 'q', 'e', 'c', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
+          keysRef.current[k] = true;
+          if (k.startsWith('arrow')) e.preventDefault();
+        }
+        return;
+      }
       if (['w', 'a', 's', 'd', 'q', 'e'].includes(k)) {
         keysRef.current[k] = true;
         e.preventDefault();
@@ -444,12 +664,25 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     rendererApi.setOnFrame((dt, t) => {
       // 0. WASD 键盘控制（先于其他，避免 camera 动画冲突）
       const keys = keysRef.current;
-      if (keys.w) camApi.orbit('in', dt);
-      if (keys.s) camApi.orbit('out', dt);
-      if (keys.a) camApi.orbit('left', dt);
-      if (keys.d) camApi.orbit('right', dt);
-      if (keys.q) camApi.orbit('up', dt);
-      if (keys.e) camApi.orbit('down', dt);
+      const inWorld = worldOnRef.current;
+      // 广场里 WASD 是走路(见下面第 4 步),Q/E 左右转镜头
+      let kbX = 0, kbY = 0;
+      if (inWorld) {
+        if (keys.q) camApi.orbit('left', dt * 1.6);
+        if (keys.e) camApi.orbit('right', dt * 1.6);
+        // 凑近看屏幕时不走动,不然镜头会跟着角色从屏幕前滑走
+        if (!preFocusPoseRef.current) {
+          kbY = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0);
+          kbX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+        }
+      } else {
+        if (keys.w) camApi.orbit('in', dt);
+        if (keys.s) camApi.orbit('out', dt);
+        if (keys.a) camApi.orbit('left', dt);
+        if (keys.d) camApi.orbit('right', dt);
+        if (keys.q) camApi.orbit('up', dt);
+        if (keys.e) camApi.orbit('down', dt);
+      }
       // 1. lip sync:有真实语音在响时,嘴跟着音频频谱走(和声音天然同步)
       const audioLip = lipApi.tick(dt);
       if (audioLip) lastAudioLipAtRef.current = performance.now();
@@ -550,13 +783,51 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       // 4. 位置 / 行走动画
       const mv = moveAnimRef.current;
       const pos = positionRef.current;
-      if (mv.active) {
+      if ((kbX !== 0 || kbY !== 0) && rendererState && sitRef.current) handleInternalRef.current?.standUp();
+      if ((kbX !== 0 || kbY !== 0) && rendererState) {
+        // 以镜头为参照:W 是「往画面里走」,D 是「往画面右边走」
+        mv.active = false;
+        const cam = rendererState.camera;
+        const tgt = rendererState.controls?.target ?? { x: pos.x, z: pos.z };
+        let fx = tgt.x - cam.position.x, fz = tgt.z - cam.position.z;
+        const fl = Math.hypot(fx, fz) || 1;
+        fx /= fl; fz /= fl;
+        let mx = fx * kbY - fz * kbX;
+        let mz = fz * kbY + fx * kbX;
+        const ml = Math.hypot(mx, mz) || 1;
+        mx /= ml; mz /= ml;
+        const running = !!keys.shift;
+        // 真人的速度:走 1.5 米/秒、慢跑 3.6 米/秒(动捕按走过的距离推进,速度越接近真人越自然)
+        // 泡在水这类液体物质里走得慢(物质的 liquid.slow)
+        const slow = worldOnRef.current ? worldApiRef.current.slowAt(pos.x, pos.z, groundYRef.current) : 0;
+        const speed = (running ? 3.6 : 1.5) * (1 - slow);
+        pos.prevX = pos.x; pos.prevZ = pos.z;
+        // 八期:绕开摆设(撞上就顺着边滑过去)
+        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+        // 推得动的东西(movable):顶着它走、几乎走不动时,告诉服务端推一下(服务端挪它、推给大家)
+        if (Math.hypot(next.x - pos.x, next.z - pos.z) < speed * dt * 0.4 && performance.now() - pushAtRef.current > 200) {
+          const id = worldApiRef.current.movableAt(pos.x + mx * 0.45, pos.z + mz * 0.45);
+          if (id) { pushAtRef.current = performance.now(); onWorldEventRef.current?.({ type: 'push', id, dx: mx, dz: mz }); }
+        }
+        pos.x = next.x; pos.z = next.z;
+        walkRef.current.moving = true;
+        walkRef.current.style = running ? 'run' : 'walk';
+        walkStepRef.current += dt * (running ? 8 : 4) * 2 * Math.PI;
+        walkRef.current.phase = walkStepRef.current;
+      } else if (mv.active) {
+        // 液体里点地走:进度按 slow 打折(把起点往后推)
+        if (worldOnRef.current) mv.startTime += dt * 1000 * worldApiRef.current.slowAt(pos.x, pos.z, groundYRef.current);
         const elapsed = performance.now() - mv.startTime;
         const k = Math.min(1, elapsed / mv.duration);
         const eased = 1 - Math.pow(1 - k, 2);  // easeOutQuad
         pos.prevX = pos.x; pos.prevZ = pos.z;
         pos.x = mv.fromX + (mv.toX - mv.fromX) * eased;
         pos.z = mv.fromZ + (mv.toZ - mv.fromZ) * eased;
+        // 十二期:点地走过去也不穿墙(积木墙、家具):顺着边滑
+        if (worldOnRef.current) {
+          const c = clampToWorld(pos.x, pos.z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+          pos.x = c.x; pos.z = c.z;
+        }
         if (k >= 1) {
           mv.active = false;
           walkRef.current.moving = false;
@@ -573,6 +844,33 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkRef.current.moving = false;
       }
 
+      // 水流:泡在流动的液体里被冲着走(物质 liquid.flow,方向 = 积木朝向);坐着不冲
+      if (worldOnRef.current && !sitRef.current) {
+        const f = worldApiRef.current.flowAt(pos.x, pos.z, groundYRef.current);
+        if (f) {
+          const c = clampToWorld(pos.x + f.x * dt, pos.z + f.z * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+          pos.x = c.x; pos.z = c.z;
+        }
+      }
+
+      // 走过的距离:真人动捕的步态按它推进(一个循环 = 步幅 × 腿长)
+      walkRef.current.dist = (walkRef.current.dist ?? 0) + Math.hypot(pos.x - pos.prevX, pos.z - pos.prevZ);
+
+      // 十二期:脚下的积木 —— 迈得上去的立刻站上去,走出边缘往下掉(9 米/秒)
+      if (worldOnRef.current && !sitRef.current) {
+        const inLiquid = worldApiRef.current.inLiquid(pos.x, pos.z, groundYRef.current);
+        diveRef.current = inLiquid && (keysRef.current.c || diveHoldRef.current) ? Math.min(30, diveRef.current + 1.2 * dt) : Math.max(0, diveRef.current - 1.5 * dt);
+        const want = worldApiRef.current.groundAt(pos.x, pos.z, groundYRef.current, diveRef.current);
+        const before = groundYRef.current;
+        // 一步能迈的(≤ 0.6 米)立刻站上去;更高的(爬梯子、浮上水面)按 2.5 米/秒升;往下掉 9 米/秒
+        groundYRef.current = want >= before ? (want - before > 0.6 ? before + Math.min(want - before, 2.5 * dt) : want) : Math.max(want, before - 9 * dt);
+        const dy = groundYRef.current - before;
+        if (dy !== 0 && rendererState && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          rendererState.camera.position.y += dy;
+          if (rendererState.controls) rendererState.controls.target.y += dy;
+        }
+      }
+      (targetPositionRef.current as { ground?: number }).ground = groundYRef.current;
       // Phase 3: 同步给物理 + 物理 step（撞墙会修正 pos）
       targetPositionRef.current.x = pos.x;
       targetPositionRef.current.y = yOffsetRef.current;
@@ -586,19 +884,51 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // 没物理：直接写 scene.position（旧路径）
         if (vrmDataRef.current?.scene) {
           vrmDataRef.current.scene.position.x = pos.x;
-          vrmDataRef.current.scene.position.y = yOffsetRef.current;
+          vrmDataRef.current.scene.position.y = yOffsetRef.current + groundYRef.current;
           vrmDataRef.current.scene.position.z = pos.z;
         }
       }
       const dx = pos.x - pos.prevX;
       const dz = pos.z - pos.prevZ;
-      if ((dx !== 0 || dz !== 0) && rendererState) {
+      // 镜头跟着角色平移;俯瞰、凑近看屏幕时不跟。镜头正在飞的途中也要把终点一起挪,不然飞到的是旧位置
+      if ((dx !== 0 || dz !== 0) && rendererState && !overviewPoseRef.current && !preFocusPoseRef.current) {
+        camApi.shift(dx, dz);
         rendererState.camera.position.x += dx;
         rendererState.camera.position.z += dz;
         if (rendererState.controls) {
           rendererState.controls.target.x += dx;
           rendererState.controls.target.z += dz;
         }
+      }
+      // 4.5 广场:角色朝向 + 地标/星光
+      if (inWorld && vrmDataRef.current?.scene && rendererState) {
+        const root = vrmDataRef.current.scene;
+        // rotateVRM0 会把 VRM0 模型转 180°,朝向要叠在这个基准上
+        if (root.userData.baseYaw === undefined) root.userData.baseYaw = root.rotation.y;
+        const moved = Math.hypot(dx, dz);
+        let targetYaw: number | null = null;
+        if (moved > 1e-4) {
+          targetYaw = Math.atan2(dx, dz);
+          idleSinceRef.current = t;
+        } else if (sitRef.current) {
+          targetYaw = sitRef.current.yaw;
+        } else if (t - idleSinceRef.current > 1.6) {
+          // 停下来一会儿就转回来面向镜头(聊天时要看着人)
+          const cam = rendererState.camera.position;
+          targetYaw = Math.atan2(cam.x - pos.x, cam.z - pos.z);
+        }
+        if (targetYaw !== null) {
+          let d = targetYaw - yawRef.current;
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          yawRef.current += d * Math.min(1, dt * (moved > 1e-4 ? 10 : 3));
+        }
+        root.rotation.y = (root.userData.baseYaw as number) + yawRef.current;
+        worldApiRef.current.tick(t, dt, pos, animApiRef.current?.dancing ?? false);
+      }
+      // 4.9 镜头不进地下:预设机位、飞镜头、拉远都不许低于脚下地面 0.25 米(看不到地底)
+      if (rendererState) {
+        const minY = (worldOnRef.current ? groundYRef.current : 0) + 0.25;
+        if (rendererState.camera.position.y < minY) rendererState.camera.position.y = minY;
       }
       // 5. 统一动画状态机
       animApi.tick(t, dt);
@@ -607,6 +937,15 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       sceneApi.tick(t, dt, bass, animApiRef.current?.dancing ?? false, 1);
       // 7. camera anim
       camApi.tick(dt);
+      {
+        const cam = rendererState.camera;
+        if (baseFovRef.current === null) baseFovRef.current = cam.fov;
+        const want = fovTargetRef.current ?? baseFovRef.current;
+        if (Math.abs(cam.fov - want) > 0.05) {
+          cam.fov += (want - cam.fov) * Math.min(1, dt * 3.5);
+          cam.updateProjectionMatrix();
+        }
+      }
       // 7. confetti
       if (confettiOn && confettiRef.current && rendererState) {
         updateConfetti((rendererState as any).THREE_NS, confettiRef.current, dt);
@@ -772,6 +1111,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       startMic: async () => { devLog.debug('[VrmStage.startMic]'); const ok = await lipApiRef.current?.startMic() ?? false; devLog.debug('[VrmStage.startMic] result=', ok); return ok; },
       stopMic: () => { devLog.debug('[VrmStage.stopMic]'); lipApiRef.current?.stopMic(); },
       move: (target, opts = {}) => {
+        if (sitRef.current) handleInternalRef.current?.standUp();
         const durationMs = opts.durationMs ?? 1500;
         const style = opts.style ?? 'walk';
         // target 解析
@@ -782,9 +1122,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         else if (target === 'back') { tz += 2; }
         else if (target === 'center') { tx = 0; tz = 0; }
         else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
-        // 边界：限制在 ±6
-        tx = Math.max(-6, Math.min(6, tx));
-        tz = Math.max(-6, Math.min(6, tz));
+        // 边界:广场里收进广场(绕开地标),否则限制在 ±6
+        if (worldOnRef.current) {
+          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)));
+        } else {
+          tx = Math.max(-6, Math.min(6, tx));
+          tz = Math.max(-6, Math.min(6, tz));
+        }
         devLog.debug(`[VrmStage.move] style=${style} duration=${durationMs}ms from=(${positionRef.current.x.toFixed(2)}, ${positionRef.current.z.toFixed(2)}) to=(${tx.toFixed(2)}, ${tz.toFixed(2)})`);
         walkRef.current.style = style;
         if (style === 'teleport') {
@@ -811,8 +1155,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
-        positionRef.current.x = Math.max(-6, Math.min(6, x));
-        positionRef.current.z = Math.max(-6, Math.min(6, z));
+        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
+        positionRef.current.x = c.x;
+        positionRef.current.z = c.z;
         walkRef.current.moving = false;
       },
       setYOffset: (y) => {
@@ -830,6 +1175,154 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const r = (rendererStateRef.current as any)?.renderer;
         if (!r) return null;
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
+      },
+      walkTo: (x, z) => {
+        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)) : { x, z };
+        const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
+        if (d < 0.05) return;
+        const style = d > 6 ? 'run' : 'walk';
+        const speed = style === 'run' ? 3.4 : 1.45; // 真人速度(动捕步态按走过的距离推进)
+        handleInternalRef.current?.move({ x: target.x, z: target.z }, { durationMs: Math.max(350, (d / speed) * 1000), style });
+      },
+      floatText: (text, color) => {
+        const p = positionRef.current;
+        const h = modelMetricsRef.current?.height ?? 1.6;
+        worldApiRef.current.floatText(text, p.x, h + 0.15, p.z, color);
+      },
+      setOverview: (on) => {
+        const cam = camApiRef.current;
+        if (!cam) return;
+        if (on) {
+          if (!overviewPoseRef.current) overviewPoseRef.current = cam.getPose();
+          fovTargetRef.current = 55;
+          const c = rendererStateRef.current?.controls;
+          if (c) c.maxDistance = 36;
+          // 够高才能越过舞台背景板看到后面的观星台
+          cam.flyTo([0, 28, 12], [0, 0, -1.5], 1.4);
+        } else {
+          const back = overviewPoseRef.current;
+          overviewPoseRef.current = null;
+          fovTargetRef.current = null;
+          const c = rendererStateRef.current?.controls;
+          if (c) c.maxDistance = worldOnRef.current ? 24 : 12;
+          if (back) {
+            // 俯瞰期间角色可能走动过:回到「跟在角色身后」的相对机位
+            const p = positionRef.current;
+            const off = { x: back.pos[0] - back.target[0], y: back.pos[1] - back.target[1], z: back.pos[2] - back.target[2] };
+            cam.flyTo([p.x + off.x, back.target[1] + off.y, p.z + off.z], [p.x, back.target[1], p.z], 1.1);
+          }
+        }
+      },
+      getWorldSnapshot: () => {
+        if (!worldOnRef.current) return null;
+        const rs = rendererStateRef.current;
+        const snap = worldApiRef.current.snapshot();
+        let camYaw = 0;
+        if (rs) {
+          const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
+          camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
+        }
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters, sit: sitRef.current?.y ?? null, y: groundYRef.current };
+      },
+      seatSpots: (id, from) => worldApiRef.current.seatSpots(id, from),
+      sitAt: (spot) => {
+        moveAnimRef.current.active = false;
+        walkRef.current.moving = false;
+        // 镜头跟着挪过去(瞬移不带镜头,这里手动平移,和走路时一样)
+        const dx = spot.x - positionRef.current.x, dz = spot.z - positionRef.current.z;
+        const rs = rendererStateRef.current;
+        if (rs && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          camApiRef.current?.shift(dx, dz);
+          rs.camera.position.x += dx;
+          rs.camera.position.z += dz;
+          if (rs.controls) { rs.controls.target.x += dx; rs.controls.target.z += dz; }
+        }
+        positionRef.current.prevX = positionRef.current.x = spot.x;
+        positionRef.current.prevZ = positionRef.current.z = spot.z;
+        sitRef.current = spot;
+      },
+      standUp: () => {
+        const s = sitRef.current;
+        if (!s) return;
+        sitRef.current = null;
+        const dx = s.approach.x - positionRef.current.x, dz = s.approach.z - positionRef.current.z;
+        const rs = rendererStateRef.current;
+        if (rs && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          camApiRef.current?.shift(dx, dz);
+          rs.camera.position.x += dx;
+          rs.camera.position.z += dz;
+          if (rs.controls) { rs.controls.target.x += dx; rs.controls.target.z += dz; }
+        }
+        handleInternalRef.current?.setPosition(s.approach.x, s.approach.z);
+      },
+      sitting: () => sitRef.current,
+      setBlockGrid: (grid) => worldApiRef.current.setBlockGrid(grid),
+      setTerrain: (t) => worldApiRef.current.setTerrain(t),
+      setTerrainWater: (w) => worldApiRef.current.setTerrainWater(w),
+      applyTerrainPatch: (p) => worldApiRef.current.applyTerrainPatch(p),
+      terrainPick: (x, y) => worldApiRef.current.terrainPick(x, y),
+      setTerrainBrush: (b) => worldApiRef.current.setTerrainBrush(b),
+      applyBlockOps: (ops) => worldApiRef.current.applyBlockOps(ops),
+      setBuilding: (on) => worldApiRef.current.setBuilding(on),
+      setDiving: (on) => { diveHoldRef.current = on; },
+      inLiquid: () => worldOnRef.current && worldApiRef.current.inLiquid(positionRef.current.x, positionRef.current.z, groundYRef.current),
+      blockPick: (x, y) => worldApiRef.current.blockPick(x, y),
+      setBlockGhost: (a, b, remove) => worldApiRef.current.setBlockGhost(a, b, remove),
+      setPeers: (peers) => worldApiRef.current.setPeers(peers),
+      setAura: (value) => worldApiRef.current.setAura(value),
+      floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),
+      characterSay: (id, text) => worldApiRef.current.characterSay(id, text),
+      setPlacements: (list) => worldApiRef.current.setPlacements(list),
+      upsertPlacement: (p) => worldApiRef.current.upsertPlacement(p),
+      removePlacement: (id) => worldApiRef.current.removePlacement(id),
+      selectPlacement: (id) => worldApiRef.current.selectPlacement(id),
+      getPlacementGroup: (id) => worldApiRef.current.placementGroup(id),
+      captureFrame: (maxW = 640) => {
+        const rs = rendererStateRef.current;
+        if (!rs?.renderer || !rs.scene || !rs.camera) return null;
+        const hidden: import('three').Object3D[] = [];
+        rs.scene.traverse((o: import('three').Object3D) => { if (o.userData.noCapture && o.visible) { o.visible = false; hidden.push(o); } });
+        try {
+          // 没开 preserveDrawingBuffer:画完马上在同一个任务里读
+          if (!(worldOnRef.current && worldApiRef.current.render(rs.renderer, rs.scene, rs.camera, performance.now() / 1000))) rs.renderer.render(rs.scene, rs.camera);
+          const src = rs.renderer.domElement;
+          const W = src.width, H = src.height;
+          let cw = W, ch = Math.round((W * 9) / 16);
+          if (ch > H) { ch = H; cw = Math.round((H * 16) / 9); }
+          const out = document.createElement('canvas');
+          out.width = Math.min(maxW, cw);
+          out.height = Math.round((out.width * 9) / 16);
+          const ctx = out.getContext('2d');
+          if (!ctx || !cw || !ch) return null;
+          ctx.drawImage(src, (W - cw) / 2, (H - ch) / 2, cw, ch, 0, 0, out.width, out.height);
+          return out.toDataURL('image/jpeg', 0.82);
+        } catch {
+          return null;
+        } finally {
+          hidden.forEach((o) => { o.visible = true; });
+        }
+      },
+      getThree: () => {
+        const rs = rendererStateRef.current;
+        if (!rs?.scene || !rs?.camera || !rs?.renderer || !canvasRef.current) return null;
+        return { THREE: rs.THREE_NS, scene: rs.scene, camera: rs.camera, renderer: rs.renderer, controls: rs.controls, canvas: canvasRef.current };
+      },
+      setRoomAlign: (a) => worldApiRef.current.setRoomAlign(a),
+      autoFitRoom: () => worldApiRef.current.autoFitRoom(),
+      applyAvatarParams: (p) => { avatarParamsRef.current = p; applyAvatarNow(); },
+      getAvatarInfo: () => (vrmDataRef.current ? inspectAvatar(vrmDataRef.current.vrm) : null),
+      setRoomPeers: (list) => worldApiRef.current.setRoomPeers(list),
+      peerSay: (id, text) => worldApiRef.current.peerSay(id, text),
+      setPeerVoiceLevels: (fn) => worldApiRef.current.setPeerVoiceLevels(fn),
+      enterScene: () => {
+        // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
+        moveAnimRef.current.active = false;
+        positionRef.current.prevX = positionRef.current.x = 0;
+        positionRef.current.prevZ = positionRef.current.z = 1.2;
+        yawRef.current = 0;
+        overviewPoseRef.current = null;
+        fovTargetRef.current = null;
+        camApiRef.current?.flyTo([0, 1.2, 5.9], [0, 0.95, 1.2], 0.6);
       },
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

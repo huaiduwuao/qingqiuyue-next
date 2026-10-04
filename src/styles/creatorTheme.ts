@@ -145,16 +145,18 @@ export function douyinLightTheme(primaryColor: string = '#FE2C55') {
         main: primaryColor,
         contrastText: '#FFFFFF',
       },
+      // 浅色底上原来的亮青/亮绿/亮黄当文字只有 1.3–2:1 对比度,白字按钮也看不清;
+      // 浅色主题 main 取深一档,原亮色留在 light 里(深色主题不变)
       secondary: {
-        main: '#25F4EE',
-        light: '#5DF7F2',
-        dark: '#1AC3BD',
+        main: '#0891B2',
+        light: '#25F4EE',
+        dark: '#0E7490',
         contrastText: '#FFFFFF',
       },
-      success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
+      success: { main: '#16A34A', light: '#5DDB96', dark: '#15803D' },
       error: { main: primaryColor, contrastText: '#FFFFFF' },
-      warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
-      info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
+      warning: { main: '#D97706', light: '#FFB400', dark: '#B45309' },
+      info: { main: '#0891B2', light: '#25F4EE', dark: '#0E7490' },
       background: {
         default: '#F5F5F7',
         paper: '#FFFFFF',

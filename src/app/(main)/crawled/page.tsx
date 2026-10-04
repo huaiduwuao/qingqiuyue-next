@@ -16,6 +16,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { myPage, ModuleContentItem } from '@/apis/module-content';
 import { listSources } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -36,6 +37,8 @@ export default function CrawledPage() {
   const navigate = useContentNavigate();
   const [sourceFilter, setSourceFilter] = useState('');
   const [titleQ, setTitleQ] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [allSources, setAllSources] = useState<SourceOption[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [typeBreakdown, setTypeBreakdown] = useState<Record<string, number>>({});
@@ -59,13 +62,16 @@ export default function CrawledPage() {
   const fetchData = useCallback(
     async (params: any) => {
       try {
-        const pageNumber = (params.pageNumber || 0) + 1;
+        // DataGridTable 给的 pageNumber 已经是 1 起
+        const pageNumber = params.pageNumber || 1;
         const pageSize = params.pageSize || 20;
         const res = await myPage({
           page: pageNumber,
           pageSize,
           sourceLabel: sourceFilter || undefined,
           title: titleQ || undefined,
+          contentType: typeFilter || undefined,
+          status: statusFilter || undefined,
         });
         const records: ModuleContentItem[] = res.list || [];
         const total = res.total || 0;
@@ -88,7 +94,7 @@ export default function CrawledPage() {
         return { records: [], totalRow: 0 };
       }
     },
-    [sourceFilter, titleQ]
+    [sourceFilter, titleQ, typeFilter, statusFilter]
   );
 
   const handleView = useCallback(
@@ -127,6 +133,17 @@ export default function CrawledPage() {
         width: 90,
         renderCell: (p) => (
           <Chip label={TYPE_LABEL[p.value] || p.value} size="small" variant="outlined" />
+        ),
+      },
+      {
+        field: 'playable',
+        headerName: '可播',
+        width: 96,
+        sortable: false,
+        renderCell: (p) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <PlayTag id={p.row.id} contentType={p.row.contentType} variant="inline" />
+          </Box>
         ),
       },
       { field: 'author', headerName: '作者', width: 110 },
@@ -213,6 +230,34 @@ export default function CrawledPage() {
             onChange={(e) => setTitleQ(e.target.value)}
             sx={{ minWidth: 220 }}
           />
+          <TextField
+            select
+            size="small"
+            label="类型"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            sx={{ minWidth: 130 }}
+          >
+            <MenuItem value="">全部类型</MenuItem>
+            {Object.entries(TYPE_LABEL).map(([k, v]) => (
+              <MenuItem key={k} value={k}>
+                {v}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="状态"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="">全部状态</MenuItem>
+            <MenuItem value="PUBLISH">已发布(PUBLISH)</MenuItem>
+            <MenuItem value="active">已发布(爬虫 active)</MenuItem>
+            <MenuItem value="UN_PUBLISH">已下架</MenuItem>
+          </TextField>
           <Box sx={{ flex: 1 }} />
           {/* 类型分布 */}
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
@@ -251,7 +296,7 @@ export default function CrawledPage() {
       <DataGridTable
         columns={columns}
         fetchData={fetchData}
-        extraParams={{ sourceLabel: sourceFilter, title: titleQ }}
+        extraParams={{ sourceLabel: sourceFilter, title: titleQ, contentType: typeFilter, status: statusFilter }}
       />
     </Box>
   );

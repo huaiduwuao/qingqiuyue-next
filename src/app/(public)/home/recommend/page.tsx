@@ -18,6 +18,7 @@ import { moduleContentPage } from '@/apis/home';
 import { getHotTopics, Topic } from '@/apis/topic';
 import TopicCover from '@/components/topic/TopicCover';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG, IMAGE_OVERLAY } from '@/constants/gradients';
@@ -112,7 +113,9 @@ export default function HomeRecommendPage() {
   // 兼容 tab 和 section 两种 URL 参数名（后端用 section，前端导航用 tab）
   const tabParam = searchParams.get('tab');
   const sectionParam = searchParams.get('section');
-  const tabFromUrl = tabParam || sectionParam || 'all';
+  // 首页默认页签是「推荐」(沉浸式视频流):没带 tab 时这里也按 recommend 渲染,
+  // 否则落到下面的分类网格。只带 section 的链接由 home/layout 送去精选,不会走到这里。
+  const tabFromUrl = tabParam || sectionParam || 'recommend';
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
 
   const quickLinks = QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry);
@@ -433,6 +436,8 @@ export default function HomeRecommendPage() {
                     >
                       {rank}
                     </Box>
+                    {/* 左上名次、右上播放量,能不能播挂在名次下面 */}
+                    <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={6} top={42} />
 
                     {item.viewCount !== undefined && (
                       <Box
@@ -448,7 +453,7 @@ export default function HomeRecommendPage() {
                           borderRadius: 1,
                           bgcolor: 'rgba(0,0,0,0.5)',
                           backdropFilter: 'blur(4px)',
-                          color: 'text.primary',
+                          color: '#fff',
                           fontSize: 10,
                           fontFamily: 'monospace',
                         }}
@@ -472,7 +477,7 @@ export default function HomeRecommendPage() {
                         sx={{
                           fontSize: 12,
                           fontWeight: 500,
-                          color: 'text.primary',
+                          color: '#fff',
                           lineHeight: 1.3,
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
@@ -590,7 +595,8 @@ function RecommendRow({ item, rank, gradient, onOpen }: { item: ContentItem; ran
           <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255, 88, 88, 0.15)', color: 'primary.main', fontSize: 10, fontWeight: 600 }}>
             {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
           </Box>
-          {item.author?.nickname && <span>{item.author.nickname}</span>}
+          <PlayTag id={item.id} contentType={item.contentType} sx={{ flexShrink: 0 }} />
+          {item.author?.nickname && <Box component="span" sx={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.author.nickname}</Box>}
           {item.viewCount !== undefined && (
             <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
               <PlayArrowRoundedIcon sx={{ fontSize: 12 }} />{formatCount(item.viewCount)}
@@ -879,12 +885,13 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
               justifyContent: 'center',
               fontSize: 11,
               fontWeight: 800,
-              color: 'text.primary',
+              color: '#fff',
               boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
             }}
           >
             {i + 1}
           </Box>
+          <PlayTag variant="overlay" id={c.id} contentType={c.category?.toUpperCase()} top={6} right={6} />
           <Box
             sx={{
               position: 'absolute',
@@ -895,13 +902,13 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
               background: IMAGE_OVERLAY.TO_TOP,
             }}
           >
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, currentColor)', lineHeight: 1.2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
               {c.title}
             </Typography>
             <Typography
               sx={{
                 fontSize: 9,
-                color: 'var(--text-secondary, currentColor)',
+                color: 'rgba(255,255,255,0.75)',
                 mt: 0.25,
                 lineHeight: 1.2,
               }}

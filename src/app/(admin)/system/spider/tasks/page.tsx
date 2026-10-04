@@ -54,6 +54,12 @@ const RETRYABLE = new Set(['stopped', 'failed', 'completed', 'stalled', 'killed'
 const PHASE_LABELS: Record<string, string> = {
   queued: '排队中', discovering: '发现分类', categories: '分类翻页', home: '首页链接',
   incremental: '增量更新', done: '已完成', stopped: '已停止', failed: '失败',
+  // 补全 / 修复任务(content_backfill / content_repair)的阶段
+  resolving: '定位书籍', catalog: '拉目录', fetching: '抓正文', aggregating: '对齐裁决', applying: '写库',
+};
+const STAT_LABELS: Record<string, string> = {
+  found: '发现', inserted: '新写入', updated: '更新', skipped: '跳过', failed: '失败',
+  sources_used: '试过的源', aggregated: '聚合章数',
 };
 const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100', proxyUrl: '' };
 
@@ -174,6 +180,8 @@ export default function SpiderTasksPage() {
   // 任务类型筛选。正文回填是持续产生的背景任务(见 go 端 chapter_backfill.go),
   // 不给一个能单独看/能滤掉的开关,任务页第一屏很快就只剩回填,手工任务反而看不见。
   const [jobType, setJobType] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [keyword, setKeyword] = useState<string>('');
   const statusKey = useMemo(() => liveTasks.map((t) => `${t.id}:${t.status}`).sort().join('|'), [liveTasks]);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
@@ -293,16 +301,30 @@ export default function SpiderTasksPage() {
             <MenuItem value="lyric_backfill">歌词回填</MenuItem>
             <MenuItem value="video_backfill">视频回填</MenuItem>
           </TextField>
+          <TextField select size="small" label="状态" value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)} sx={{ minWidth: 120 }}>
+            <MenuItem value="">全部</MenuItem>
+            {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </TextField>
+          <TextField size="small" label="关键词" placeholder="源名 / 域名 / URL / 任务ID" value={keyword}
+            onChange={(e) => setKeyword(e.target.value)} sx={{ width: 200 }} />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>新建任务</Button>
         </Box>
       </Box>
 
       <DataGridTable
         columns={columns}
-        extraParams={{ statusKey, reloadTick, jobType }}
+        extraParams={{ statusKey, jobType, statusFilter, keyword }}
+        refreshKey={reloadTick}
         fetchData={async (params) => {
           try {
-            const res = await listTasks({ page: params.pageNumber, pageSize: params.pageSize, type: jobType || undefined });
+            const res = await listTasks({
+              page: params.pageNumber,
+              pageSize: params.pageSize,
+              type: jobType || undefined,
+              status: statusFilter || undefined,
+              keyword: keyword.trim() || undefined,
+            });
             const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
             const list = (res.list || []).map((raw: any) => {
               const task = normalizeTask(raw);
@@ -439,6 +461,14 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
               <Alert severity={t.status === 'failed' ? 'error' : 'warning'} sx={{ mb: 1.5, '& .MuiAlert-message': { wordBreak: 'break-all' } }}>
                 {t.errorMsg ? `任务失败:${t.errorMsg}` : `最近一次错误:${p?.lastError}`}
               </Alert>
+            )}
+            {/* 回填 / 修复任务的统计(后端写在 progress.stats) */}
+            {p?.stats && Object.keys(p.stats).length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+                {Object.entries(p.stats as Record<string, number>).map(([k, v]) => (
+                  <Chip key={k} size="small" variant="outlined" label={`${STAT_LABELS[k] || k} ${v}`} />
+                ))}
+              </Box>
             )}
             {/* 回填任务的逐条失败明细(后端写在 progress.error_list) */}
             {Array.isArray(p?.error_list) && p.error_list.length > 0 && (

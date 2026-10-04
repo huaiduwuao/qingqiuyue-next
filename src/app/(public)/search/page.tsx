@@ -39,10 +39,12 @@ import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
+import { PlayTag } from '@/components/common/PlayTag';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
+import { useAutoLoad } from '@/hooks/useAutoLoad';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -76,6 +78,10 @@ interface SearchContentItem {
   matchField?: 'title' | 'subtitle' | 'author';
   /** §15.11 这条结果为什么出现:title-exact / alias-match / pinyin-match / hot-score-boost / auto-indexed … */
   reason?: string;
+  /** >1:同一部作品被几个数据源各收录了一条,后端并成了这一张卡(代表行优先选能看的) */
+  mergedCount?: number;
+  /** 被并进来的其余几条 */
+  variants?: { id: number | string; contentType: string; sourceLabel?: string; usable?: boolean }[];
 }
 interface SearchCreatorItem {
   id: number;
@@ -168,13 +174,37 @@ function SearchPageContent() {
   const aiMode = aiEnabled && searchParams.get('mode') === 'ai';
   const initialQ = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQ);
-  const [tab, setTab] = useState<ResultTab>('all');
+  // 结果页签和筛选的初值取自 URL,改动后写回 URL(见下方 filterQs),
+  // 点进详情再返回时还原 —— 以前只有关键词能回来,页签和筛选全丢。
+  const [tab, setTab] = useState<ResultTab>(() => parseResultTab(searchParams.get('tab')));
   // 结构化筛选:类型/导演/演员/类型标签/年代(走后端 /search 的 metadata 结构化参数)
-  const [fType, setFType] = useState('');
-  const [fDirector, setFDirector] = useState('');
-  const [fActor, setFActor] = useState('');
-  const [fGenre, setFGenre] = useState('');
-  const [fYear, setFYear] = useState('');
+  const [fType, setFType] = useState(() => searchParams.get('type') ?? '');
+  const [fDirector, setFDirector] = useState(() => searchParams.get('director') ?? '');
+  const [fActor, setFActor] = useState(() => searchParams.get('actor') ?? '');
+  const [fGenre, setFGenre] = useState(() => searchParams.get('genre') ?? '');
+  const [fYear, setFYear] = useState(() => searchParams.get('year') ?? '');
+  // 只看站内能看 / 能读的(后端 usable=1)
+  const [fUsable, setFUsable] = useState(() => searchParams.get('usable') === '1');
+  const filterQs = React.useMemo(() => {
+    const p = new URLSearchParams();
+    if (tab !== 'all') p.set('tab', tab);
+    if (fType) p.set('type', fType);
+    if (fDirector) p.set('director', fDirector);
+    if (fActor) p.set('actor', fActor);
+    if (fGenre) p.set('genre', fGenre);
+    if (fYear) p.set('year', fYear);
+    if (fUsable) p.set('usable', '1');
+    return p.toString();
+  }, [tab, fType, fDirector, fActor, fGenre, fYear, fUsable]);
+  // 导演/演员是文本框,边打边改 URL 会打断输入法,停手 300ms 再写。
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const cur = new URLSearchParams(window.location.search);
+      const href = searchHref(cur.get('q') ?? '', cur.get('mode') === 'ai', filterQs);
+      if (href !== window.location.pathname + window.location.search) router.replace(href, { scroll: false });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [filterQs]); // eslint-disable-line react-hooks/exhaustive-deps
   // 动态聚合建议当前字段(聚焦导演/演员输入时拉取候选)
   const [facetField, setFacetField] = useState('');
   const [history, setHistory] = useState<string[]>([]);
@@ -280,16 +310,22 @@ function SearchPageContent() {
   });
   const facetSuggestions = facetsQuery.data ?? [];
 
-  const searchKey = [query.trim(), fType, fDirector, fActor, fGenre, fYear].join('|');
-  const searchQueryKey = ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear];
+  const searchKey = [query.trim(), fType, fDirector, fActor, fGenre, fYear, fUsable ? 'u' : ''].join('|');
+  const searchQueryKey = ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear, fUsable];
   const queryClient = useQueryClient();
 
   const searchQuery = useQuery({
     queryKey: searchQueryKey,
-    queryFn: async (): Promise<{ items: SearchContentItem[]; discover: DiscoverState | null; guess: GuessState | null }> => {
+    queryFn: async (): Promise<{
+      items: SearchContentItem[];
+      total: number;
+      hasMore: boolean;
+      discover: DiscoverState | null;
+      guess: GuessState | null;
+    }> => {
       const q = query.trim();
       const hasFilter = !!(fType || fDirector || fActor || fGenre || fYear);
-      if (!q && !hasFilter) return { items: [], discover: null, guess: null };
+      if (!q && !hasFilter) return { items: [], total: 0, hasMore: false, discover: null, guess: null };
       // 走统一 GET /search(kw + 结构化筛选参数),见 src/apis/search.ts
       const res = (await searchContent(q, {
         type: fType || undefined,
@@ -297,39 +333,20 @@ function SearchPageContent() {
         actor: fActor || undefined,
         genre: fGenre || undefined,
         year: fYear || undefined,
+        usable: fUsable ? 1 : undefined,
       })) as any;
-      const list = res?.list || res || [];
-      const items = (Array.isArray(list) ? list : []).map((it: any) => {
-        const type = (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'];
-        // 命中位置:后端没显式给 matchField,前端按"关键词是否在 title/author 里"推断,
-        // 让卡片右下角那个"标题/描述/作者命中"标签有意义。
-        const lq = q.toLowerCase();
-        let matchField: SearchContentItem['matchField'] = 'title';
-        if (it.title && lq && it.title.toLowerCase().includes(lq)) matchField = 'title';
-        else if (it.author && lq && it.author.toLowerCase().includes(lq)) matchField = 'author';
-        else matchField = 'subtitle';
-        return {
-          id: it.id ?? 0,
-          title: it.title || it.name || '未命名',
-          subtitle: it.subtitle || it.info || it.description,
-          contentType: type,
-          cover: it.cover || it.coverUrl || undefined,
-          author: it.author || it.username || it.userName || '清秋月',
-          score: typeof it.score === 'number' ? it.score : undefined,
-          availability: it.availability,
-          usable: Boolean(it.usable),
-          readyItems: typeof it.readyItems === 'number' ? it.readyItems : undefined,
-          totalItems: typeof it.totalItems === 'number' ? it.totalItems : undefined,
-          matchField,
-          // §15.11 后端算的 reason(为什么这条结果出现);后端没给就 undefined
-          reason: typeof it.reason === 'string' ? it.reason : undefined,
-        } as SearchContentItem;
-      });
+      const items = toSearchItems(res, q);
       // 类型猜测:后端在用户没选分类时猜他想找的类型(并据此收窄全网检索源)。
       const guess: GuessState | null = res?.guessed_type
         ? { type: res.guessed_type, confidence: res.guessed_confidence ?? 0, source: res.guessed_source ?? '' }
         : null;
-      return { items, discover: (res?.discover as DiscoverState | undefined) ?? null, guess };
+      return {
+        items,
+        total: typeof res?.total === 'number' ? res.total : items.length,
+        hasMore: Boolean(res?.hasMore),
+        discover: (res?.discover as DiscoverState | undefined) ?? null,
+        guess,
+      };
     },
     enabled: !aiMode && (query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear)),
     staleTime: 60 * 1000,
@@ -350,22 +367,36 @@ function SearchPageContent() {
   useEffect(() => {
     const k = query.trim();
     if (!k || aiMode) return;
-    return subscribeSearchStream(
+    // 全网检索一轮会连着推几十条 indexed:每条都整页重搜 + 重渲染整个结果列表,页面会卡。
+    // 合并成最多每 SEARCH_STREAM_REFETCH_GAP 一次(尾部触发,最后一批不会丢)。
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let last = 0;
+    const refetchSoon = () => {
+      if (timer) return;
+      const wait = Math.max(0, last + SEARCH_STREAM_REFETCH_GAP - Date.now());
+      timer = setTimeout(() => {
+        timer = null;
+        last = Date.now();
+        void searchQuery.refetch();
+      }, wait);
+    };
+    const unsubscribe = subscribeSearchStream(
       k,
       (hit) => {
-        if (hit.type === 'indexed') {
-          // 命中:轻量 refetch 一次,新条目自然进入轮询结果。
-          searchQuery.refetch();
-        } else if (hit.type === 'done') {
-          // 后端已完成本轮,主动 refetch 后不再轮询
-          searchQuery.refetch();
+        if (hit.type === 'indexed' || hit.type === 'done') {
+          // 命中 / 本轮结束:合并后 refetch 一次,新条目自然进入结果。
+          refetchSoon();
         }
       },
       () => {
         /* §15.5 SSE 失败 — 不上报(降级到轮询是正常路径,不是错误);
            真正的异常由 fetch catch 处经 safeErrorLog 上报 */
       },
-    )
+    );
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, aiMode]);
 
@@ -375,6 +406,8 @@ function SearchPageContent() {
     const k = query.trim();
     if (!k) return;
     const seen = new Set<string>();
+    // 已交给 observer 的卡片:扫描时只挂新出现的,不再每 1.5 秒把所有卡片重挂一遍。
+    const observed = new WeakSet<Element>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -393,7 +426,9 @@ function SearchPageContent() {
     // 监听后续渲染:每 1.5s 扫描一次 data-cid
     const tick = setInterval(() => {
       document.querySelectorAll('[data-cid]').forEach((el) => {
+        if (observed.has(el)) return;
         if (!seen.has((el as HTMLElement).dataset['cid'] || '')) {
+          observed.add(el);
           observer.observe(el);
         }
       });
@@ -408,7 +443,55 @@ function SearchPageContent() {
   const q = query.trim();
   const hasQuery = q.length > 0;
 
-  const contents = searchQuery.data?.items ?? [];
+  // 滚到底自动翻出来的后续页;换关键词/筛选(searchKey 变)就作废。
+  const [more, setMore] = useState<{ key: string; items: SearchContentItem[]; page: number; hasMore: boolean }>({
+    key: '',
+    items: [],
+    page: 1,
+    hasMore: false,
+  });
+  const [loadingMore, setLoadingMore] = useState(false);
+  // 自动翻页失败时记下是哪次搜索,停下等用户点重试,免得哨兵还在可视区就无限重试
+  const [moreFailedKey, setMoreFailedKey] = useState<string | null>(null);
+  const firstPage = searchQuery.data?.items ?? [];
+  const extra = more.key === searchKey ? more.items : [];
+  const contents = extra.length
+    ? [...firstPage, ...extra.filter((x) => !firstPage.some((f) => f.id === x.id))]
+    : firstPage;
+  const contentHasMore = more.key === searchKey ? more.hasMore : Boolean(searchQuery.data?.hasMore);
+  // 后端给的是全部命中数,页面一次只拿一页;两者取大,别出现「共 20 条」其实还有几百条。
+  const contentTotal = Math.max(searchQuery.data?.total ?? 0, contents.length);
+  const loadMoreContents = async () => {
+    if (loadingMore) return;
+    const page = (more.key === searchKey ? more.page : 1) + 1;
+    setLoadingMore(true);
+    setMoreFailedKey(null);
+    try {
+      const res = (await searchContent(query.trim(), {
+        page,
+        type: fType || undefined,
+        director: fDirector || undefined,
+        actor: fActor || undefined,
+        genre: fGenre || undefined,
+        year: fYear || undefined,
+        usable: fUsable ? 1 : undefined,
+      })) as any;
+      const items = toSearchItems(res, query.trim());
+      setMore((prev) => ({
+        key: searchKey,
+        items: [...(prev.key === searchKey ? prev.items : []), ...items],
+        page,
+        hasMore: Boolean(res?.hasMore),
+      }));
+    } catch {
+      setMoreFailedKey(searchKey);
+      setSnack({ open: true, message: '加载更多失败，请稍后再试', severity: 'error' });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+  const moreFailed = moreFailedKey === searchKey;
+  const contentSentinel = useAutoLoad(tab === 'content' && contentHasMore && !moreFailed, loadingMore, () => void loadMoreContents());
   const discover = searchQuery.data?.discover ?? null;
   // 类型猜测:仅在用户没手动选分类时展示(选了就不必提示)。
   const guess = searchQuery.data?.guess ?? null;
@@ -419,15 +502,15 @@ function SearchPageContent() {
   const [sawDiscovering, setSawDiscovering] = useState('');
   if (discovering && sawDiscovering !== searchKey) setSawDiscovering(searchKey);
   const discoverJustDone = !discovering && discover?.status === 'done' && sawDiscovering === searchKey;
-  const total = contents.length + creators.length + topics.length;
+  const total = contentTotal + creators.length + topics.length;
   const loading = searchQuery.isPending;
 
   const pushQuery = useCallback(
     (next: string) => {
       const trimmed = next.trim();
-      router.replace(searchHref(trimmed, aiMode), { scroll: false });
+      router.replace(searchHref(trimmed, aiMode, filterQs), { scroll: false });
     },
-    [router, aiMode],
+    [router, aiMode, filterQs],
   );
 
   const handleSubmit = () => {
@@ -440,7 +523,7 @@ function SearchPageContent() {
 
   const handleClear = () => {
     setQuery('');
-    router.replace(searchHref('', aiMode), { scroll: false });
+    router.replace(searchHref('', aiMode, filterQs), { scroll: false });
   };
 
   const handleBack = () => {
@@ -452,7 +535,7 @@ function SearchPageContent() {
   };
 
   const switchMode = (ai: boolean) => {
-    router.replace(searchHref(q, ai), { scroll: false });
+    router.replace(searchHref(q, ai, filterQs), { scroll: false });
   };
 
   const handleKeywordPick = (kw: string) => {
@@ -684,6 +767,31 @@ function SearchPageContent() {
           suggestions={facetField === 'genre' ? facetSuggestions : []}
         />
         <FilterField value={fYear} onChange={setFYear} placeholder="年代(2020)" inputMode="numeric" />
+        <Box
+          component="button"
+          aria-pressed={fUsable}
+          onClick={() => setFUsable((v) => !v)}
+          sx={{
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1.25,
+            py: 0.35,
+            borderRadius: 999,
+            border: '1px solid',
+            borderColor: fUsable ? '#22c55e' : 'var(--border-color, rgba(255,255,255,0.12))',
+            bgcolor: fUsable ? '#22c55e1F' : 'transparent',
+            color: fUsable ? '#22c55e' : 'var(--text-muted, rgba(255,255,255,0.65))',
+            fontSize: 11.5,
+            fontWeight: fUsable ? 600 : 400,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: fUsable ? '#22c55e' : 'currentColor', opacity: fUsable ? 1 : 0.5 }} />
+          只看能看的
+        </Box>
         {(fType || fDirector || fActor || fGenre || fYear) && (
           <Box
             component="button"
@@ -774,12 +882,12 @@ function SearchPageContent() {
                     textTransform: 'none',
                     py: 1,
                   },
-                  '& .Mui-selected': { color: '#fff !important', fontWeight: 700 },
+                  '& .Mui-selected': { color: 'var(--text-primary) !important', fontWeight: 700 },
                   '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
                 }}
               >
                 <Tab value="all" label={`全部 ${total}`} />
-                <Tab value="content" label={`内容 ${contents.length}`} />
+                <Tab value="content" label={`内容 ${contentTotal}`} />
                 <Tab value="creator" label={`创作者 ${creators.length}`} />
                 <Tab value="topic" label={`话题 ${topics.length}`} />
               </Tabs>
@@ -790,7 +898,9 @@ function SearchPageContent() {
               query={q}
               discovering={discovering}
               justDone={discoverJustDone}
-              indexed={(discover?.indexed ?? 0) + (discover?.merged ?? 0)}
+              indexed={discover?.indexed ?? 0}
+              merged={discover?.merged ?? 0}
+              total={contentTotal}
               empty={total === 0}
             />
 
@@ -817,9 +927,9 @@ function SearchPageContent() {
                 {(tab === 'all' || tab === 'content') && contents.length > 0 && (
                   <Section
                     title="内容"
-                    count={contents.length}
+                    count={contentTotal}
                     visible={tab === 'all' ? Math.min(contents.length, 4) : contents.length}
-                    onMore={tab === 'all' && contents.length > 4 ? () => setTab('content') : undefined}
+                    onMore={tab === 'all' && contentTotal > 4 ? () => setTab('content') : undefined}
                     moreLabel="查看全部内容"
                   >
                     {contents
@@ -836,6 +946,16 @@ function SearchPageContent() {
                           positionForImpression={i}
                         />
                       ))}
+                    {tab === 'content' && contentHasMore && (
+                      <Box ref={contentSentinel} sx={{ display: 'flex', justifyContent: 'center', pt: 1, minHeight: 24 }}>
+                        {loadingMore && <CircularProgress size={18} />}
+                        {moreFailed && !loadingMore && (
+                          <Button size="small" onClick={() => void loadMoreContents()} sx={{ color: 'text.secondary' }}>
+                            加载失败,点此重试
+                          </Button>
+                        )}
+                      </Box>
+                    )}
                   </Section>
                 )}
                 {(tab === 'all' || tab === 'creator') && creators.length > 0 && (
@@ -906,8 +1026,43 @@ function SearchPageContent() {
   );
 }
 
+/** 后端 /search 的 list → 结果卡片数据;第一页和「加载更多」共用。 */
+function toSearchItems(res: any, q: string): SearchContentItem[] {
+  const list = res?.list || res || [];
+  const lq = q.toLowerCase();
+  return (Array.isArray(list) ? list : []).map((it: any) => {
+    const type = (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'];
+    // 命中位置:后端没显式给 matchField,前端按"关键词是否在 title/author 里"推断,
+    // 让卡片右下角那个"标题/描述/作者命中"标签有意义。
+    let matchField: SearchContentItem['matchField'] = 'title';
+    if (it.title && lq && it.title.toLowerCase().includes(lq)) matchField = 'title';
+    else if (it.author && lq && it.author.toLowerCase().includes(lq)) matchField = 'author';
+    else matchField = 'subtitle';
+    return {
+      id: it.id ?? 0,
+      title: it.title || it.name || '未命名',
+      subtitle: it.subtitle || it.info || it.description,
+      contentType: type,
+      cover: it.cover || it.coverUrl || undefined,
+      author: it.author || it.username || it.userName || '清秋月',
+      score: typeof it.score === 'number' ? it.score : undefined,
+      availability: it.availability,
+      usable: Boolean(it.usable),
+      readyItems: typeof it.readyItems === 'number' ? it.readyItems : undefined,
+      totalItems: typeof it.totalItems === 'number' ? it.totalItems : undefined,
+      matchField,
+      // §15.11 后端算的 reason(为什么这条结果出现);后端没给就 undefined
+      reason: typeof it.reason === 'string' ? it.reason : undefined,
+      mergedCount: typeof it.mergedCount === 'number' ? it.mergedCount : undefined,
+      variants: Array.isArray(it.variants) ? it.variants : undefined,
+    } as SearchContentItem;
+  });
+}
+
 // 全网检索进行中每 2.5 秒重搜一次,最多约 40 秒。
 const DISCOVER_POLL_INTERVAL = 2500;
+/** 全网检索推送(SSE)触发重搜的最小间隔。 */
+const SEARCH_STREAM_REFETCH_GAP = 2000;
 const DISCOVER_MAX_POLLS = 16;
 
 /**
@@ -920,15 +1075,22 @@ function DiscoverBanner({
   discovering,
   justDone,
   indexed,
+  merged,
+  total,
   empty,
 }: {
   query: string;
   discovering: boolean;
   justDone: boolean;
+  /** 这轮全网检索新建的条目数 */
   indexed: number;
+  /** 搜到、但并进了站内已有条目的数 */
+  merged: number;
+  /** 站内现在一共命中多少条(含刚收录的) */
+  total: number;
   empty: boolean;
 }) {
-  if (!discovering && !(justDone && indexed > 0)) return null;
+  if (!discovering && !(justDone && indexed + merged > 0)) return null;
   return (
     <Box
       role="status"
@@ -954,7 +1116,9 @@ function DiscoverBanner({
       <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.75))' }}>
         {discovering
           ? `站内${empty ? '暂无' : '结果较少'}，正在全网检索「${query}」，新收录的作品会自动出现在这里…`
-          : `全网检索完成，已收录 ${indexed} 条相关作品`}
+          : indexed > 0
+            ? `全网检索完成，新收录 ${indexed} 条，站内共 ${total} 条相关结果`
+            : `全网检索完成，站内已有这些作品，共 ${total} 条相关结果`}
       </Typography>
     </Box>
   );
@@ -1093,15 +1257,6 @@ function ContentResult({
   // 没有封面图时,用类型色做渐变兜底(永远不至于一片黑)。
   const fallbackBg = `linear-gradient(135deg, ${TYPE_ACCENT[item.contentType]} 0%, rgba(20,20,30,0.85) 100%)`;
   const scorePct = typeof item.score === 'number' ? Math.round(item.score * 100) : null;
-  // 可用性徽标:usable=true 给绿色"可读/可播";其它状态(pending/partial/blocked)用中性色 + 文案,
-  // 让用户搜到"求魔"这种站内还没收录完整章节的也知道点进去会看到什么。
-  const availabilityBadge = (() => {
-    if (item.usable) return { label: '可读可播', color: '#22c55e' };
-    if (item.availability === 'partial') return { label: '部分章节', color: '#f59e0b' };
-    if (item.availability === 'pending') return { label: '收录中', color: '#94a3b8' };
-    if (item.availability === 'blocked') return { label: '暂不可读', color: '#ef4444' };
-    return null;
-  })();
   // 章节进度:有 readyItems/totalItems 时显示 "12/345 章" 之类,小说/剧集用户最关心。
   const chapterLabel =
     item.readyItems != null && item.totalItems != null && item.totalItems > 0
@@ -1166,7 +1321,7 @@ function ContentResult({
             borderRadius: 0.5,
             bgcolor: 'rgba(0,0,0,0.45)',
             backdropFilter: 'blur(4px)',
-            color: 'var(--text-primary, #fff)',
+            color: '#fff',
             fontSize: 9,
             fontWeight: 700,
             letterSpacing: 0.3,
@@ -1186,7 +1341,7 @@ function ContentResult({
               borderRadius: 0.5,
               bgcolor: 'rgba(0,0,0,0.55)',
               backdropFilter: 'blur(4px)',
-              color: 'var(--text-primary, #fff)',
+              color: '#fff',
               fontSize: 9,
               fontWeight: 600,
               fontFamily: 'monospace',
@@ -1280,33 +1435,22 @@ function ContentResult({
               </Typography>
             </>
           )}
-          {availabilityBadge && (
+          {/* 能不能播 / 能不能读:搜索结果自带 availability(playability 状态),直接给 PlayTag,不再发请求 */}
+          <PlayTag id={item.id} contentType={item.contentType} status={item.availability} variant="inline" />
+          {(item.mergedCount ?? 0) > 1 && (
             <>
               <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.4,
-                  px: 0.6,
-                  py: 0.15,
-                  borderRadius: 0.5,
-                  bgcolor: `${availabilityBadge.color}1F`,
-                  color: availabilityBadge.color,
-                  fontSize: 10,
-                  fontWeight: 600,
-                }}
+              <Tooltip
+                arrow
+                placement="top"
+                title={`同一部作品在 ${item.mergedCount} 个数据源各有一条收录,已合并显示${
+                  item.usable ? ',这里打开的是能看的那条' : ''
+                }:${[...new Set((item.variants || []).map((v) => v.sourceLabel?.replace(/\s*\[.*?\]/g, '') || ''))].filter(Boolean).join('、')}`}
               >
-                <Box
-                  sx={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: '50%',
-                    bgcolor: availabilityBadge.color,
-                  }}
-                />
-                {availabilityBadge.label}
-              </Box>
+                <Typography component="span" sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.55))', cursor: 'help' }}>
+                  已合并 {item.mergedCount} 个来源
+                </Typography>
+              </Tooltip>
             </>
           )}
           {item.reason && REASON_HINT[item.reason] && (
@@ -1839,8 +1983,8 @@ function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggest
             overflowY: 'auto',
             borderRadius: 1.5,
             border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
-            bgcolor: 'var(--bg-panel, rgba(20,20,26,0.98))',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            bgcolor: 'var(--bg-elevated)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
             backdropFilter: 'blur(12px)',
           }}
         >
@@ -1876,10 +2020,16 @@ function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggest
   );
 }
 
-function searchHref(q: string, ai: boolean): string {
+function parseResultTab(v: string | null): ResultTab {
+  return v === 'content' || v === 'creator' || v === 'topic' ? v : 'all';
+}
+
+/** filterQs:页签 + 结构化筛选,换关键词 / 换模式时一并带上,不让它们从 URL 里掉出去。 */
+function searchHref(q: string, ai: boolean, filterQs = ''): string {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (ai) params.set('mode', 'ai');
+  new URLSearchParams(filterQs).forEach((v, k) => params.set(k, v));
   const qs = params.toString();
   return qs ? `/search?${qs}` : '/search';
 }

@@ -7,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { mediaUrl } from '@/lib/media';
-import { originOnlyPlatform } from '@/lib/embedPlayer';
+import { originOnlyPlatform } from '@/lib/sourcePage';
 
 /**
  * 全网检索收录的作品(后端 internal/discover)在详情里带:
@@ -21,6 +21,8 @@ export interface ExternalPlatform {
   name?: string;
   url: string;
   vip?: boolean;
+  /** 平台明确标了免费(爱奇艺免费片单等);vip=false 只是没标会员,不等于免费 */
+  free?: boolean;
 }
 
 interface WithPlatforms {
@@ -50,7 +52,7 @@ export function playNoticeOf(data?: WithPlatforms | null): string {
  * 播放器位置该不该直接换成「去原平台」面板,该的话返回要显示的说明,否则空串。
  *
  * 除了后端明说的 playNotice,还有一类:片源页是正版长视频平台或聚合索引页(见
- * lib/embedPlayer 的 originOnlyPlatform),本站放不了也嵌不了,而详情里又带着各平台入口 ——
+ * lib/sourcePage 的 originOnlyPlatform),本站放不了也嵌不了,而详情里又带着各平台入口 ——
  * 这时把页面交给播放器只会得到一句「不支持的URL平台 · 已记录,尽快修复」外加一条误报的
  * 故障举报。没有任何东西坏了:如实说去哪看。
  */
@@ -110,6 +112,14 @@ export function PlatformLinks({
                 sx={{ ml: 0.75, px: 0.5, borderRadius: 0.5, fontSize: 10, lineHeight: '16px', bgcolor: 'warning.main', color: '#000' }}
               >
                 会员/付费
+              </Box>
+            )}
+            {!p.vip && p.free && (
+              <Box
+                component="span"
+                sx={{ ml: 0.75, px: 0.5, borderRadius: 0.5, fontSize: 10, lineHeight: '16px', bgcolor: 'success.main', color: '#fff' }}
+              >
+                免费
               </Box>
             )}
           </Button>
@@ -179,7 +189,7 @@ export function UnavailablePlayer({
               endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
               sx={{ textTransform: 'none', borderRadius: 2 }}
             >
-              去{p.name || hostOf(p.url)}观看
+              去{p.name || hostOf(p.url)}{!p.vip && p.free ? '免费' : ''}观看
             </Button>
           ))}
         </Box>

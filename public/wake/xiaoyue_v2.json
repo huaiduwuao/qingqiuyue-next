@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "label": "小月",
+  "model": "xiaoyue_v2.onnx",
+  "features": "openwakeword-embedding",
+  "input": [1, 16, 96],
+  "threshold": 0.66,
+  "patience": 3,
+  "trainedAt": "2026-10-02T12:46:34+0000",
+  "note": "兜底模型(3 模型集成):10.7h 公开验证流 + 留出中文句子误唤醒 0.28 次/时,留出录音召回 100%;线上优先用沙盒最新训练的 /api/core/wake-word/model"
+}

@@ -159,6 +159,7 @@ export default function SystemUserPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         title="用户管理"
         columns={columns}
         fetchData={async (params) => {
@@ -176,7 +177,9 @@ export default function SystemUserPage() {
         filters={{
           fields: [
             { key: 'name', label: '名称', type: 'text' },
+            { key: 'mobile', label: '手机号', type: 'text', placeholder: '精确匹配' },
             { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+            { key: 'is_bot', label: '账号类型', type: 'select', options: [{ label: '真人', value: 0 }, { label: '假人', value: 1 }] },
           ],
           values: filterValues,
           onChange: setFilterValues,

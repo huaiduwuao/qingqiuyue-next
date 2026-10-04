@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -9,12 +9,17 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { homeClient } from '@/lib/api/client';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
-import { useContentNavigate, TYPE_LABEL } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch, TYPE_LABEL } from '@/lib/contentRoute';
 import { getFacets, FacetOption } from '@/apis/facets';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { RankStrip } from '@/components/common/RankStrip';
+import { PlayTag } from '@/components/common/PlayTag';
 
 /**
  * 放映厅 —— 电影 / 电视剧 / 动漫 / 综艺。
@@ -46,6 +51,8 @@ type TheaterItem = {
   /** 原始 content_type,仅兼容旧字段,展示与路由都不要用它。 */
   category?: string;
   durationMin?: number;
+  /** 电视剧 / 动漫 / 综艺的集数角标「全23集 / 更新至12集 / 更新至2026-06-24期」;电影为空 */
+  episodeLabel?: string;
   rating?: number;
   region?: string;
   regionCode?: string;
@@ -93,13 +100,20 @@ function typeColor(t: string | undefined | null): string {
 
 const PAGE_SIZE = 12;
 
+const THEATER_DEFAULTS = { category: 'all', region: '', genre: '', year: '', minRating: '', sort: 'hot' };
+
 export function TheaterPanel() {
-  const [category, setCategory] = useState('all');
-  const [region, setRegion] = useState('');
-  const [genre, setGenre] = useState('');
-  const [year, setYear] = useState('');
-  const [minRating, setMinRating] = useState('');
-  const [sort, setSort] = useState('hot');
+  // 放映厅四种内容各有详情页,列表一出来就把它们的代码预取好
+  useDetailRoutePrefetch(['FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW']);
+  // 筛选条件存 URL:点进详情再返回时还原(以前是 useState,一返回就全回到默认)
+  const [filters, setFilters] = useUrlFilters(THEATER_DEFAULTS);
+  const { category, region, genre, year, minRating, sort } = filters;
+  const setCategory = (v: string) => setFilters({ category: v });
+  const setRegion = (v: string) => setFilters({ region: v });
+  const setGenre = (v: string) => setFilters({ genre: v });
+  const setYear = (v: string) => setFilters({ year: v });
+  const setMinRating = (v: string) => setFilters({ minRating: v });
+  const setSort = (v: string) => setFilters({ sort: v });
 
   // 筛选器目录随分类变:电影的题材和综艺的题材不是一套词。
   const facetsQuery = useQuery({
@@ -116,10 +130,12 @@ export function TheaterPanel() {
     if (!facets) return;
     const has = (opts: FacetOption[] | undefined, v: string) =>
       !v || (opts ?? []).some((o) => o.value === v);
-    if (!has(facets.genres, genre)) setGenre('');
-    if (!has(facets.regions, region)) setRegion('');
-    if (!has(facets.years, year)) setYear('');
-    if (!has(facets.ratings, minRating)) setMinRating('');
+    const stale: Partial<typeof filters> = {};
+    if (!has(facets.genres, genre)) stale.genre = '';
+    if (!has(facets.regions, region)) stale.region = '';
+    if (!has(facets.years, year)) stale.year = '';
+    if (!has(facets.ratings, minRating)) stale.minRating = '';
+    if (Object.keys(stale).length) setFilters(stale);
   }, [facets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const params = useMemo(() => {
@@ -171,7 +187,7 @@ export function TheaterPanel() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' },
+      { root: findScrollRoot(sentinel), rootMargin: PREFETCH_MARGIN },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -188,7 +204,7 @@ export function TheaterPanel() {
           p: { xs: 2, md: 3 },
           borderRadius: 3,
           background: SECTION_TINT.RED_PURPLE,
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid var(--border-color)',
           overflow: 'hidden',
         }}
       >
@@ -251,18 +267,18 @@ export function TheaterPanel() {
           borderRadius: 2,
           bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
           border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' },
-          gap: 1.5,
+          // 每个维度占满一整行、标签自动换行。以前是五列并排 + 行内横滑,
+          // 题材有几十个,横滑里看不全也不知道还有多少,体验很差。
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
         }}
       >
         <FilterRow label="题材" allLabel="全部题材" options={facets?.genres} value={genre} onChange={setGenre} />
         <FilterRow label="地区" allLabel="全部地区" options={facets?.regions} value={region} onChange={setRegion} />
         <FilterRow label="年份" allLabel="全部年份" options={facets?.years} value={year} onChange={setYear} />
         <FilterRow label="评分" allLabel="全部评分" options={facets?.ratings} value={minRating} onChange={setMinRating} />
-        <Box>
-          <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>排序</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <FilterLine label="排序">
             {SORTS.map((s) => {
               const active = sort === s.key;
               return (
@@ -291,14 +307,13 @@ export function TheaterPanel() {
                 </Box>
               );
             })}
-          </Box>
-        </Box>
+        </FilterLine>
       </Box>
 
       <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
         <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{activeLabel}</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按上映年份排序' : '按播放量排序'}
+          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按上映年份排序' : '按全网热度排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>共 {total} 部</Typography>
@@ -319,7 +334,8 @@ export function TheaterPanel() {
               <Typography sx={{ color: 'text.disabled', fontSize: 12, mt: 0.5 }}>试着放宽题材或年份</Typography>
             </Box>
           ) : (
-            <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
+            // 手机上至少两列:只设最小列宽的话 375 宽只排得下一列,一张卡片占满整屏宽
+            <ListLayout minColumnWidth={240} minColumns={2} listMaxWidth="var(--page-max-narrow)">
               {theaterList.map((item) => (
                 <TheaterCard key={item.id} item={item} />
               ))}
@@ -358,36 +374,17 @@ function Top10Section({ params }: { params: URLSearchParams }) {
   const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: { xs: 2, md: 2.5 },
-        borderRadius: 2.5,
-        background: SECTION_TINT.PRIMARY_PURPLE,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
+    <Box sx={{ mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <WhatshotIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'warning.main', letterSpacing: 0.5 }}>TOP 10</Typography>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
+      <RankStrip>
         {ordered.map((d) => (
           <TheaterRankCard key={d.id} item={d} />
         ))}
-      </Box>
+      </RankStrip>
     </Box>
   );
 }
@@ -410,17 +407,7 @@ function FilterRow({
   if (!options || options.length === 0) return null;
   const all: FacetOption = { value: '', label: allLabel, count: 0 };
   return (
-    <Box>
-      <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 0.5,
-          overflowX: 'auto',
-          pb: 0.5,
-          '&::-webkit-scrollbar': { display: 'none' },
-        }}
-      >
+    <FilterLine label={label}>
         {[all, ...options].map((o) => {
           const active = value === o.value;
           return (
@@ -439,7 +426,7 @@ function FilterRow({
                 color: active ? 'primary.main' : 'var(--text-secondary, rgba(255,255,255,0.65))',
                 bgcolor: active ? 'rgba(254,44,85,0.12)' : 'transparent',
                 border: '1px solid',
-                borderColor: active ? 'rgba(254,44,85,0.4)' : 'rgba(255,255,255,0.06)',
+                borderColor: active ? 'rgba(254,44,85,0.4)' : 'var(--border-color)',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
               }}
@@ -448,7 +435,61 @@ function FilterRow({
             </Box>
           );
         })}
+    </FilterLine>
+  );
+}
+
+/**
+ * 筛选的一行:左边维度名,右边选项自动换行。
+ * 题材有几十个,手机上全展开要九行、占掉大半屏,所以超过两行先收起,
+ * 右侧给一个"展开"。只有真的放不下时才出现这个按钮。
+ */
+function FilterLine({ label, children }: { label: string; children: ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  // 收起时的高度 = 第三行选项的顶边;null 表示两行以内放得下,不用收。
+  // 按实际排版量,不写死像素:选项高度随字号/边框变,写死会让刚好两行的也出"展开"。
+  const [collapsedHeight, setCollapsedHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const measure = () => {
+      const tops = Array.from(new Set(Array.from(el.children, (c) => (c as HTMLElement).offsetTop))).sort((a, b) => a - b);
+      setCollapsedHeight(tops.length > 2 ? tops[2] - tops[0] - 4 : null);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 32, flexShrink: 0, lineHeight: '24px' }}>{label}</Typography>
+      <Box
+        ref={boxRef}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 0.5,
+          maxHeight: expanded || collapsedHeight == null ? 'none' : collapsedHeight,
+          overflow: 'hidden',
+        }}
+      >
+        {children}
       </Box>
+      {collapsedHeight != null && (
+        <Box
+          onClick={() => setExpanded((v) => !v)}
+          sx={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', height: 24, fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.6))', cursor: 'pointer', userSelect: 'none', '&:hover': { color: 'primary.main' } }}
+        >
+          {expanded ? '收起' : '展开'}
+          <ExpandMoreRoundedIcon sx={{ fontSize: 16, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        </Box>
+      )}
     </Box>
   );
 }
@@ -461,7 +502,7 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
   const badgeBg = isTop3
     ? medal!.badge
     : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
-  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const badgeColor = isTop3 ? medal!.txt : '#fff';
   const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
   const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
 
@@ -485,6 +526,8 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
         <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
+        {/* 左上是名次、右上是评分/类型,能不能播挂在名次下面 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={6} top={36} />
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
@@ -537,7 +580,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
             '.MuiBox-root:hover > &': { opacity: 1 },
           }}
         >
-          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
+          <PlayArrowRoundedIcon sx={{ fontSize: 48, color: '#fff' }} />
         </Box>
         {/* 评分缺失时不画一个 "0.0" 的角标 —— 线上 708 部电影里 372 部没有评分,
             画成 0.0 会让它们看起来是"被打了零分"。 */}
@@ -550,11 +593,13 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: typeColor(item.contentType), fontSize: 10, fontWeight: 600 }}>
           {typeLabel(item.contentType)}
         </Box>
-        {!!item.durationMin && (
-          <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
-            {item.durationMin} 分钟
+        {(item.episodeLabel || !!item.durationMin) && (
+          <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10 }}>
+            {item.episodeLabel || `${item.durationMin} 分钟`}
           </Box>
         )}
+        {/* 上面两角是评分 / 类型,右下是集数(剧集)或时长(电影),能不能播放左下 */}
+        <PlayTag variant="overlay" id={item.id} contentType={item.contentType} left={8} bottom={8} top="auto" />
       </Box>
       <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', mb: 0.5 }}>
@@ -581,6 +626,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
 /** 榜单卡片的副行。评分/年份缺失时跳过,不拼出"0.0 分"这种假数据。 */
 function subline(item: TheaterItem): string {
   const parts = [`${formatViews(item.views)} 播放`];
+  if (item.episodeLabel) parts.unshift(item.episodeLabel);
   if (item.rating) parts.push(`评分 ${item.rating.toFixed(1)}`);
   else if (item.year) parts.push(String(item.year));
   return parts.join(' · ');

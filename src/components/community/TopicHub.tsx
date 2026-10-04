@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -21,6 +22,7 @@ import { compactCount, topicGradient, topicHref } from './format';
 import { coverBackground } from '@/lib/media';
 import { useListLayout } from '@/lib/listLayoutPrefs';
 import { TopicFormDialog } from '@/components/topic/TopicFormDialog';
+import { FlagshipStrip, LiveTopics } from './TopicLive';
 
 const TOPIC_PAGE_SIZE = 12;
 
@@ -46,17 +48,22 @@ function useAutoLoad(hasNextPage: boolean, isFetchingNextPage: boolean, fetchNex
 export function TopicHub() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const [q, setQ] = useState('');
-  const [keyword, setKeyword] = useState('');
+  // 搜索词存 URL(topicQ),点进话题再返回时还原;输入框本地即时响应,停手 300ms 再落 URL
+  const [hubFilters, setHubFilters] = useUrlFilters({ topicQ: '' });
+  const [q, setQ] = useState(hubFilters.topicQ);
+  const [keyword, setKeyword] = useState(hubFilters.topicQ);
   const [createOpen, setCreateOpen] = useState(false);
   // 普通用户创建意境 → 后端进待审池(status=0),详情页对未上线意境返回 404,
   // 不能跳过去。这里展示成功提示,引导用户继续浏览。
   const [createFeedback, setCreateFeedback] = useState<string | null>(null);
   const [layout] = useListLayout();
   useEffect(() => {
-    const t = setTimeout(() => setKeyword(q.trim()), 300);
+    const t = setTimeout(() => {
+      setKeyword(q.trim());
+      setHubFilters({ topicQ: q.trim() });
+    }, 300);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mine = useQuery({
     queryKey: ['community', 'topics', 'mine'],
@@ -132,6 +139,14 @@ export function TopicHub() {
           }
         }}
       />
+
+      {/* 旗舰意境(人生感悟、文明图谱)与「此刻 · 意境在长」:每个意境都跟着热点和用户长分支 */}
+      {!keyword && (
+        <>
+          <FlagshipStrip />
+          <LiveTopics />
+        </>
+      )}
 
       {!keyword && (mine.data?.list.length ?? 0) > 0 && (
         <Section title="我关注的">

@@ -96,6 +96,13 @@ function CosmeticPreview({ c }: { c: UserCosmetic }) {
       </Box>
     );
   }
+  if (c.kind === 'plaza_aura') {
+    // 数字人广场里角色脚下的一圈光
+    const ring = c.value === 'rainbow' ? 'conic-gradient(#ff4fd8, #ffc93d, #6bff9b, #25f4ee, #9b6bff, #ff4fd8)' : c.value;
+    return (
+      <Box sx={{ width: 56, height: 22, borderRadius: '50%', background: ring, boxShadow: `0 0 14px ${c.value === 'rainbow' ? '#ff4fd8' : c.value}`, opacity: 0.9, flexShrink: 0 }} />
+    );
+  }
   if (c.kind === 'title') return <Chip size="small" label={c.value} sx={{ color: '#fff', background: 'linear-gradient(135deg, #8B5CF6 0%, #5B8DEF 100%)' }} />;
   const gradient = c.value.includes('gradient');
   return (

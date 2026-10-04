@@ -11,7 +11,7 @@ import type { Activity } from './data';
 export function getCountdownLabel(a: Activity): { text: string; color: string } {
   const now = Date.now();
   if (a.status === 'ended') return { text: '已结束', color: '#9CA3AF' };
-  if (a.status === 'judging') return { text: '评审中', color: '#FFB400' };
+  if (a.status === 'judging') return { text: '评审中', color: 'var(--fg-amber)' };
   if (a.status === 'upcoming') {
     const diff = a.startAt - now;
     const d = Math.floor(diff / 86400000);
@@ -22,22 +22,20 @@ export function getCountdownLabel(a: Activity): { text: string; color: string } 
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   if (d > 7) return { text: `还剩 ${d} 天`, color: '#9CA3AF' };
-  if (d > 0) return { text: `仅剩 ${d} 天`, color: '#FFB400' };
+  if (d > 0) return { text: `仅剩 ${d} 天`, color: 'var(--fg-amber)' };
   return { text: `仅剩 ${h} 小时`, color: '#FE2C55' };
 }
 
 /**
- * parseRewardCny — 解析"¥10,000 / 5w"等奖励文案为数字。
- * 已知支持:
- *  - "¥X,XXX" / "¥X,XXX,XXX"  (带千分位逗号)
- *  - "Xw"                       (小写 w,= X * 10000)
- * 不支持(暂不写,等后端统一):"¥10000"(无逗号) / "5W" / "5万"。
- * 解析失败返回 0,调用方要决定是否提示。
+ * parseRewardDiamonds — 从奖励文案里取钻石数。活动奖励全站按钻石写,如「推荐位 7 天 + 200 钻石」「1,500 钻石」。
+ * 老文案「¥10,000」按 1 元 = 10 钻折算,「5w」= 5 万钻。取不到返回 0。
  */
-export function parseRewardCny(reward: string | undefined): number {
+export function parseRewardDiamonds(reward: string | undefined): number {
   if (!reward) return 0;
+  const diamondMatch = reward.match(/([\d,]+)\s*钻/);
+  if (diamondMatch) return Number(diamondMatch[1].replace(/,/g, ''));
   const cnyMatch = reward.match(/¥\s*([\d,]+)/);
-  if (cnyMatch) return Number(cnyMatch[1].replace(/,/g, ''));
+  if (cnyMatch) return Number(cnyMatch[1].replace(/,/g, '')) * 10;
   const wMatch = reward.match(/(\d+)w/);
   if (wMatch) return Number(wMatch[1]) * 10000;
   return 0;

@@ -130,6 +130,7 @@ export default function FeedAdminPage() {
       </Box>
 
       <DataGridTable
+        queryKey={['admin', 'community']}
         title="全部动态"
         columns={columns}
         fetchData={async (params) => {

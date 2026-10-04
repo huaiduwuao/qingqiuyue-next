@@ -20,8 +20,10 @@ export default function DigitalHumanPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [prefs] = useAIPrefs();
+  // ?room=<uid>:串门链接,直接进去
+  const room = searchParams.get('room');
   const started =
-    searchParams.get('start') === '1' || (prefs.skipIntro && searchParams.get('intro') !== '1');
+    searchParams.get('start') === '1' || !!room || (prefs.skipIntro && searchParams.get('intro') !== '1');
 
   if (!started) {
     return <DigitalHumanIntro onStart={() => router.replace('/digital-human?start=1')} />;
@@ -30,7 +32,7 @@ export default function DigitalHumanPage() {
   return (
     <Box>
       <DigitalHumanLoginGate>
-        <ImmersiveDigitalHuman />
+        <ImmersiveDigitalHuman initialRoom={room} />
       </DigitalHumanLoginGate>
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 360px' }, gap: 2 }}>

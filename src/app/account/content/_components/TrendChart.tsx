@@ -6,6 +6,8 @@ import Typography from '@mui/material/Typography';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Button from '@mui/material/Button';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
+import { resolveAlpha, resolveColor } from '@/lib/themeColor';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorTrend, type TrendPoint } from '@/apis/dashboard';
 
@@ -46,7 +48,9 @@ export default function TrendChart() {
     refetchOnMount: 'always',
   });
 
-  const color = METRICS.find((m) => m.id === metric)!.color;
+  const theme = useTheme();
+  // 主题色名在 SVG 属性里不生效,先解析成真实颜色
+  const color = resolveColor(theme, METRICS.find((m) => m.id === metric)!.color);
   const innerW = WIDTH - PAD.left - PAD.right;
   const innerH = HEIGHT - PAD.top - PAD.bottom;
   const baselineY = PAD.top + innerH;
@@ -128,10 +132,10 @@ export default function TrendChart() {
               fontSize: 11,
               fontWeight: 500,
               cursor: 'pointer',
-              bgcolor: metric === m.id ? `${m.color}1F` : 'transparent',
+              bgcolor: metric === m.id ? resolveAlpha(theme, m.color, 0.12) : 'transparent',
               color: metric === m.id ? m.color : 'text.secondary',
               border: '1px solid',
-              borderColor: metric === m.id ? `${m.color}66` : 'transparent',
+              borderColor: metric === m.id ? resolveAlpha(theme, m.color, 0.4) : 'transparent',
               transition: 'all 0.15s ease-in-out',
               '&:hover': { color: m.color },
             }}
@@ -170,14 +174,14 @@ export default function TrendChart() {
                     y1={y}
                     x2={WIDTH - PAD.right}
                     y2={y}
-                    stroke="divider"
+                    stroke={theme.palette.divider}
                     strokeWidth="1"
                     strokeDasharray="3 3"
                   />
                   <text
                     x={PAD.left - 6}
                     y={y + 3}
-                    fill="text.disabled"
+                    fill={theme.palette.text.disabled}
                     fontSize="9"
                     textAnchor="end"
                     fontFamily="monospace"
@@ -193,7 +197,7 @@ export default function TrendChart() {
                   key={i}
                   x={p.x}
                   y={HEIGHT - 8}
-                  fill="text.disabled"
+                  fill={theme.palette.text.disabled}
                   fontSize="9"
                   textAnchor="middle"
                   fontFamily="monospace"
@@ -210,7 +214,7 @@ export default function TrendChart() {
                 cx={p.x}
                 cy={p.y}
                 r="2.5"
-                fill="background.default"
+                fill={theme.palette.background.default}
                 stroke={color}
                 strokeWidth="2"
               />

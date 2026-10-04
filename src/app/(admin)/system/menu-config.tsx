@@ -54,8 +54,12 @@ import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import VpnLockRoundedIcon from '@mui/icons-material/VpnLockRounded';
+import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import ViewInArRoundedIcon from '@mui/icons-material/ViewInArRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -178,6 +182,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'stats-visitor', label: '站点流量', path: '/system/stats/visitor', icon: <ShowChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'stats-active', label: '用户活跃', path: '/system/stats/active', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
       { id: 'stats-content', label: '内容热度', path: '/system/stats/content', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+      { id: 'recommend-console', label: '推荐系统', path: '/system/recommend/console', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
   // ── 数字员工闭环:定义 → 装备能力 → 执行 → 观测(每一页都是真接口,没有摆设项)──
@@ -189,6 +194,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dh-studio', label: '形象资产(3DGS / 2D)', path: '/system/digital-human', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
       { id: 'dh-instructions', label: '人设指令', path: '/system/digital-human-instructions', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'plaza', label: '广场场景与人物', path: '/system/plaza', icon: <ParkRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_PLAZA.VIEW },
+      { id: 'world-assets', label: '世界素材库', path: '/system/world-assets', icon: <ViewInArRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_PLAZA.VIEW },
     ],
   },
   {
@@ -242,6 +249,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'spider-workers', label: 'Worker 池', path: '/system/spider/workers', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-sites', label: '站点调度', path: '/system/spider/sites', icon: <ScheduleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-proxies', label: '代理池', path: '/system/spider/proxies', icon: <VpnLockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-works', label: '作品主档', path: '/system/spider/works', icon: <MovieFilterRoundedIcon sx={{ fontSize: 18 }} />, accent: '#22c55e', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-credentials', label: '登录凭据', path: '/system/spider/credentials', icon: <KeyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-stream-parsers', label: '流解析器', path: '/system/spider/stream-parsers', icon: <StreamRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-analytics', label: '爬虫分析', path: '/system/spider/analytics', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },
       { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },

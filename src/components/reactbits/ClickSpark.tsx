@@ -112,6 +112,8 @@ export default function ClickSpark({
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
+      // 安卓客户端不放火花:原生应用点按只有涟漪反馈,满屏火花一眼就是网页
+      if (document.documentElement.dataset.client === 'android') return;
       const now = performance.now();
       for (let i = 0; i < sparkCount; i++) {
         sparksRef.current.push({ x: e.clientX, y: e.clientY, angle: (2 * Math.PI * i) / sparkCount, startTime: now });

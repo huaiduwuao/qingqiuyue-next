@@ -24,10 +24,16 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { webCannotFetchMedia } from '@/lib/localStream/engine';
+import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { useSeoMeta } from '@/hooks/useSeoMeta';
+import { WorkSourcePanel, streamOffers, type WorkInfo, type WorkOffer } from '@/components/detail/WorkSourcePanel';
+import { backfillPending, backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import ShareButtons from '@/components/share/ShareButtons';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
@@ -62,6 +68,16 @@ export interface EpisodicDetail {
   /** 全网检索收录:本站播不了的原因 + 各平台入口(见 ExternalPlatforms) */
   playNotice?: string;
   platforms?: unknown;
+  /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun);没有分集时优先于 source */
+  playSourceUrl?: string;
+  playSourceLabel?: string;
+  /** 登记片源站的绑定(分集行由它写入,播放时实时解析);详情带了它而分集还是空的就立刻重查一次 */
+  videoSource?: { label?: string; domain?: string; episodes?: number };
+  availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
+  /** 这条看不了、同一部作品另有能看的那条时后端给出 */
+  playableAlternative?: PlayableAlternativeInfo | null;
+  /** 所属作品:权威出处 + 播放源(剧集按分集播放,这里只展示,不在页内切换) */
+  work?: WorkInfo | null;
 }
 
 type PeopleKey = 'director' | 'actors' | 'host' | 'guests';
@@ -111,9 +127,41 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     queryKey: ['detail', config.kind, id],
     queryFn: () => config.fetchDetail(id!).then((r) => ((r as EpisodicDetail | undefined) ?? null)),
     enabled: !!id,
+    // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询。
+    refetchInterval: backfillRefetchInterval,
   });
-  const itemsQuery = useContentItems(config.kind, id, config.fetchItems);
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  // 播放来源:同一部作品(后端 work 块)可能有几条收录各带分集。用户在来源面板里选的优先;没选时,
+  // 这条收录自己没有分集、也没有跨源绑定的页面,就自动用作品里最好的那个来源 —— 点进哪条收录都能看。
+  // 评论、点赞、观看历史始终记在打开的这条收录上。
+  const [picked, setPicked] = useState<{ pageId: string | null; offer: WorkOffer } | null>(null);
+  const ownHasSource = !!query.data?.playSourceUrl || query.data?.availability?.watchable === true;
+  const otherOffer = useMemo(
+    () => streamOffers(query.data?.work).find((o) => o.contentId !== id) ?? null,
+    [query.data?.work, id],
+  );
+  const pickedOffer = picked && picked.pageId === id ? picked.offer : null;
+  const ownItemsQuery = useContentItems(config.kind, id, config.fetchItems, { poll: backfillPending(query.data) });
+  const ownEmpty = !ownItemsQuery.isLoading && (ownItemsQuery.data?.items?.length ?? 0) === 0;
+  const autoOffer = !pickedOffer && ownEmpty && !ownHasSource ? otherOffer : null;
+  const sourceOffer = pickedOffer ?? autoOffer;
+  const sourceContentId = sourceOffer && sourceOffer.contentId !== id ? sourceOffer.contentId : id;
+  const otherItemsQuery = useContentItems(config.kind, sourceContentId !== id ? sourceContentId : null, config.fetchItems);
+  const itemsQuery = sourceContentId !== id ? otherItemsQuery : ownItemsQuery;
+  useSeoMeta({ id, title: query.data?.title, description: query.data?.description || query.data?.content });
+  // 原平台的会员 / 付费集(info=locked,如 B 站番剧):挂锁、连播跳过,选中时播放器位置换成去原平台。
+  const items = useMemo(
+    () => (itemsQuery.data?.items ?? []).map((it) => (it.info === 'locked' && !it.locked ? { ...it, locked: true } : it)),
+    [itemsQuery.data],
+  );
+  // 详情在同一请求里当场绑定了片源(分集刚写进库),而分集列表那次请求可能先于它返回空:补查一次。
+  const boundEpisodes = Number(query.data?.videoSource?.episodes) || 0;
+  const refetchItems = itemsQuery.refetch;
+  useEffect(() => {
+    if (boundEpisodes > 0 && items.length === 0 && !itemsQuery.isFetching) {
+      void refetchItems();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在绑定结果 / 分集数变化时补查
+  }, [boundEpisodes, items.length]);
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。
   useEffect(() => {
@@ -123,7 +171,9 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     }
   }, [id, config.trackType]);
 
-  const [activeId, setActiveId] = useState<string | null>(episodeParam);
+  // 选中的分集按「来源」记:换了来源,原来那条收录的 episodeId 就不作数了
+  const [activeSel, setActiveSel] = useState<{ cid: string | null; id: string | null }>({ cid: id, id: episodeParam });
+  const activeId = activeSel.cid === sourceContentId ? activeSel.id : null;
   const found = items.findIndex((it) => it.id === activeId);
   const activeIndex = found >= 0 ? found : 0;
   const active: ContentItem | undefined = items[activeIndex];
@@ -143,14 +193,14 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   // 选集:地址栏带上 episodeId,刷新/分享后停在同一集。
   const selectEpisode = useCallback(
     (item: ContentItem, scroll = true) => {
-      setActiveId(item.id);
-      if (item.locked) notify(`该${config.unit}需解锁后观看`, 'info');
-      if (id) {
+      setActiveSel({ cid: sourceContentId, id: item.id });
+      if (item.locked) notify(item.info === 'locked' ? `该${config.unit}是会员内容，请到原平台观看` : `该${config.unit}需解锁后观看`, 'info');
+      if (id && sourceContentId === id) {
         router.replace(`${pathname}?id=${encodeURIComponent(id)}&episodeId=${encodeURIComponent(item.id)}`, { scroll: false });
       }
       if (scroll && typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [config.unit, id, notify, pathname, router],
+    [config.unit, id, notify, pathname, router, sourceContentId],
   );
 
   const handleEnded = useCallback(() => {
@@ -164,6 +214,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const handlePlaybackError = useCallback(
     (message: string) => {
       if (!id || !active || reported.current.has(active.id)) return;
+      // 网页端放不了要原生请求的片源(B 站番剧)是预期内的,不进故障队列
+      if (active.url && webCannotFetchMedia(active.url)) return;
       reported.current.add(active.id);
       reportContent({
         targetId: id,
@@ -180,6 +232,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || `${config.typeLabel}详情`}
+        playId={id}
+        playType={query.data?.contentType || config.kind}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <IconButton onClick={handleLike} disabled={likeBusy} sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}>
@@ -198,7 +252,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes={config.listVariant} />}>
         {(loaded) => {
           // isEmpty 已经把 null 挡在外面,这里一定有数据。
           const data = loaded as EpisodicDetail;
@@ -217,20 +271,28 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
             .filter((p) => p.value);
           const intro = (data.description || data.content || '').trim();
           // 还没有分集时退回整部内容的来源地址,能解析就先放着(比如单集番剧页)。
-          const fallbackSource = items.length === 0 ? sourceLink : '';
+          // 跨源绑定的可播页面(B 站 / AcFun 同名正片)优先于原始来源。
+          const fallbackSource = items.length === 0 ? sourceOffer?.url || data.playSourceUrl || sourceLink : '';
           // 分集页面地址:既是没有可用直链时的解析源,也是直链失效后重新解析的依据。
           const episodePage = active?.url || fallbackSource;
           const direct = usableDirectUrl(active?.playUrl, active?.url);
           const platforms = platformsOf(data);
-          // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因。
-          const unavailable = items.length === 0 ? linkOutNoticeOf(data, fallbackSource) : '';
+          // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因;补全中说正在找片源。
+          let unavailable = items.length === 0 && !data.playSourceUrl && !sourceOffer ? videoBackfillNotice(data, linkOutNoticeOf(data, fallbackSource)) : '';
+          // 这一集在原平台要会员 / 付费:游客只拿得到几分钟试看,不交给播放器
+          const lockedEpisode = active?.info === 'locked' && !!active.url;
+          if (lockedEpisode && !unavailable) unavailable = `第${activeIndex + 1}${config.unit}是会员内容，本站只能放免费的${config.unit}，请到原平台观看`;
 
           return (
             <>
               <Box sx={{ bgcolor: '#000' }}>
                 <Container maxWidth="lg" sx={{ py: 0 }}>
                   {unavailable ? (
-                    <UnavailablePlayer notice={unavailable} platforms={platforms} poster={data.cover} />
+                    <UnavailablePlayer
+                      notice={unavailable}
+                      platforms={lockedEpisode ? [{ site: 'origin', name: platforms[0]?.name || '原平台', url: active!.url! }] : platforms}
+                      poster={active?.cover || data.cover}
+                    />
                   ) : (
                   <VideoPlayer
                     key={active?.id ?? 'source'}
@@ -242,11 +304,21 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                     autoPlay={false}
                     onEnded={handleEnded}
                     onPlaybackError={handlePlaybackError}
+                    reportContentId={data.id ?? undefined}
+                    fitVideo
                     dockTitle={active ? `${data.title || ''} · 第${activeIndex + 1}${config.unit}` : data.title || '视频'}
                   />
                   )}
                 </Container>
               </Box>
+              <PlayableAlternative alt={data.playableAlternative} />
+              <Container maxWidth="lg" sx={{ pt: 2 }}>
+                <WorkSourcePanel
+                  work={data.work}
+                  activeUrl={sourceOffer?.url ?? (data.playSourceUrl || (data.availability?.watchable ? sourceLink : ''))}
+                  onSelect={(o) => setPicked({ pageId: id, offer: o })}
+                />
+              </Container>
 
               <Container maxWidth="lg" sx={{ py: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>

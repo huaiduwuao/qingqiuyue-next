@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getRewardRanking, type RewardRanker } from '@/apis/dashboard';
 import { RANK_PILL } from '@/constants/gradients';
 import RankingListDialog from './RankingListDialog';
+import { formatDiamondsShort } from '@/apis/wallet';
 
 export default function RewardRanking() {
   // 完整榜单页内弹层打开,不跳转 /account/reward/ranking(该路由不存在)
@@ -129,7 +130,7 @@ export default function RewardRanking() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'success.main' }}>
                   <WhatshotIcon sx={{ fontSize: 10 }} />
                   <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
-                    ¥{(r.income / 1000).toFixed(1)}k
+                    {formatDiamondsShort(r.incomeDiamonds ?? r.income / 10)}
                   </Typography>
                 </Box>
               </Box>

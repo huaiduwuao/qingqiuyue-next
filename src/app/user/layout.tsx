@@ -14,6 +14,7 @@ import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import GradientText from '@/components/reactbits/GradientText';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
 
 const USER_PAGES = [
   { key: 'points', label: '我的积分', sub: '积分 · 成就 · 等级 · 商城', path: '/user/points', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -62,26 +63,8 @@ function UserLayoutContent({
 
   const currentPage = USER_PAGES.find((p) => pathname.startsWith(p.path)) || USER_PAGES[0];
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
-      bodyBg: body.style.backgroundColor,
-    };
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    body.style.height = 'var(--app-height, 100vh)';
-    body.style.backgroundColor = 'var(--bg-body)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.height = prev.bodyHeight;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock();
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
@@ -101,10 +84,14 @@ function UserLayoutContent({
         <Toolbar
           sx={{
             gap: 1.5,
-            minHeight: 64,
-            px: { xs: 1.5, md: 3 },
+            minHeight: { xs: 48, md: 64 },
+            px: { xs: 0.5, md: 3 },
           }}
         >
+          {/* 手机:和账号二级页一样,左上角返回 + 标题;右边不放返回/通知/私信/头像 */}
+          <IconButton onClick={handleBack} aria-label="返回" sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'text.primary' }}>
+            <ArrowBackIcon />
+          </IconButton>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
             <Box
               sx={{
@@ -134,13 +121,13 @@ function UserLayoutContent({
               ml: 0.5,
             }}
           >
-            <Box sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Box sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentPage.label}
             </Box>
             <Box
               component="span"
               sx={{
-                display: 'inline-block',
+                display: 'none',
                 px: 0.5,
                 py: 0.125,
                 mt: 0.25,
@@ -158,7 +145,7 @@ function UserLayoutContent({
 
           <Box sx={{ flex: 1 }} />
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
@@ -175,7 +162,7 @@ function UserLayoutContent({
 
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }}>
+              <IconButton size="small" sx={{ ml: 0.5, p: 0.25, display: { xs: 'none', md: 'inline-flex' } }}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{

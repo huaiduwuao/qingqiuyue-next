@@ -15,6 +15,10 @@
  * 只有一个实例(模块级单例):React StrictMode 会把 effect 跑两遍,多个组件也各自
  * 要订阅,按组件建连接会瞬间开出四五条。这里靠引用计数,最后一个订阅者走了才断开。
  *
+ * 这条连接也是双向的(见后端 internal/realtime/upstream.go):send() 发业务上行(如通话信令),
+ * subscribeTopic() 订阅主题,断线重连后自动重订。握手带 ?dev=<本标签页 id>,
+ * 一个人多开标签页 / 网站 App 同时在线时,通话信令靠它只认接起电话的那一个。
+ *
  * 本地 `next dev` 连不上是正常的:Next 的 rewrites 不转发 WebSocket 升级
  * (见 next.config.ts 里 /ws 那条的注释),开发时整站会停在 offline 状态走降级轮询。
  * 要在本地验证推送,把 NEXT_PUBLIC_WS_BASE 指向网关(如 ws://10.9.1.2:10005)。
@@ -29,10 +33,17 @@ export type RealtimeEventType =
   | 'dm.recall'
   | 'notice'
   | 'system'
-  | 'kf';
+  | 'kf'
+  | 'call.invite'
+  | 'call.accepted'
+  | 'call.taken'
+  | 'call.signal'
+  | 'call.end';
 
 export interface RealtimeEvent<T = unknown> {
   type: RealtimeEventType | string;
+  /** 主题事件才有(subscribeTopic 订阅的) */
+  topic?: string;
   title?: string;
   body?: string;
   data?: T;
@@ -88,12 +99,23 @@ const RECONNECT_MAX = 30_000;
 /** 客户端心跳。服务端 70s 没收到任何帧就判死,25s 一次留足余量。 */
 const HEARTBEAT = 25_000;
 
+let devId = '';
+/**
+ * 本页面的设备 id,每次加载新生成。不存 sessionStorage:「复制标签页」会把它一起复制过去,
+ * 两个标签页同一个 id 就会抢同一路通话信令。刷新会换 id,但刷新本来就会断掉进行中的通话。
+ */
+export function deviceId(): string {
+  if (!devId) devId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  return devId;
+}
+
 function socketURL(ticket: string): string {
+  const q = `ticket=${encodeURIComponent(ticket)}&dev=${encodeURIComponent(deviceId())}`;
   // 客户端(Tauri)页面不在站点源上,由 NEXT_PUBLIC_WS_BASE 指向网关
   const base = process.env.NEXT_PUBLIC_WS_BASE;
-  if (base) return `${base.replace(/\/$/, '')}/ws/notify?ticket=${encodeURIComponent(ticket)}`;
+  if (base) return `${base.replace(/\/$/, '')}/ws/notify?${q}`;
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${window.location.host}/ws/notify?ticket=${encodeURIComponent(ticket)}`;
+  return `${proto}//${window.location.host}/ws/notify?${q}`;
 }
 
 class RealtimeClient {
@@ -114,8 +136,49 @@ class RealtimeClient {
    */
   private connectSeq = 0;
 
+  /** 主题 → 订阅它的回调。连上(含重连)后逐个发 sub。 */
+  private topics = new Map<string, Set<Listener>>();
+
   getStatus(): RealtimeStatus {
     return this.status;
+  }
+
+  /** 发一帧上行。没连上时返回 false(调用方决定要不要提示 / 重试)。 */
+  send(msg: { type: string; topic?: string; data?: unknown }): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    try {
+      this.ws.send(JSON.stringify(msg));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 订阅一个主题(后端要用 AllowTopic 放行这个前缀,否则会回 sub.denied)。
+   * 同样计入引用计数:只订主题的组件也能把连接拉起来。
+   */
+  subscribeTopic(topic: string, fn: Listener): () => void {
+    let set = this.topics.get(topic);
+    if (!set) {
+      set = new Set();
+      this.topics.set(topic, set);
+      this.send({ type: 'sub', topic });
+    }
+    set.add(fn);
+    this.retain();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const cur = this.topics.get(topic);
+      cur?.delete(fn);
+      if (cur && cur.size === 0) {
+        this.topics.delete(topic);
+        this.send({ type: 'unsub', topic });
+      }
+      this.release();
+    };
   }
 
   /** 订阅事件。返回的函数解除订阅,并在最后一个订阅者离开时断连。 */
@@ -237,6 +300,7 @@ class RealtimeClient {
       this.attempts = 0;
       this.setStatus('open');
       this.startHeartbeat();
+      this.topics.forEach((_, topic) => this.send({ type: 'sub', topic }));
     };
     ws.onmessage = (e) => {
       let ev: RealtimeEvent;
@@ -246,6 +310,16 @@ class RealtimeClient {
         return;
       }
       if (!ev || ev.type === 'pong') return;
+      if (ev.topic) {
+        this.topics.get(ev.topic)?.forEach((fn) => {
+          try {
+            fn(ev);
+          } catch (err) {
+            console.error('[realtime] topic listener', err);
+          }
+        });
+        return;
+      }
       this.listeners.forEach((fn) => {
         try {
           fn(ev);

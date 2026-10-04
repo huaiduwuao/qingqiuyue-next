@@ -86,6 +86,18 @@ export function WxMpConfigDialog({ open, onClose }: { open: boolean; onClose: ()
                 公众号后台「设置与开发 → 基本配置 → 服务器配置」的 URL 填:<code>{origin}/api/core/wx/mp/callback</code>;
                 同一页的「IP 白名单」要加上服务器的出口 IP,否则换不到 access_token。
               </Typography>
+              <Alert severity="info" sx={{ fontSize: 12 }}>
+                <b>微信内登录(网页授权)</b>:保存后,在微信里打开本站点「微信登录」就会走服务号授权(点「允许」即可,不用扫码)。
+                还需要在公众号后台做两件事:
+                <br />
+                1. 「设置与开发 → 公众号设置 → 功能设置 → 网页授权域名」填 <code>{typeof window !== 'undefined' ? window.location.host : ''}</code>,
+                按提示下载 <code>MP_verify_xxxx.txt</code> 校验文件,把文件名发给开发放到站点根目录后再点确认;
+                <br />
+                2. 服务号要绑定到和网站应用同一个<b>微信开放平台</b>账号,同一个微信在两边的 unionid 才相同 ——
+                否则在微信里登录会变成一个新的站内账号。
+                <br />
+                只有<b>已认证的服务号</b>有网页授权(snsapi_userinfo)权限,订阅号不行。
+              </Alert>
             </>
           )}
           {kind === 'ma' && (

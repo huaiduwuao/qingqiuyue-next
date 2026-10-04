@@ -9,15 +9,20 @@ import RewardHero from './RewardHero';
 import RewardCategoryRow from './RewardCategoryRow';
 import RewardHotGrid from './RewardHotGrid';
 import BountyDetailDialog from './BountyDetailDialog';
+import RewardSquareMobile from './RewardSquareMobile';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface DashboardProps {
-  groupId: any;
-  groupData: any;
+  groupId?: any;
+  groupData?: any;
+  /** 切到奖励中心的其它子页(手机版猎人卡 → 我的工作台、「发悬赏」→ 我的需求) */
+  onOpenTab?: (tab: string) => void;
 }
 
 // 赏金广场不依赖 groupId/groupData(赏金是公共数据,跨团队共享),
 // 仅保留 props 接口以便父组件(AccountRewardPage)用同一 componentMap 装载 8 个 tab。
-export default function DashboardPage(_props: DashboardProps) {
+export default function DashboardPage({ onOpenTab }: DashboardProps) {
+  const { isMobile } = useResponsive();
   // 首页右栏「社区悬赏」点过来带 ?tab=square&demand=<id>:直接弹开那张悬赏的详情。
   // 读完就从地址栏抹掉,刷新 / 分享都不会重复弹。
   const [demandId, setDemandId] = useState<string | null>(null);
@@ -46,6 +51,16 @@ export default function DashboardPage(_props: DashboardProps) {
   });
   const myStats: Partial<MyStats> = myStatsQuery.data || {};
 
+  // 手机上是单独设计的赏金广场(见 RewardSquareMobile),不是这一页的响应式缩小版
+  if (isMobile) {
+    return (
+      <>
+        <RewardSquareMobile onOpenTab={onOpenTab} />
+        <BountyDetailDialog open={!!demandId} bountyId={demandId} onClose={() => setDemandId(null)} />
+      </>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <RewardHero
@@ -54,10 +69,10 @@ export default function DashboardPage(_props: DashboardProps) {
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
         // 真实 KPI 数据
-        todayRewardYuan={myStats.todayRewardYuan}
+        todayIncomeDiamonds={myStats.todayIncomeDiamonds}
         adoptedCount={myStats.adoptedCount}
         rankingPosition={myStats.rankingPosition}
-        totalIncomeYuan={myStats.totalIncomeYuan}
+        totalIncomeDiamonds={myStats.totalIncomeDiamonds}
       />
       <RewardCategoryRow />
 

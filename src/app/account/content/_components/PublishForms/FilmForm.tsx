@@ -61,9 +61,9 @@ export default function FilmForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: true, // 电影简介必填
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (poster?.previewUrl) URL.revokeObjectURL(poster.previewUrl);
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (!video) return '请先上传电影视频';

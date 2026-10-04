@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -23,7 +24,8 @@ const dismissKey = (uid: number) => `creator_onboarding_dismissed_${uid}`;
  * 创作者新手指引:资料 → 首个作品 → 首个付费作品 → 邀请好友。每一步的完成状态来自
  * 真实数据;全部完成后自动消失,也可以手动隐藏(按用户记在本地)。
  */
-export default function CreatorOnboarding() {
+/** compact:手机工作台用,收成一行「新手任务 x/4 · 下一步 …」,点一下直接去做下一步 */
+export default function CreatorOnboarding({ compact = false }: { compact?: boolean } = {}) {
   const router = useRouter();
   const { setActiveTab } = useActiveTab();
   const { currentUser } = useApp();
@@ -79,6 +81,58 @@ export default function CreatorOnboarding() {
       /* ignore */
     }
   };
+
+  if (compact) {
+    const next = steps.find((s) => !s.done);
+    return (
+      <Box
+        component="section"
+        aria-label="新手任务"
+        onClick={() => next && act(next)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.25,
+          px: 1.75,
+          py: 1.25,
+          borderRadius: 3,
+          cursor: 'pointer',
+          bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(254,44,85,0.12)' : 'rgba(254,44,85,0.06)'),
+          border: '1px solid',
+          borderColor: (t) => (t.palette.mode === 'dark' ? 'rgba(254,44,85,0.3)' : 'rgba(254,44,85,0.18)'),
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <Box sx={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
+          <CircularProgress variant="determinate" value={100} size={36} thickness={4} sx={{ position: 'absolute', color: 'action.hover' }} />
+          <CircularProgress variant="determinate" value={(progress.done / progress.total) * 100} size={36} thickness={4} sx={{ position: 'absolute', color: 'primary.main' }} />
+          <Typography sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+            {progress.done}/{progress.total}
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700 }}>新手任务</Typography>
+          <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>
+            下一步:{next?.title}
+          </Typography>
+        </Box>
+        <Button size="small" variant="contained" disableElevation sx={{ borderRadius: 999, flexShrink: 0, px: 1.5, minWidth: 0 }}>
+          {next?.action.label ?? '去完成'}
+        </Button>
+        <IconButton
+          size="small"
+          aria-label="隐藏新手任务"
+          onClick={(e) => {
+            e.stopPropagation();
+            dismiss();
+          }}
+          sx={{ ml: -0.5, color: 'text.disabled' }}
+        >
+          <CloseRoundedIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Box>
+    );
+  }
 
   return (
     <Box

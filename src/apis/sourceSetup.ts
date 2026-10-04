@@ -1,0 +1,168 @@
+/**
+ * 爬虫登录凭据 + 接入助手(后端 qingqiuyue-go internal/crawler/credential.go、source_setup.go)。
+ *
+ * 凭据只写不读:列表只有名称 / 域名 / 末 4 位,没有任何接口能把 Cookie 取回来。
+ * 接入助手的草稿由数字人起草、试跑;保存(apply)只在草稿卡片上由人点。
+ */
+
+import { spiderClient } from '@/lib/api/client';
+
+export interface CrawlCredential {
+  id: number;
+  name: string;
+  domain: string;
+  kind: string;
+  note: string;
+  has_value: boolean;
+  hint: string;
+  create_time: string;
+  update_time: string;
+  last_used_at: string | null;
+  /** 经「浏览器登录」收集时记下了那台浏览器的 UA */
+  has_user_agent?: boolean;
+  /** 最近一次浏览器登录收集的时间 */
+  refreshed_at?: string | null;
+  /** 带着它的请求又被验证页拦了 = 登录态过期,需要重新浏览器登录 */
+  invalid_at?: string | null;
+  invalid_reason?: string;
+}
+
+export interface CredentialList {
+  list: CrawlCredential[];
+  /** 服务端配了加密密钥;false 时只能看,不能录入 */
+  enabled: boolean;
+}
+
+export interface CredentialWrite {
+  name: string;
+  domain: string;
+  /** 新建必填;编辑时留空 = 不改 */
+  value: string;
+  note: string;
+}
+
+export function listCredentials(domain?: string, keyword?: string): Promise<CredentialList> {
+  const params: Record<string, string> = {};
+  if (domain) params.domain = domain;
+  if (keyword) params.keyword = keyword;
+  return spiderClient('/credentials', { params }) as Promise<CredentialList>;
+}
+
+export function createCredential(body: CredentialWrite): Promise<CrawlCredential> {
+  return spiderClient('/credentials', { method: 'POST', data: body }) as Promise<CrawlCredential>;
+}
+
+export function updateCredential(id: number, body: CredentialWrite): Promise<CrawlCredential> {
+  return spiderClient(`/credentials/${id}`, { method: 'PUT', data: body }) as Promise<CrawlCredential>;
+}
+
+export function deleteCredential(id: number): Promise<unknown> {
+  return spiderClient(`/credentials/${id}`, { method: 'DELETE' });
+}
+
+export interface SourceDraft {
+  id: string;
+  url: string;
+  domain: string;
+  category: string;
+  kind: 'book' | 'video' | string;
+  profile: unknown;
+  credential_id: number;
+  sample_title: string;
+  sample_author: string;
+  sample_year: string;
+  ok: boolean;
+  report: Record<string, unknown> | null;
+  status: 'draft' | 'applied' | 'discarded' | string;
+  source_id: string;
+  template_id: string;
+  create_time: string;
+  update_time: string;
+}
+
+export function getSourceDraft(id: string): Promise<SourceDraft> {
+  return spiderClient(`/source-setup/drafts/${encodeURIComponent(id)}`) as Promise<SourceDraft>;
+}
+
+export function applySourceDraft(id: string): Promise<SourceDraft> {
+  return spiderClient(`/source-setup/drafts/${encodeURIComponent(id)}/apply`, { method: 'POST' }) as Promise<SourceDraft>;
+}
+
+export function discardSourceDraft(id: string): Promise<SourceDraft> {
+  return spiderClient(`/source-setup/drafts/${encodeURIComponent(id)}/discard`, { method: 'POST' }) as Promise<SourceDraft>;
+}
+
+/** 试跑报告的一行摘要(卡片与测试共用)。 */
+export function summarizeDraftReport(d: Pick<SourceDraft, 'kind' | 'report'>): string[] {
+  const r = (d.report ?? {}) as Record<string, any>;
+  const lines: string[] = [];
+  const search = r.search as { count?: number; error?: string } | undefined;
+  if (search) lines.push(search.error ? `搜索出错:${search.error}` : `搜索到 ${search.count ?? 0} 条`);
+  if (r.resolve_error) lines.push(String(r.resolve_error));
+  if (r.resolved?.title) lines.push(`定位到「${r.resolved.title}」${r.resolved.year ? `(${r.resolved.year})` : ''}`);
+  if (d.kind === 'book') {
+    const cat = r.catalog as { count?: number; error?: string; first?: { title?: string }; last?: { title?: string } } | undefined;
+    if (cat) lines.push(cat.error ? `目录出错:${cat.error}` : `目录 ${cat.count ?? 0} 章:${cat.first?.title ?? ''} … ${cat.last?.title ?? ''}`);
+    const ch = r.chapter as { title?: string; length?: number; error?: string } | undefined;
+    if (ch) lines.push(ch.error ? `第 1 章出错:${ch.error}` : `第 1 章「${ch.title ?? ''}」${ch.length ?? 0} 字节`);
+  } else {
+    const eps = r.episodes as { count?: number; error?: string; first?: { title?: string }[] } | undefined;
+    if (eps) lines.push(eps.error ? `分集出错:${eps.error}` : `共 ${eps.count ?? 0} 集:${(eps.first ?? []).map((e) => e.title).filter(Boolean).join('、')}`);
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// 浏览器登录(后端 internal/crawler/remote_login.go):在后台操作服务器上的浏览器亲手登录,
+// 点保存时服务器把这个站的 Cookie 收进凭据仓库。截屏帧长轮询,输入事件 POST。
+// ---------------------------------------------------------------------------
+
+export interface RemoteLoginSession {
+  id: string;
+  domain: string;
+  credential_id: number;
+  width: number;
+  height: number;
+  expires_at: string;
+}
+
+export interface RemoteLoginFrame {
+  seq: number;
+  /** base64 JPEG;没有比请求的 seq 更新的帧时不带 */
+  data?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  closed?: boolean;
+  reason?: string;
+}
+
+export type RemoteInput =
+  | { t: 'mouse'; type: 'mousePressed' | 'mouseReleased' | 'mouseMoved'; x: number; y: number; button?: string; clickCount?: number; modifiers?: number }
+  | { t: 'wheel'; x: number; y: number; dx: number; dy: number }
+  | { t: 'text'; text: string }
+  | { t: 'key'; key: string; code: string; keyCode: number; modifiers?: number };
+
+export function startRemoteLogin(body: { url?: string; credential_id?: number; name?: string }): Promise<RemoteLoginSession> {
+  return spiderClient('/remote-login', { method: 'POST', data: body }) as Promise<RemoteLoginSession>;
+}
+
+export function remoteLoginFrame(id: string, seq: number, signal?: AbortSignal): Promise<RemoteLoginFrame> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/frame`, { params: { seq }, signal }) as Promise<RemoteLoginFrame>;
+}
+
+export function remoteLoginInput(id: string, events: RemoteInput[]): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/input`, { method: 'POST', data: { events } });
+}
+
+export function remoteLoginNavigate(id: string, body: { url?: string; action?: 'back' | 'forward' | 'reload' }): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/navigate`, { method: 'POST', data: body });
+}
+
+export function saveRemoteLogin(id: string): Promise<{ credential: CrawlCredential; cookie_names: string[] }> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/save`, { method: 'POST' }) as Promise<{ credential: CrawlCredential; cookie_names: string[] }>;
+}
+
+export function closeRemoteLogin(id: string): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

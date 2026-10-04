@@ -188,7 +188,7 @@ export function AdminCrudPage({ title, entity, api, columns, fields, filters, va
       <DataGridTable
         columns={[...columns, updateTimeColumn]}
         fetchData={(params) => api.page(params)}
-        extraParams={{ reload }}
+        refreshKey={reload}
         onEdit={openEditor}
         onDelete={handleDelete}
         actionPermissions={permissions && { edit: permissions.update, delete: permissions.delete }}

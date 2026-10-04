@@ -27,6 +27,42 @@ export interface SceneSnapshot {
   model?: string;
   /** 场景里每块显示器上开着什么(null = 待机) */
   displays?: Record<string, { name: string; url: string; title: string } | null>;
+  /** 星光广场:她站在哪个地标、广场里有几个人、用户的广场等级(没开广场时不带) */
+  plaza?: PlazaState | null;
+}
+
+export interface PlazaState {
+  /** 当前场景名(星光广场 / 心脉庭院……) */
+  scene?: string;
+  zone: string | null;
+  zoneLabel?: string;
+  landmarks: string[];
+  /** 场景里的人物(头衔·名字) */
+  characters?: string[];
+  online: number;
+  level: number;
+  orbsTotal: number;
+  /** 言出法随:这里摆了什么(id:叫法),world_edit 按叫法找 */
+  placed?: string[];
+  /** 能去的场景(key:名字),scene_go 用 */
+  scenes?: string[];
+  /** 创世:在某间房里时,房间的结构化状态(AI 据此看懂房间) */
+  room?: RoomState;
+}
+
+export interface RoomState {
+  name: string;
+  owner: string;
+  /** 是不是用户自己的房间(只有自己的能摆 / 改) */
+  mine: boolean;
+  template: string;
+  /** 宽 × 深(米),原点在房间中间,+z 朝门口 */
+  size: [number, number];
+  me: { x: number; z: number };
+  /** 摆着的东西:id、叫法、坐标、朝向(度,0 = 朝门口)、大小 */
+  objects: { id: string; label: string; x: number; z: number; deg: number; scale?: number }[];
+  /** 此刻房里的其他人 */
+  people: { name: string; x: number; z: number; owner?: boolean; ai?: boolean }[];
 }
 
 export interface SceneState {
@@ -42,6 +78,7 @@ export interface SceneState {
   panel: SceneSnapshot['panel'];
   browser: string | null;
   displays: NonNullable<SceneSnapshot['displays']>;
+  plaza?: PlazaState;
 }
 
 export function buildSceneState(s: SceneSnapshot): SceneState {
@@ -63,6 +100,7 @@ export function buildSceneState(s: SceneSnapshot): SceneState {
     panel: s.panel ?? null,
     browser: s.browser ?? Object.values(s.displays ?? {}).find(Boolean)?.url ?? null,
     displays: s.displays ?? {},
+    ...(s.plaza ? { plaza: s.plaza } : {}),
   };
 }
 

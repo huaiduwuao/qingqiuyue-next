@@ -27,7 +27,7 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { FilterBar, type FilterField } from '@/components/tables/FilterBar';
+import type { FilterField } from '@/components/tables/FilterBar';
 import { listTasks, createTask, getTask, getTaskLogs, getTaskStatus, cancelTask, listImages, getTaskResult, importTaskResult } from '@/apis/sandbox';
 import { SANDBOX_SCRIPT_TEMPLATES, PLACEHOLDER_BOOK_URL, PLACEHOLDER_FROM, PLACEHOLDER_TO } from '@/components/sandbox/scriptTemplates';
 import { TASK_STATUS_LABELS, TASK_STATUS_COLORS, type SandboxTaskResp, type SandboxImageResp } from '@/beans/sandbox';
@@ -40,9 +40,14 @@ export default function TasksPage() {
   const [viewing, setViewing] = useState<SandboxTaskResp | null>(null);
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  // DataGridTable 不走 react-query,invalidate 刷不到它;建 / 取消任务后靠这个 key 触发重拉
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
-  const refresh = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: LIST_KEY });
+    setRefreshKey((k) => k + 1);
+  }, [qc]);
 
   // 镜像列表（用于选择）
   const imagesQuery = useQuery({
@@ -50,9 +55,10 @@ export default function TasksPage() {
     queryFn: () => listImages().then((r) => r?.records || r?.list || []),
   });
 
+  // FilterBar 自带「全部」(空值)选项,这里不再重复
   const filterFields: FilterField[] = [
+    { key: 'keyword', label: '关键词', type: 'text', placeholder: '任务 ID / 标题' },
     { key: 'status', label: '状态', type: 'select', options: [
-      { label: '全部', value: '' },
       { label: '等待中', value: 'pending' },
       { label: '调度中', value: 'scheduling' },
       { label: '运行中', value: 'running' },
@@ -62,7 +68,6 @@ export default function TasksPage() {
       { label: '超时', value: 'timeout' },
     ]},
     { key: 'imageId', label: '镜像', type: 'select', options: [
-      { label: '全部', value: '' },
       ...((imagesQuery.data || []) as SandboxImageResp[]).map((img) => ({ label: img.displayName || img.name, value: img.id })),
     ]},
   ];
@@ -147,21 +152,22 @@ export default function TasksPage() {
         <Button variant="contained" onClick={() => setWriteVisible(true)}>+ 新建任务</Button>
       </Box>
 
-      <FilterBar fields={filterFields} values={filterValues} onChange={setFilterValues} onReset={() => setFilterValues({})} />
-
       <DataGridTable
         columns={columns}
+        refreshKey={refreshKey}
+        filters={{ fields: filterFields, values: filterValues, onChange: setFilterValues, onReset: () => setFilterValues({}) }}
         fetchData={async (params) => {
           try {
             const res = await listTasks({
               page: params.pageNumber,
               pageSize: params.pageSize,
-              status: filterValues.status || undefined,
-              imageId: filterValues.imageId || undefined,
+              status: params.status || undefined,
+              imageId: params.imageId || undefined,
+              keyword: params.keyword?.trim() || undefined,
             });
             // DataGrid 要求每行有唯一 id,任务只有 taskId —— 不补的话有任务时整页直接崩
             const records = (res?.records || res?.list || []).map((t) => ({ ...t, id: t.taskId }));
-            return { data: { records, totalRow: res?.total || res?.totalRow || 0 }, success: true };
+            return { records, totalRow: res?.total || res?.totalRow || 0 };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };

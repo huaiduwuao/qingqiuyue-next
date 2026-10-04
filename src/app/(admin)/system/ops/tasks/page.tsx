@@ -64,14 +64,16 @@ export default function OpsTasksPage() {
   const canCreate = can(PERMISSIONS.SYSTEM_OPS_TASK.CREATE);
   const canCancel = can(PERMISSIONS.SYSTEM_OPS_TASK.CANCEL);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [kindFilter, setKindFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [snack, setSnack] = useState<{ open: boolean; severity: 'success' | 'error'; msg: string }>(
     { open: false, severity: 'success', msg: '' },
   );
 
   // ===== 列表 =====
   const list = useQuery({
-    queryKey: ['opstask', 'list', refreshToken],
-    queryFn: () => listOpsTasks({ limit: 50 }),
+    queryKey: ['opstask', 'list', refreshToken, kindFilter, statusFilter],
+    queryFn: () => listOpsTasks({ limit: 50, kind: kindFilter || undefined, status: statusFilter || undefined }),
     refetchInterval: LIST_POLL_INTERVAL_MS,
   });
 
@@ -79,7 +81,8 @@ export default function OpsTasksPage() {
 
   // ===== 启动对话框 =====
   const [startOpen, setStartOpen] = useState(false);
-  const kinds = useQuery({ queryKey: ['opstask', 'kinds'], queryFn: listOpsTaskKinds, enabled: startOpen });
+  // 启动对话框和列表筛选共用同一份 kind 列表
+  const kinds = useQuery({ queryKey: ['opstask', 'kinds'], queryFn: listOpsTaskKinds });
   const [pickedKind, setPickedKind] = useState('');
   const [payloadText, setPayloadText] = useState('{}');
   const [submitting, setSubmitting] = useState(false);
@@ -159,12 +162,22 @@ export default function OpsTasksPage() {
 
       {/* 列表 */}
       <Paper variant="outlined">
-        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle2">最近运行(最多 50 条)</Typography>
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          <Typography variant="subtitle2" sx={{ flex: 1 }}>最近运行(最多 50 条)</Typography>
+          <TextField select size="small" label="任务类型" value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value)} sx={{ minWidth: 180 }}>
+            <MenuItem value="">全部</MenuItem>
+            {(kinds.data ?? []).map((k) => <MenuItem key={k} value={k} sx={{ fontFamily: 'monospace' }}>{k}</MenuItem>)}
+          </TextField>
+          <TextField select size="small" label="状态" value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)} sx={{ minWidth: 120 }}>
+            <MenuItem value="">全部</MenuItem>
+            {Object.entries(OPS_TASK_STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </TextField>
         </Box>
         {(list.data ?? []).length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography color="text.secondary">暂无任务记录</Typography>
+            <Typography color="text.secondary">{kindFilter || statusFilter ? '没有符合筛选条件的任务' : '暂无任务记录'}</Typography>
           </Box>
         ) : (
           <Box>

@@ -2,7 +2,7 @@
 
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
@@ -10,10 +10,15 @@ import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
 import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import AppUpdater from '@/components/client/AppUpdater';
+import ClientPlatformAttr from '@/components/client/ClientPlatformAttr';
+import NativeTransitions from '@/components/client/NativeTransitions';
+import BackKeyBridge from '@/components/client/BackKeyBridge';
+import NavProgress from '@/components/client/NavProgress';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import EmbedBridge from '@/components/layout/EmbedBridge';
 import RealtimeProvider from '@/components/realtime/RealtimeProvider';
+import CallLayer from '@/components/call/CallLayer';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -90,12 +95,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <EmbedBridge />
               {/* 全站唯一一条通知长连接:私信 / 互动消息 / 系统公告 / 客服都从这里下来 */}
               <RealtimeProvider />
+              {/* 一对一语音 / 视频通话(来电 / 去电 / 通话中的全屏层),信令走上面那条长连接 */}
+              <CallLayer />
               {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
               <ViewportFix />
               {/* 客户端:接住系统浏览器授权完成后的 qingqiuyue:// 回跳(网页里是空组件) */}
               <DeepLinkBridge />
               {/* 客户端:启动 / 每 6 小时检查新版本,桌面端自动下载安装(网页里是空组件) */}
               <AppUpdater />
+              {/* <html data-client=…>(客户端)/ data-touch(手机浏览器),供 globals.css 收掉网页才有的交互 */}
+              <ClientPlatformAttr />
+              {/* 页面前进/返回转场(网页 + 客户端)+ 客户端真机滑不动诊断 */}
+              {/* useSearchParams 在静态导出下必须包 Suspense */}
+              <Suspense fallback={null}>
+                <NativeTransitions />
+              </Suspense>
+              {/* 安卓返回键先问页面:关弹窗 / 一级页提示再按一次退出 / 后退 */}
+              <BackKeyBridge />
+              {/* 点下去反应慢(换页 / 提交)时的顶部进度条和遮罩 */}
+              <NavProgress />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>

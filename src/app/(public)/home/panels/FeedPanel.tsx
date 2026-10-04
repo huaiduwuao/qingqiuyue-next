@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import HotspotBoard from '@/components/home/HotspotBoard';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -43,13 +44,17 @@ import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/List
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
-import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
+import { PlayTag } from '@/components/common/PlayTag';
 import type { PlaybackStatus } from '@/apis/recommend';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import FilterListRoundedIcon from '@mui/icons-material/FilterListRounded';
+import Badge from '@mui/material/Badge';
+import Drawer from '@mui/material/Drawer';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
 // 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
@@ -87,7 +92,11 @@ type FeedItem = {
    *  此时角标不显示 —— 宁可不说,也不要猜。 */
   playbackStatus?: PlaybackStatus;
   readyItems?: number;
+  /** 推荐里被「此刻的分支」召回时,是哪一枝(如「外卖 · 谋生之重」) */
+  topic?: string;
   totalItems?: number;
+  /** 集数角标「全81集 / 更新至12集 / 全308章 / 更新至37话」,/module/content/list 下发 */
+  episodeLabel?: string;
 };
 
 type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
@@ -144,6 +153,9 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   // 登录后频道跟账号走(未登录只用本机那份);挂在这里就够——页签和频道管理都在本面板内
   useHomeSectionSync();
   const [managerOpen, setManagerOpen] = useState(false);
+  const { isMobile } = useResponsive();
+  // 手机上排序/评分/年份收在底部弹层里
+  const [filterOpen, setFilterOpen] = useState(false);
   const urlSection = searchParams.get('section') || RECOMMEND_SECTION.id;
   const [section, setSectionState] = useState<string>(urlSection);
   const setSection = (next: string) => {
@@ -275,6 +287,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               orderBy: 'update_time',
               // 只要有封面的条目:资讯热搜这类纯文字条目在瀑布流里是一片空白卡片。
               hasCover: true,
+              // 影视类只放站内能看的(其它类型后端放行)。
+              watchable: 1,
             }).catch(() => null),
           ),
         );
@@ -322,7 +336,10 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         pageSize: PAGE_SIZE,
         ...params,
         // 后端认的参数名是 orderBy;之前传 order 被静默丢弃,"最新/高评分"排序从未生效。
-        orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
+        // 人气榜 = 全网热度(后端 internal/webheat);热度 = 站内点赞收藏
+        orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : sort === 'views' ? 'web_heat' : 'COLLECT',
+        // 影视类只放站内能看的(其它类型后端放行)。
+        watchable: 1,
         ...(ratingMin ? { ratingMin } : {}),
         ...(year ? { releaseYear: year } : {}),
       }) as any;
@@ -369,11 +386,132 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
+  // 手机端「筛选」按钮上的角标:偏离默认值的条件数
+  const filterCount = (sort !== 'views' ? 1 : 0) + (ratingMin ? 1 : 0) + (year ? 1 : 0);
+  const sortFilterRows = (
+    <>
+      {/* 精选频道顶部:此刻全网热搜对上的站内能看的内容(手机上也看得到) */}
+      {active.kind === 'recommend' && (
+        <Box sx={{ px: 1.5 }}>
+          <HotspotBoard variant="strip" limit={10} />
+        </Box>
+      )}
+      {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
+      {tab === 'home' && active.kind !== 'playlist' && (
+        <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
+            {[
+            { key: 'views', label: '人气榜' },
+            { key: 'hot', label: '热度' },
+            { key: 'new', label: '最新' },
+            { key: 'rating', label: '高评分' },
+          ].map((s) => {
+            const active = sort === s.key;
+            return (
+              <Box
+                key={s.key}
+                onClick={() => setSort(s.key as any)}
+                sx={{
+                  flexShrink: 0,
+                  px: 1.25,
+                  py: 0.35,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                  bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {s.label}
+              </Box>
+            );
+          })}
+        </Box>
+        {/* 右侧渐变遮罩提示可滚动 */}
+        <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+      </Box>
+      )}
+      {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
+      {tab === 'home' && active.kind !== 'recommend' && active.kind !== 'playlist' && (
+        <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
+            {['8', '9'].map((r) => {
+              const active = ratingMin === r;
+              return (
+                <Box
+                  key={`r${r}`}
+                  onClick={() => setRating(active ? '' : r)}
+                  sx={{
+                    flexShrink: 0,
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                    bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {r}分+
+                </Box>
+              );
+            })}
+            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.3))', flexShrink: 0, mx: 0.25 }}>|</Typography>
+            {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map((y) => {
+              const active = year === y;
+              return (
+                <Box
+                  key={`y${y}`}
+                  onClick={() => setYear(active ? '' : y)}
+                  sx={{
+                    flexShrink: 0,
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                    bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {y}
+                </Box>
+              );
+            })}
+          </Box>
+          {/* 右侧渐变遮罩提示可滚动 */}
+          <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+        </Box>
+      )}
+    </>
+  );
+
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {tab === 'home' && (
+    <Box
+      // 首页 main 是列向 flex,带这个标记的直接子元素 flex:1 铺满剩余高度。
+      // 音乐底栏出现时 main 会在底部让出它的高度;这里跟推荐视频流一样用负 margin 伸到
+      // 底栏下面(底栏开合时页面不缩放),只在滚动区末尾留出底栏高度,滚到底不被盖住。
+      data-fill-main
+      sx={{ display: 'flex', flexDirection: 'column', height: '100%', mb: 'calc(-1 * var(--player-inset, 0px))' }}
+    >
+      {/* 手机上顶栏已经写着「精选」,这块标题只会把列表往下挤 */}
+      {tab === 'home' && !isMobile && (
         <Box
           sx={{
             // 不再 sticky:之前它 sticky top:0,下面的 Tabs 再 sticky top:calc(56px + sat)。
@@ -422,26 +560,30 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               value={active.id}
               onChange={(_, v) => setSection(v)}
               variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
+              // 手机上直接手指横滑,不要左右箭头(两个箭头各占 40px,加上 MUI 默认每格最小 90px,一屏只露两个频道)
+              scrollButtons={isMobile ? false : 'auto'}
+              allowScrollButtonsMobile={!isMobile}
               sx={{
                 flex: 1,
                 minWidth: 0,
-                minHeight: 44,
-                px: 1,
+                minHeight: { xs: 40, md: 44 },
+                px: { xs: 0.5, md: 1 },
                 '& .MuiTab-root': {
-                  minHeight: 44,
-                  fontSize: 13,
+                  minHeight: { xs: 40, md: 44 },
+                  minWidth: 0,
+                  fontSize: { xs: 14, md: 13 },
                   fontWeight: 500,
                   color: 'var(--text-secondary, rgba(255,255,255,0.6))',
                   textTransform: 'none',
-                  px: 1.75,
+                  px: { xs: 1.25, md: 1.75 },
                   py: 0,
                   transition: 'color 0.15s',
                   '&:hover': { color: 'var(--text-primary, #ffffff)' },
                 },
                 '& .Mui-selected': { color: 'var(--brand-color, #FE2C55) !important', fontWeight: 700 },
-                '& .MuiTabs-indicator': { backgroundColor: 'var(--brand-color, #FE2C55)', height: 2.5, borderRadius: 1.25 },
+                // 指示条收成文字下方一小截(不是整格宽的长条)
+                '& .MuiTabs-indicator': { backgroundColor: 'transparent', height: 3, display: 'flex', justifyContent: 'center' },
+                '& .MuiTabs-indicator::after': { content: '""', width: 18, height: 3, borderRadius: 1.5, bgcolor: 'var(--brand-color, #FE2C55)' },
                 '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
               }}
             >
@@ -480,14 +622,29 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 <TuneRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-            <ListLayoutSwitch />
+            {isMobile ? (
+              active.kind !== 'playlist' && (
+                <IconButton
+                  size="small"
+                  aria-label="筛选"
+                  onClick={() => setFilterOpen(true)}
+                  sx={{ color: filterCount ? 'var(--brand-color, #FE2C55)' : 'var(--text-secondary, rgba(255,255,255,0.6))' }}
+                >
+                  <Badge badgeContent={filterCount} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: 9, height: 14, minWidth: 14, p: 0 } }}>
+                    <FilterListRoundedIcon sx={{ fontSize: 19 }} />
+                  </Badge>
+                </IconButton>
+              )
+            ) : (
+              <ListLayoutSwitch />
+            )}
             </Box>
           )}
           {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
           {tab === 'home' && parentType && (
             <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.25 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, md: 0.5 }, overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+                <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
                 {subcatQuery.isLoading ? (
                   <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
                 ) : (
@@ -501,14 +658,16 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                         onClick={() => setGenre(value)}
                       sx={{
                         flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
+                        // 手机上点按区域大一点(以前 20px 高的小胶囊很难点准)
+                        px: { xs: 1.5, md: 1.25 },
+                        py: { xs: 0.5, md: 0.35 },
                         borderRadius: 999,
                         cursor: 'pointer',
-                        fontSize: 11.5,
+                        fontSize: { xs: 12.5, md: 11.5 },
                         fontWeight: chosen ? 700 : 500,
-                        color: chosen ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
-                        bgcolor: chosen ? 'rgba(255,255,255,0.95)' : 'transparent',
+                        // 选中态用品牌色:以前是白底黑字,浅色主题下白底融进背景,只剩字变粗,看不出选了哪个
+                        color: chosen ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.85))',
+                        bgcolor: chosen ? 'var(--brand-color, #FE2C55)' : 'transparent',
                         border: '1px solid',
                         borderColor: chosen ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
                         transition: 'all 0.15s',
@@ -524,110 +683,37 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
           </Box>
           )}
-          {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
-          {tab === 'home' && active.kind !== 'playlist' && (
-            <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
-                {[
-                { key: 'views', label: '人气榜' },
-                { key: 'hot', label: '热度' },
-                { key: 'new', label: '最新' },
-                { key: 'rating', label: '高评分' },
-              ].map((s) => {
-                const active = sort === s.key;
-                return (
-                  <Box
-                    key={s.key}
-                    onClick={() => setSort(s.key as any)}
-                    sx={{
-                      flexShrink: 0,
-                      px: 1.25,
-                      py: 0.35,
-                      borderRadius: 999,
-                      cursor: 'pointer',
-                      fontSize: 11.5,
-                      fontWeight: active ? 700 : 500,
-                      color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                      bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                      border: '1px solid',
-                      borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {s.label}
-                  </Box>
-                );
-              })}
-            </Box>
-            {/* 右侧渐变遮罩提示可滚动 */}
-            <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
-          </Box>
-          )}
-          {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
-          {tab === 'home' && active.kind !== 'recommend' && active.kind !== 'playlist' && (
-            <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
-                {['8', '9'].map((r) => {
-                  const active = ratingMin === r;
-                  return (
-                    <Box
-                      key={`r${r}`}
-                      onClick={() => setRating(active ? '' : r)}
-                      sx={{
-                        flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
-                        borderRadius: 999,
-                        cursor: 'pointer',
-                        fontSize: 11.5,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                        border: '1px solid',
-                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {r}分+
-                    </Box>
-                  );
-                })}
-                <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.3))', flexShrink: 0, mx: 0.25 }}>|</Typography>
-                {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map((y) => {
-                  const active = year === y;
-                  return (
-                    <Box
-                      key={`y${y}`}
-                      onClick={() => setYear(active ? '' : y)}
-                      sx={{
-                        flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
-                        borderRadius: 999,
-                        cursor: 'pointer',
-                        fontSize: 11.5,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                        border: '1px solid',
-                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {y}
-                    </Box>
-                  );
-                })}
-              </Box>
-              {/* 右侧渐变遮罩提示可滚动 */}
-              <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
-            </Box>
-          )}
+          {/* 排序 / 评分年份:桌面端平铺在页签下;手机上收进「筛选」底部弹层(见 filterSheet),
+              以前四行叠起来加上标题,在手机上吃掉小半屏 */}
+          {!isMobile && sortFilterRows}
         </Box>
+        {isMobile && (
+          <Drawer
+            anchor="bottom"
+            open={filterOpen}
+            onClose={() => setFilterOpen(false)}
+            slotProps={{
+              paper: {
+                sx: {
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  bgcolor: 'var(--bg-body, #fff)',
+                  pb: 'calc(12px + var(--sab, 0px))',
+                },
+              },
+            }}
+          >
+            <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--border-strong, rgba(0,0,0,0.15))', mx: 'auto', mt: 1, mb: 0.5 }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 700, px: 2, py: 1 }}>筛选</Typography>
+            {sortFilterRows}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: 0.5 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, letterSpacing: 0.5 }}>样式</Typography>
+              <ListLayoutSwitch withLabel />
+            </Box>
+          </Drawer>
+        )}
 
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pb: 'var(--player-inset, 0px)' }}>
           {/* 歌单频道:整张歌单直接能播,不用先点进歌单页 */}
           {active.kind === 'playlist' && playlist && (
             <PlaylistChannelHeader list={playlist} />
@@ -641,17 +727,18 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           )}
           {/* 加载状态 */}
           {isLoading ? (
-            <Box sx={{ p: 2 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            <Box sx={{ p: { xs: 1, md: 2 } }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(280px, 1fr))' }, gap: { xs: 1, md: 2 } }}>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} variant="rounded" sx={{ height: 200, bgcolor: 'action.hover' }} />
                 ))}
               </Box>
             </Box>
           ) : (
-            <Box sx={{ p: 2 }}>
+            // 手机:两列、小间距、外边距减半(以前一屏一张大卡,留白比内容还多)
+            <Box sx={{ p: { xs: 1, md: 2 } }}>
               {feedList.length > 0 ? (
-                <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
+                <ListLayout minColumnWidth={260} minColumns={isMobile ? 2 : 1} gap={isMobile ? 8 : 12} listMaxWidth="var(--page-max-narrow)">
                   {feedList.map((item, i) => (
                     <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35}>
                       <FeedCard item={item} />
@@ -774,11 +861,16 @@ function FeedCard({ item }: { item: FeedItem }) {
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         {/* 站内能不能看/能不能读,在卡片上就说清楚。用户点进去才发现是空白页
             或者"去原站看",是这个产品最主要的一种挫败来源。 */}
-        <AvailabilityBadge
+        {/* 没随 feed 下发判定的(走 moduleContentPage 的频道)由 PlayTag 按 id 合批去问;
+            右上角让给「图文」时往下挪一格。 */}
+        <PlayTag
           variant="overlay"
+          id={item.id}
+          contentType={targetType}
           status={item.playbackStatus}
           readyItems={item.readyItems}
           totalItems={item.totalItems}
+          top={item.category === 'image' ? 32 : 8}
         />
         {item.isLive ? (
           <Chip
@@ -791,23 +883,24 @@ function FeedCard({ item }: { item: FeedItem }) {
               left: 8,
               height: 20,
               bgcolor: 'var(--brand-color, #FE2C55)',
-              color: 'var(--text-primary, #ffffff)',
+              color: '#fff',
               fontSize: 10,
               fontWeight: 600,
-              '& .MuiChip-icon': { color: 'var(--text-primary, #ffffff)' },
+              '& .MuiChip-icon': { color: '#fff' },
             }}
           />
-        ) : (
+        ) : item.durationSec > 0 ? (
+          // 没有时长(小说、文章、多数爬来的条目)就不显示 —— 以前一律挂个「▶ 0秒」
           <Box
             sx={{
               position: 'absolute',
-              bottom: 8,
-              right: 8,
+              bottom: 6,
+              right: 6,
               px: 0.75,
               py: 0.125,
               borderRadius: 0.5,
               bgcolor: 'rgba(0,0,0,0.6)',
-              color: 'var(--text-primary, #ffffff)',
+              color: '#ffffff',
               fontSize: 10,
               display: 'flex',
               alignItems: 'center',
@@ -817,7 +910,11 @@ function FeedCard({ item }: { item: FeedItem }) {
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
             {formatDuration(item.durationSec)}
           </Box>
-        )}
+        ) : item.episodeLabel ? (
+          <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: '#ffffff', fontSize: 10, fontWeight: 600 }}>
+            {item.episodeLabel}
+          </Box>
+        ) : null}
         {/* 音乐卡片:不进详情页也能直接听,交给全局底栏 */}
         {targetType === 'MUSIC' && (
           <MusicPlayButton
@@ -846,7 +943,13 @@ function FeedCard({ item }: { item: FeedItem }) {
         )}
       </Box>
 
-      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+      {/* 手机两列时卡片只有一百七八十像素宽:内边距、行距都收一点 */}
+      <Box sx={{ p: { xs: 1, md: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+        {item.topic && (
+          <Typography sx={{ fontSize: 10.5, color: '#2E86AB', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            此刻 · {item.topic}
+          </Typography>
+        )}
         <Typography
           sx={{
             fontSize: 13,
@@ -857,7 +960,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
-            mb: 1,
+            mb: { xs: 0.75, md: 1 },
             minHeight: 34,
           }}
         >
@@ -865,8 +968,8 @@ function FeedCard({ item }: { item: FeedItem }) {
         </Typography>
 
         {/* 作者行:头像 + 名字 + 状态徽章 + 关注/朋友按钮 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-          <UserAvatarLink userId={item.authorId} name={item.authorName} src={item.authorAvatar} size={22} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: { xs: 0.5, md: 0.75 } }}>
+          <UserAvatarLink userId={item.authorId} name={item.authorName} src={item.authorAvatar} size={20} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.85))', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -881,7 +984,7 @@ function FeedCard({ item }: { item: FeedItem }) {
                 </Tooltip>
               ) : item.isFollowing ? (
                 <Tooltip title="已关注">
-                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: 500, flexShrink: 0 }}>
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'var(--bg-active)', color: 'var(--text-secondary)', fontSize: 9, fontWeight: 500, flexShrink: 0 }}>
                     关注
                   </Box>
                 </Tooltip>
@@ -891,10 +994,13 @@ function FeedCard({ item }: { item: FeedItem }) {
 
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        {/* 半宽卡片放不下四项:手机上只留 赞 + 播放 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.5 } }}>
           <Stat icon={<FavoriteBorderRoundedIcon sx={{ fontSize: 12 }} />} value={item.likes} />
-          <Stat icon={<ModeCommentOutlinedIcon sx={{ fontSize: 12 }} />} value={item.comments} />
-          <Stat icon={<ShareOutlinedIcon sx={{ fontSize: 12 }} />} value={item.shares} />
+          <Box sx={{ display: { xs: 'none', md: 'contents' } }}>
+            <Stat icon={<ModeCommentOutlinedIcon sx={{ fontSize: 12 }} />} value={item.comments} />
+            <Stat icon={<ShareOutlinedIcon sx={{ fontSize: 12 }} />} value={item.shares} />
+          </Box>
           <Box sx={{ flex: 1 }} />
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
             {formatViews(item.views)} 播放
@@ -951,8 +1057,8 @@ function EmptyHint({ tab, section }: { tab: PanelTab; section: HomeSection }) {
         mb: 2,
       }}
     >
-      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{title}</Typography>
-      <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', mt: 0.5 }}>{hint}</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</Typography>
+      <Typography sx={{ fontSize: 11, color: 'var(--text-muted)', mt: 0.5 }}>{hint}</Typography>
     </Box>
   );
 }

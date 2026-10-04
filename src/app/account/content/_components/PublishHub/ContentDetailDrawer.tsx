@@ -36,9 +36,9 @@ interface Props {
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  publish: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  publish: { label: '已发布', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  published: { label: '已发布', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  reviewing: { label: '审核中', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   review_failed: { label: '审核未通过', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
   un_publish: { label: '已下架', color: 'text.disabled', bg: 'action.hover' },
 };
@@ -118,7 +118,7 @@ export default function ContentDetailDrawer({ open, payload, onClose, onNavigate
               justifyContent: 'center',
             }}
           >
-            {!payload.cover && <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.4)' }} />}
+            {!payload.cover && <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'text.disabled' }} />}
           </Box>
 
           {/* 标题 + 状态 + 计数 */}

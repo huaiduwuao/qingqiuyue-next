@@ -94,8 +94,8 @@ interface Work {
 // 放宽为 Record<string,...>:后端 content_type/status 取值范围比前端枚举广(NOVEL/MUSIC/FILM/...),
 // 查不到时用 FALLBACK 兜底,避免 tm.icon / sm.label 白屏(seed 真实数据后暴露)。
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  published: { label: '已发布', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  reviewing: { label: '审核中', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
   draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
   private: { label: '私密', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
   rejected: { label: '已驳回', color: '#FF6B8A', bg: 'rgba(255, 107, 138, 0.12)' },
@@ -105,7 +105,7 @@ const STATUS_META_FALLBACK = { label: '未知', color: 'text.disabled', bg: 'act
 
 const TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   video: { label: '视频', icon: <VideocamRoundedIcon sx={{ fontSize: 14 }} />, color: '#FE2C55' },
-  image: { label: '图文', icon: <ImageRoundedIcon sx={{ fontSize: 14 }} />, color: '#25F4EE' },
+  image: { label: '图文', icon: <ImageRoundedIcon sx={{ fontSize: 14 }} />, color: 'var(--fg-cyan)' },
   article: { label: '文章', icon: <ArticleRoundedIcon sx={{ fontSize: 14 }} />, color: '#8B5CF6' },
   novel: { label: '小说', icon: <MenuBookRoundedIcon sx={{ fontSize: 14 }} />, color: '#F59E0B' },
   music: { label: '音乐', icon: <MusicNoteRoundedIcon sx={{ fontSize: 14 }} />, color: '#10B981' },
@@ -509,7 +509,7 @@ export default function WorksManager() {
                   }}
                 >
                   <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
-                  <Box sx={{ position: 'absolute', top: 4, left: 4, color: '#fff', opacity: 0.9 }}>{tm.icon}</Box>
+                  <Box sx={{ position: 'absolute', top: 4, left: 4, color: '#fff', opacity: 0.9, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>{tm.icon}</Box>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25, flexWrap: 'wrap' }}>

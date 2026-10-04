@@ -101,6 +101,8 @@ function PoetryDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '诗词'}
+        playId={id}
+        playType="POETRY"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }}>

@@ -6,7 +6,6 @@ export interface AppListParams {
   pageSize?: number;
   pageNumber?: number;
   name?: string;
-  status?: number;
 }
 
 // 应用分页 -> 后端 GET /app/list (分页响应别名由 client 拦截器统一处理)

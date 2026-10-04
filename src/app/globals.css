@@ -17,6 +17,11 @@
   --text-secondary: rgba(0, 0, 0, 0.65);
   --text-muted: rgba(0, 0, 0, 0.45);
   --text-disabled: rgba(0, 0, 0, 0.3);
+  /* 状态/强调文字色:品牌亮青、亮绿、亮黄在白底上几乎看不见,浅色取深一档;深色保持原亮色。
+     只用于文字/边框 —— 要配 alpha() 或 ${color}1A 拼透明度的地方仍写 hex */
+  --fg-cyan: #0E7490;
+  --fg-green: #15803D;
+  --fg-amber: #B45309;
 
   /* Safe Area 变量 - iOS/Android 全面屏适配。
      安卓 WebView 的 env(safe-area-inset-*) 只含刘海/挖孔,不含状态栏和手势条,没刘海的机器上
@@ -84,6 +89,9 @@ html[data-theme='dark'] {
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-muted: rgba(255, 255, 255, 0.4);
   --text-disabled: rgba(255, 255, 255, 0.25);
+  --fg-cyan: #25F4EE;
+  --fg-green: #5DDB96;
+  --fg-amber: #FFB400;
 }
 
 html {
@@ -109,11 +117,52 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  /* 没空格的长串(URL、外文长词)放不下时照样折行,不顶出容器 */
+  overflow-wrap: break-word;
   color: var(--text-primary);
   background: var(--bg-body);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 外壳锁滚动(首页 / 账号 / 用户页,由 lib/shellScrollLock 在 <html> 上打标记)。
+   不写 body 的行内样式:那个位置归 MUI Modal 管,两边抢着存取会把 hidden 残留到详情页。 */
+html[data-shell-lock],
+html[data-shell-lock] body {
+  overflow: hidden;
+}
+html[data-shell-lock] body {
+  background-color: var(--bg-body);
+}
+html[data-shell-fixed] body {
+  height: var(--app-height, 100vh);
+}
+
+/* 手机上的整屏弹窗(新建需求等 fullScreen Dialog):安卓客户端是 edge-to-edge,弹窗会画到状态栏和
+   手势条底下 —— 标题压在状态栏里、底部按钮落在手势条下面,看起来整个弹窗比屏幕高。让出安全区;
+   高度跟着 --app-height(键盘弹出时变矮),入场从下往上推,像原生的整页表单。 */
+.MuiDialog-paperFullScreen {
+  box-sizing: border-box;
+  height: var(--app-height, 100%);
+  max-height: var(--app-height, 100%);
+  padding-top: var(--sat, 0px);
+  padding-bottom: var(--sab, 0px);
+}
+/* 标题里 absolute 定位的 ×(top: 8)原本相对整张 Paper,让出状态栏后会留在状态栏里:改成相对标题栏 */
+.MuiDialog-paperFullScreen > .MuiDialogTitle-root {
+  position: relative;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(html[data-client], html[data-touch]) .MuiDialog-paperFullScreen {
+    animation: qq-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+@keyframes qq-sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
 }
 
 /* 音乐底栏占位(GlobalMusicBar 挂到 body 末尾的补丁元素)。
@@ -126,8 +175,18 @@ body {
    点开/收起播放器不会再让页面跳。 */
 body > [data-player-pad] {
   flex: 0 0 auto;
-  height: var(--player-inset, 0px);
+  /* + 手势条/Home 条高度:音乐底栏本身是 bottom: --sab + 10px,占位不算上它就会少一截,
+     页面最后几行被底栏压住;没有底栏时也给安卓全面屏的手势条让出位置 */
+  height: calc(var(--player-inset, 0px) + var(--sab, 0px));
   pointer-events: none;
+}
+
+/* 定高应用壳(首页、后台、创作中心:height = --app-height,内部自己滚动)不要这层占位:
+   body 是列向 flex,占位一出现,首页壳被压扁(main 自己又留了一遍底栏高度,推荐视频流
+   等于缩了两次),后台壳则把 body 撑高、整页多出一截外层滚动。
+   这些壳在自己的滚动区里留底栏高度(padding-bottom 读 --player-inset)。 */
+body:has([data-app-shell]) > [data-player-pad] {
+  display: none;
 }
 
 * {
@@ -169,6 +228,215 @@ a {
   [role="button"] {
     cursor: pointer;
     user-select: none;
+  }
+}
+
+/* ==================== 安卓客户端 / 触屏网页:收掉网页才有的交互 ====================
+   data-client 由 components/client/ClientPlatformAttr 在客户端里打上;data-touch 是手机/平板浏览器
+   (触屏、没有悬停),同一个组件打。桌面网页两个都没有,不受影响。
+   整页防回弹只给安卓客户端:浏览器里的下拉刷新是用户预期的行为。 */
+
+/* 整页不再橡皮筋回弹/拉伸:原生应用的外壳是固定的,只有里面的列表会滚 */
+html[data-client="android"],
+html[data-client="android"] body {
+  overscroll-behavior: none;
+}
+
+/* 长按不再选中按钮、标签、卡片上的文字,也不弹系统的链接/图片菜单 */
+html[data-client="android"] body,
+html[data-touch] body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* 输入框和正文照样能选、能复制 */
+:is(html[data-client="android"], html[data-touch]) :is(input, textarea, [contenteditable="true"], [contenteditable=""], article, pre, blockquote, .selectable, [data-selectable]),
+:is(html[data-client="android"], html[data-touch]) :is(article, pre, blockquote, .selectable, [data-selectable]) * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+:is(html[data-client="android"], html[data-touch]) img {
+  -webkit-user-drag: none;
+}
+
+/* 按下反馈:原生应用点下去有「按进去」的手感,松手弹回。用独立的 scale 属性而不是 transform,
+   不覆盖元素自己的位移/动画;不给 MUI 组件设 transition,免得盖掉它们自带的颜色/阴影过渡。客户端 + 触屏网页。 */
+:is(html[data-client], html[data-touch]) :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
+  opacity: 0.8;
+  scale: 0.98;
+}
+:is(html[data-client], html[data-touch]) .MuiButtonBase-root:not(.Mui-disabled):active {
+  scale: 0.97;
+}
+
+/* ==================== 客户端:提示条 ====================
+   以前各处的 Snackbar 大多锚在顶部,客户端里正好压住顶栏(安卓还叠在状态栏下面)。
+   客户端和手机浏览器里统一放到底部、底栏和音乐条之上,入场从下往上滑 + 淡入,像原生的 Toast。 */
+:is(html[data-client], html[data-touch]) .MuiSnackbar-root {
+  top: auto !important;
+  bottom: calc(max(var(--bottom-nav-inset, 0px), var(--sab, 0px)) + var(--player-inset, 0px) + 12px) !important;
+  left: 12px !important;
+  right: 12px !important;
+  transform: none !important;
+  justify-content: center;
+}
+:is(html[data-client], html[data-touch]) .MuiSnackbar-root > * {
+  animation: qq-toast-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes qq-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+/* ==================== 手机浏览器:弹层背后的视频 ====================
+   小米等安卓浏览器会把 <video> 接管成原生播放层,画在所有网页元素之上,z-index 管不住:
+   推荐页的沉浸视频因此盖住侧边栏 / 对话框。弹层(挂在 body 下的 Drawer / Dialog)打开期间
+   把弹层之外的视频藏起来,关上即恢复;弹层里自己的视频不受影响。 */
+html[data-touch] body:has(> :is(.MuiDrawer-root, .MuiDialog-root):not(.MuiModal-hidden)) > :not(.MuiModal-root) video {
+  visibility: hidden;
+}
+
+/* ==================== 页面转场(网页 + 客户端) ====================
+   components/client/NativeTransitions 在导航时打上 html[data-vt=forward|back] 并调 View Transitions API
+   (小说详情 ⇄ 阅读器这类同页换屏走 lib/navTransition 的 stateTransition,同一套样式)。
+   窄屏:前进新页从右推入、旧页左移变暗;返回当前页向右滑走、上一页从左侧回来。
+   宽屏(≥900px)整页平移太重,换成淡入 + 24px 位移,见本节末尾。
+   音乐底栏有自己的 view-transition-name,转场时原地不动,不跟着页面滑。 */
+html[data-vt]::view-transition-old(root),
+html[data-vt]::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+html[data-vt="forward"]::view-transition-old(root) {
+  animation-name: qq-vt-push-out;
+}
+html[data-vt="forward"]::view-transition-new(root) {
+  animation-name: qq-vt-push-in;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+}
+html[data-vt="back"]::view-transition-old(root) {
+  animation-name: qq-vt-pop-out;
+  z-index: 2;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+}
+html[data-vt="back"]::view-transition-new(root) {
+  animation-name: qq-vt-pop-in;
+}
+@keyframes qq-vt-push-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes qq-vt-push-out {
+  to {
+    transform: translateX(-25%);
+    opacity: 0.7;
+  }
+}
+@keyframes qq-vt-pop-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes qq-vt-pop-in {
+  from {
+    transform: translateX(-25%);
+    opacity: 0.7;
+  }
+}
+/* 底部 tab 之间平级切换:不推页,旧页 0.12s 淡出、新页 0.18s 淡入(手机/电脑一样)。
+   底栏自己有 view-transition-name(qq-bottom-nav),原地不动,只有选中态颜色过渡。 */
+html[data-vt="tab"]::view-transition-old(root),
+html[data-vt="swap"]::view-transition-old(root) {
+  animation: qq-vt-fade-out 0.12s ease-out both;
+  box-shadow: none;
+}
+html[data-vt="tab"]::view-transition-new(root),
+html[data-vt="swap"]::view-transition-new(root) {
+  animation: qq-vt-tab-in 0.18s ease-out both;
+  box-shadow: none;
+}
+@keyframes qq-vt-tab-in {
+  from {
+    opacity: 0;
+  }
+}
+html[data-vt]::view-transition-group(qq-bottom-nav) {
+  animation-duration: 0.18s;
+  z-index: 3;
+}
+@media (min-width: 900px) {
+  html[data-vt]::view-transition-old(root),
+  html[data-vt]::view-transition-new(root) {
+    animation-duration: 0.22s;
+    box-shadow: none;
+  }
+  html[data-vt="forward"]::view-transition-new(root) {
+    animation-name: qq-vt-fade-in-right;
+  }
+  html[data-vt="back"]::view-transition-new(root) {
+    animation-name: qq-vt-fade-in-left;
+  }
+  html[data-vt]::view-transition-old(root) {
+    animation-name: qq-vt-fade-out;
+  }
+}
+@keyframes qq-vt-fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes qq-vt-fade-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes qq-vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 页内切换(首页页签、「我的」里的 书架/作品/历史…)的入场:淡入 + 从切换方向滑进来一点。
+   方向由 --qq-tab-dx 给(往右边的页签是正值)。 */
+@keyframes qq-tab-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--qq-tab-dx, 12px));
+  }
+}
+@keyframes qq-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 首页左侧导航的宽度,音乐底栏/唱片据此避开侧栏(GlobalMusicBar 读 --side-nav-w)。
+   与 home/layout.tsx 里 LeftSidebar 的 width: { md: 200, lg: 220 } 保持一致。 */
+@media (min-width: 900px) {
+  html:has([data-side-nav]) {
+    --side-nav-w: 200px;
+  }
+}
+@media (min-width: 1200px) {
+  html:has([data-side-nav]) {
+    --side-nav-w: 220px;
+  }
+}
+
+/* 手机/平板宽度下,任何一个超宽的元素(一行塞太多按钮、没空格的长 URL)都会把布局视口撑宽,
+   整页变成可以左右拖、看起来"宽度不对"(安卓 WebView 还会整体缩小)。html 上已有 overflow-x:hidden
+   但挡不住;body 用 clip 兜底 —— clip 不产生滚动容器,sticky 顶栏照常吸顶。
+   这是兜底,超宽的元素本身仍然要修。 */
+@media (max-width: 899.95px) {
+  body {
+    overflow-x: clip;
   }
 }
 

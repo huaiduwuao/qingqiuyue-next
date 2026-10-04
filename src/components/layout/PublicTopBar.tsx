@@ -45,7 +45,7 @@ export default function PublicTopBar({
   showBack = true,
   icon,
   maxWidth = 'lg',
-  homePath = '/home/recommend?tab=home',
+  homePath = '/home/recommend',
 }: Props) {
   const router = useRouter();
   const { currentUser } = useApp();
@@ -76,10 +76,10 @@ export default function PublicTopBar({
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 1.5,
-            minHeight: { xs: 56, md: 64 },
-            pl: { xs: 'max(var(--sal, 0px), 12px)', sm: 2, md: 3 },
-            pr: { xs: 'max(var(--sar, 0px), 12px)', sm: 2, md: 3 },
+            minHeight: { xs: 48, md: 64 },
+            gap: { xs: 0.5, md: 1.5 },
+            pl: { xs: 'max(var(--sal, 0px), 4px)', sm: 2, md: 3 },
+            pr: { xs: 'max(var(--sar, 0px), 4px)', sm: 2, md: 3 },
           }}
         >
           {/* 返回 */}
@@ -166,8 +166,17 @@ export default function PublicTopBar({
             </Typography>
           </Box>
 
+          {/* 手机:标题占中间,右边一个搜索图标;搜索框和头像只在电脑端(头像在底部「我的」) */}
+          <Box sx={{ flex: 1, display: { xs: 'block', md: 'none' } }} />
+          <IconButton
+            aria-label="搜索"
+            onClick={() => router.push('/search')}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'var(--text-primary, currentColor)', flexShrink: 0 }}
+          >
+            <SearchIcon />
+          </IconButton>
           {/* 搜索框:占满中间剩余空间,不再限制 480,网页版更宽 */}
-          <Box sx={{ flex: 1, mx: { xs: 0.5, md: 2 }, minWidth: 0 }}>
+          <Box sx={{ flex: 1, mx: { xs: 0.5, md: 2 }, minWidth: 0, display: { xs: 'none', md: 'block' } }}>
             <TextField
               fullWidth
               size="small"
@@ -227,8 +236,8 @@ export default function PublicTopBar({
             />
           </Box>
 
-          {/* 用户菜单 */}
-          <Box sx={{ flexShrink: 0 }}>
+          {/* 用户菜单(电脑端) */}
+          <Box sx={{ flexShrink: 0, display: { xs: 'none', md: 'block' } }}>
             {currentUser ? (
               <AvatarHoverPopup
                 anchor={

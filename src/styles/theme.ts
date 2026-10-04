@@ -236,9 +236,11 @@ const baseTheme: ThemeOptions = {
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             color: '#fff',
           },
+          // styleOverrides 里写 'action.disabled' 这种 token 不会被解析(成了无效 CSS),
+          // 以前白字 0.7 配浅灰底,浅色模式下禁用按钮的字看不见;用随 data-theme 切换的变量
           '&.Mui-disabled': {
-            color: 'rgba(255, 255, 255, 0.7)',
-            backgroundColor: 'action.disabledBackground',
+            color: 'var(--text-disabled)',
+            backgroundColor: 'var(--bg-active)',
           },
         },
         outlined: {

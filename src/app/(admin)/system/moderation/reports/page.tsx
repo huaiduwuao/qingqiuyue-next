@@ -162,11 +162,15 @@ export default function ModerationReportsPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         title="举报审核"
         columns={columns}
         fetchData={async (params) => {
           const res = await listReports({
             status: params.status,
+            target_type: params.targetType || undefined,
+            target_id: params.targetId || undefined,
+            reporter_id: params.reporterId || undefined,
             page: params.pageNumber,
             pageSize: params.pageSize,
           });
@@ -189,6 +193,14 @@ export default function ModerationReportsPage() {
                 { label: '已驳回', value: 'rejected' },
               ],
             },
+            {
+              key: 'targetType',
+              label: '类型',
+              type: 'select',
+              options: Object.entries(targetLabel).map(([value, label]) => ({ label, value })),
+            },
+            { key: 'targetId', label: '目标ID', type: 'text' },
+            { key: 'reporterId', label: '举报人ID', type: 'text' },
           ],
           values: filterValues,
           onChange: setFilterValues,

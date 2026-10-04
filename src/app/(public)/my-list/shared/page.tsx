@@ -46,6 +46,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { mediaUrl } from '@/lib/media';
 import { coverBackground } from '@/lib/media';
+import { PlayTag } from '@/components/common/PlayTag';
 
 function SharedListContent() {
   const router = useRouter();
@@ -299,9 +300,12 @@ function SharedListContent() {
                       >
                         {it.title}
                       </Typography>
-                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                        {it.author || '匿名'} · {(it.views ?? 0).toLocaleString()} 播放
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                        <Typography noWrap sx={{ fontSize: 11, color: 'text.secondary', minWidth: 0 }}>
+                          {it.author || '匿名'} · {(it.views ?? 0).toLocaleString()} 播放
+                        </Typography>
+                        <PlayTag id={it.contentId} contentType={it.type} variant="inline" sx={{ flexShrink: 0 }} />
+                      </Box>
                     </Box>
                     <Button
                       size="small"

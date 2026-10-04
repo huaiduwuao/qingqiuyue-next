@@ -1,14 +1,17 @@
 'use client';
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { reportPlay } from '@/lib/playReport';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
@@ -18,8 +21,14 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
-import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
-import EmbedVideoPlayer from './EmbedVideoPlayer';
+import { originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
+import { authPlatform, isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
+import { createPortal } from 'react-dom';
+import { useBackClose } from '@/lib/backStack';
+import { canResolveLocally, resolveStream, webCannotFetchMedia } from '@/lib/localStream/engine';
+import { loadRules, matchProvider } from '@/lib/localStream/rules';
+import { attachLocalStream } from '@/lib/localStream/dash';
+import { reportDiag } from '@/lib/clientDiag';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -45,6 +54,11 @@ interface Props {
    */
   fill?: boolean;
   /**
+   * 详情页:播放框按视频真实宽高比,而不是写死 16:9(竖屏视频在 16:9 框里两边大黑边、手机上缩成一小条);
+   * 高度封顶 75vh,竖屏视频不会一屏装不下。推荐卡片这类外框尺寸固定的场景不要传。
+   */
+  fitVideo?: boolean;
+  /**
    * sourceUrl 解析失败时回调(拿到 streamError 那一刻触发)。VideoPlayer 本身不知道
    * 调用方的 contentId/contentType 是什么,不在这里直接调举报接口——由调用方决定
    * 要不要、以及怎么把"这条播不出来"这件事记下来(比如自动提交举报,让"暂时无法
@@ -57,6 +71,22 @@ interface Props {
    * 回到本页再接回来。值是小窗上显示的标题。推荐流这类一屏一条的场景不要传。
    */
   dockTitle?: string;
+  /**
+   * 客户端本地解析(见 lib/localStream):传源站页面地址,由本机按服务器下发的规则解析、本站播放器播放。
+   * 由 VideoPlayer 外壳按「客户端 + 有匹配规则」自动设置,调用方不用传。
+   */
+  localSource?: string;
+  /** 本地解析 / 播放失败:外壳据此显示重试界面 */
+  onLocalFail?: (err: Error) => void;
+  /** 重试:绕过本地解析缓存重新解析 */
+  localRefresh?: boolean;
+  /** 拿到第一帧(开始真正播放)时回调一次 */
+  onFirstFrame?: () => void;
+  /**
+   * 传了就上报播放结果(lib/playReport → 作品主档按播放源聚合真实成功率):
+   * 第一帧记 ok,解析 / 加载失败记 fail。值是内容 id。
+   */
+  reportContentId?: string | number;
 }
 
 export interface VideoPlayerHandle {
@@ -73,7 +103,25 @@ const RECOVER_RESET_MS = 30_000;
 const PREEMPT_EXPIRY_MS = 60_000;
 
 /** 生命周期 effect 里挂到 <video> 上的事件 */
-const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'resize', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+
+/**
+ * 键盘快捷键归哪个播放器:最近点过 / 最近开播的那个。一页可能有多个播放器(详情页 + 推荐卡片),
+ * 按键只给一个,不然按一下 ← 所有视频一起退。
+ */
+let hotkeyOwner: object | null = null;
+
+/**
+ * 焦点在输入框 / 可编辑区 / 下拉框里时按键归它们(评论框里打空格不能暂停视频)。
+ * 滑块(进度条、音量条的 range input)不算:方向键它们自己处理(MUI 会 preventDefault,
+ * 下面据此跳过),空格 / M / F 照样归播放器。
+ */
+function typingTarget(t: EventTarget | null) {
+  const el = t as HTMLElement | null;
+  if (!el?.tagName) return false;
+  if (el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'range') return false;
+  return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+}
 
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -82,8 +130,68 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+/** 推荐流右上角的圆形玻璃按钮 */
+/** 音量(0–100)记在本机:推荐流每条视频都是新的播放器,不记的话每划一条都回到满音量 */
+const VOLUME_KEY = 'qq-video-volume';
+function readVolume(): number {
+  try {
+    const n = Number(localStorage.getItem(VOLUME_KEY));
+    if (localStorage.getItem(VOLUME_KEY) !== null && Number.isFinite(n)) return Math.max(0, Math.min(100, n));
+  } catch {
+    /* 隐私模式 */
+  }
+  return 100;
+}
+function saveVolume(n: number) {
+  try {
+    localStorage.setItem(VOLUME_KEY, String(Math.round(n)));
+  } catch {
+    /* 隐私模式 */
+  }
+}
+
+/** 页内全屏(安卓客户端 / 不支持元素全屏的浏览器)时,原生壳横屏 + 藏系统栏(MainActivity 的 QQScreen) */
+function nativeScreen(): { setFullscreen?: (on: boolean, landscape: boolean) => void } | undefined {
+  return (window as unknown as { QQScreen?: { setFullscreen?: (on: boolean, landscape: boolean) => void } }).QQScreen;
+}
+
+const FILL_BTN_SX = {
+  color: '#fff',
+  bgcolor: 'rgba(0,0,0,0.35)',
+  backdropFilter: 'blur(6px)',
+  '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
+} as const;
+
+/**
+ * 进度条:看得见的轨道 3–4px,可点/可拖的区域上下各多出 10–16px(手指不用瞄准一根细线);
+ * 悬停或拖动时轨道加粗、滑块放大。thick = 推荐流那条贴底的。
+ */
+function seekBarSx(thick: boolean) {
+  return {
+    display: 'block',
+    color: '#FE2C55',
+    height: thick ? 4 : 3,
+    borderRadius: 2,
+    py: thick ? '14px' : '10px',
+    '@media (pointer: coarse)': { py: thick ? '16px' : '12px' },
+    transition: 'height 0.15s',
+    '&:hover, &:has(.Mui-active)': { height: thick ? 8 : 6 },
+    '& .MuiSlider-rail': { bgcolor: '#fff', opacity: 0.3 },
+    '& .MuiSlider-track': { border: 'none' },
+    '& .MuiSlider-thumb': {
+      width: thick ? 12 : 14,
+      height: thick ? 12 : 14,
+      transition: 'box-shadow 0.15s, width 0.15s, height 0.15s',
+      '&::before': { boxShadow: 'none' },
+      '&:hover, &.Mui-focusVisible': { boxShadow: '0 0 0 6px rgba(254,44,85,0.22)' },
+      '&.Mui-active': { width: 20, height: 20, boxShadow: '0 0 0 8px rgba(254,44,85,0.22)' },
+    },
+    '& .MuiSlider-valueLabel': { bgcolor: 'rgba(0,0,0,0.75)', fontSize: 12, fontVariantNumeric: 'tabular-nums' },
+  } as const;
+}
+
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh, onFirstFrame },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -97,11 +205,27 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const dockKey = src || sourceUrl || '';
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
+  /** 视频真实宽高比(videoWidth / videoHeight),拿到元数据前为 0 → 先按 16:9 */
+  const [videoRatio, setVideoRatio] = useState(0);
+  const syncRatio = () => {
+    const v = videoRef.current;
+    if (v && v.videoWidth > 0 && v.videoHeight > 0) setVideoRatio(v.videoWidth / v.videoHeight);
+  };
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(readVolume);
+  const volumeRef = useRef(volume);
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
   const [muted, setMuted] = useState(false);
+  /** 自动播放被浏览器/WebView 的"有声自动播放需用户手势"策略拦下,已退回静音开播 */
+  const [autoMuted, setAutoMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  /** 拖动进度条时的目标位置(松手才真正 seek,拖动中 timeupdate 不把滑块拽回去) */
+  const [scrub, setScrub] = useState<number | null>(null);
+  /** 手机宽度:详情页的播放器只有 ~200px 高,控制条要收成一行,不能压住中间的播放键 */
+  const compact = useMediaQuery('(max-width:599.95px)');
   const [loading, setLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streams, setStreams] = useState<StreamInfo[]>([]);
@@ -119,10 +243,13 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   // 直链失效恢复:重新解析后从断点、按原播放状态接着播
   const reparseUrl = sourceUrl || refreshSource || '';
   const recoverAttempts = useRef(0);
+  /** 想自动播放、但还没真正播起来(见 autoStart) */
+  const wantAutoPlay = useRef(false);
   const lastRecoverAt = useRef(0);
   const resumeAt = useRef(0);
   const resumePlaying = useRef(false);
   const refreshingRef = useRef(false);
+  const firstFrameSent = useRef(false);
 
   const fail = (msg: string) => {
     setStreamError(msg);
@@ -251,6 +378,29 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     return () => clearTimeout(t);
   }, [expiresAt, reparseUrl]);
 
+  /**
+   * 非用户手势触发的播放(自动播放 / 换链续播)。推荐流划到下一条时,play() 发生在流解析
+   * 完成之后,早已不在手势里:浏览器(iOS/macOS WKWebView、手机浏览器)会以 NotAllowedError
+   * 拒绝有声播放。以前这里 .catch(() => {}) 吞掉,视频就停在第一帧,看着像"一划就暂停"。
+   * 被拒时改成静音开播,再给一个开声音的入口。
+   */
+  const autoStart = (v: HTMLVideoElement) => {
+    // 记下「要自动播放」:地址还没挂上 / 正在换源时 play() 会以 AbortError / NotSupportedError 失败
+    // (AcFun 的 HLS 要先异步加载 hls.js 才挂得上流,play() 早就被拒了),等 canplay 再补一次。
+    // 真正开始播放、或用户自己暂停后清掉,之后缓冲完的 canplay 不会把用户的暂停又顶掉。
+    wantAutoPlay.current = true;
+    tryAutoPlay(v);
+  };
+  const tryAutoPlay = (v: HTMLVideoElement) => {
+    v.play().catch((e) => {
+      if (videoRef.current !== v) return;
+      if (e?.name !== 'NotAllowedError' || v.muted) return;
+      v.muted = true;
+      setAutoMuted(true);
+      v.play().catch(() => {});
+    });
+  };
+
   // loadStream 真正把地址喂给 <video>/hls.js。外面的 playStream 先做直连判定。
   const loadStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
@@ -275,9 +425,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const isMp4 = format === 'mp4' || /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
     if (isMp4) {
       videoRef.current.src = playUrl;
-      if (shouldPlay) {
-        videoRef.current.play().catch(() => {});
-      }
+      if (shouldPlay) autoStart(videoRef.current);
       return;
     }
 
@@ -299,9 +447,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           // 关键守卫:卸载后回调不应再触发
           if (!videoRef.current) return;
-          if (shouldPlay) {
-            videoRef.current.play().catch(() => {});
-          }
+          if (shouldPlay) autoStart(videoRef.current);
           setPlaying(!videoRef.current.paused);
         });
 
@@ -330,9 +476,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari 原生支持 HLS
         videoRef.current.src = playUrl;
-        if (shouldPlay) {
-          videoRef.current.play().catch(() => {});
-        }
+        if (shouldPlay) autoStart(videoRef.current);
       } else {
         setStreamError('当前浏览器不支持 HLS 播放');
       }
@@ -405,11 +549,44 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
+  // 规则解析:客户端本机按规则拿到播放地址(失败退服务端),网页端由服务端解析;MediaSource / hls.js 喂给 <video>(见 lib/localStream)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!localSource || !v) return;
+    let detach: (() => void) | null = null;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setStreamError(null);
+    resolveStream(localSource, { signal: ctrl.signal, refresh: localRefresh })
+      .then((stream) => {
+        if (cancelled) return;
+        if (stream.duration > 0) setDuration(stream.duration);
+        detach = attachLocalStream(v, stream, (err) => {
+          if (!cancelled) onLocalFail?.(err);
+        });
+        if (autoPlay) autoStart(v);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) onLocalFail?.(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+      detach?.();
+      v.removeAttribute('src');
+      v.load();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localSource]);
+
   // 自动播放
   useEffect(() => {
-    if (autoPlay && videoRef.current && src) {
-      videoRef.current.play().catch(() => {});
-    }
+    if (autoPlay && videoRef.current && (src || localSource)) autoStart(videoRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, src]);
 
   const togglePlay = () => {
@@ -425,6 +602,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         setPlaying(false);
       });
     } else {
+      wantAutoPlay.current = false;
       v.pause();
       setPlaying(false);
     }
@@ -441,12 +619,13 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const handleLoaded = () => {
     const v = videoRef.current;
     if (!v) return;
+    syncRatio();
     setDuration(v.duration || initialDuration);
     // 换链后回到原来的进度
     if (resumeAt.current > 0) {
       v.currentTime = resumeAt.current;
       resumeAt.current = 0;
-      if (resumePlaying.current) v.play().catch(() => {});
+      if (resumePlaying.current) autoStart(v);
     }
   };
 
@@ -457,27 +636,101 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     }
   };
 
-  const handleVolume = (_: any, v: number | number[]) => {
+  const onScrub = (_: Event, v: number | number[]) => setScrub(v as number);
+  const onScrubEnd = (_: unknown, v: number | number[]) => {
+    handleSeek(null, v);
+    setScrub(null);
+  };
+
+  const handleVolume = (_: unknown, v: number | number[]) => {
     const n = v as number;
     setVolume(n);
+    saveVolume(n);
     if (videoRef.current) videoRef.current.volume = n / 100;
-    if (n > 0) setMuted(false);
+    setMuted(n === 0);
+  };
+  // 从静音拉回来时音量是 0 就给个能听见的值
+  const toggleMute = () => {
+    if (muted && volume === 0) handleVolume(null, 60);
+    else setMuted((m) => !m);
   };
 
   const seek = (delta: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + delta));
-    }
+    const v = videoRef.current;
+    if (!v) return;
+    // duration 状态在元数据到之前是 initialDuration 猜的值,以元素自己的为准
+    const end = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration;
+    v.currentTime = Math.max(0, Math.min(end, v.currentTime + delta));
+    setCurrentTime(v.currentTime);
   };
 
-  const goFullscreen = () => {
-    const el = containerRef.current;
-    if (el && document.fullscreenElement) {
-      document.exitFullscreen();
-    } else if (el?.requestFullscreen) {
-      el.requestFullscreen();
-    }
+  /**
+   * 全屏,按能用的顺序:
+   *   1. 元素全屏(桌面、安卓 Chrome);横屏视频顺手把屏幕锁成横向
+   *   2. iPhone Safari 只能让 <video> 自己全屏(系统播放器)
+   *   3. 都不行 → 页内全屏:把 <video> 挪进 body 下的铺满浮层。安卓客户端一律走这条 ——
+   *      WebView 的元素全屏要壳实现 onShowCustomView,wry 没有,按了没反应;这时还让原生壳横屏、藏系统栏
+   */
+  const [nativeFs, setNativeFs] = useState(false);
+  const [pseudoFs, setPseudoFs] = useState(false);
+  const fsHostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const on = () => setNativeFs(!!document.fullscreenElement && document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  const isLandscapeVideo = () => {
+    const v = videoRef.current;
+    return !v || !v.videoWidth || v.videoWidth >= v.videoHeight;
   };
+  const exitPseudoFs = () => {
+    // 先把 <video> 放回页面里的占位,再卸浮层:同一个任务里挪动不会打断播放
+    const v = videoRef.current;
+    if (v && hostRef.current && v.parentNode !== hostRef.current) hostRef.current.appendChild(v);
+    nativeScreen()?.setFullscreen?.(false, false);
+    setPseudoFs(false);
+  };
+  const fsHostCallback = useCallback((node: HTMLDivElement | null) => {
+    fsHostRef.current = node;
+    const v = videoRef.current;
+    if (node && v && v.parentNode !== node) node.appendChild(v);
+  }, []);
+  useBackClose(pseudoFs, exitPseudoFs);
+  const goFullscreen = async () => {
+    if (pseudoFs) {
+      exitPseudoFs();
+      return;
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    const el = containerRef.current;
+    const androidApp = authPlatform() === 'android';
+    if (!androidApp && el?.requestFullscreen && document.fullscreenEnabled) {
+      try {
+        await el.requestFullscreen({ navigationUI: 'hide' });
+        if (isLandscapeVideo()) {
+          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('landscape')?.catch(() => {});
+        }
+        return;
+      } catch {
+        /* 走下面的退路 */
+      }
+    }
+    const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (!androidApp && !document.fullscreenEnabled && v?.webkitEnterFullscreen) {
+      try {
+        v.webkitEnterFullscreen();
+        return;
+      } catch {
+        /* 走页内全屏 */
+      }
+    }
+    nativeScreen()?.setFullscreen?.(true, isLandscapeVideo());
+    setPseudoFs(true);
+  };
+  const isFs = nativeFs || pseudoFs;
 
   // ---------------------------------------------------------------------------
   // <video> 元素生命周期 + 小窗 / 画中画
@@ -491,6 +744,52 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   /** 用户在页面内小窗上点了关闭:回到视口之前不再自动浮出 */
   const dismissed = useRef(false);
 
+  // 键盘:← / → 退进 5 秒,空格 / K 播放暂停,M 静音,F 全屏。
+  // fill(推荐流)不接:RecommendVideoFeed 自己在 window 上管按键(含 ↑↓ 切条),两边都接会退两次。
+  // 挂在 window 上而不是容器上:点过播放器之后焦点多半落在控制条按钮或 body 上,
+  // 只认容器焦点的话"点一下再按 →"经常没反应。归属见 hotkeyOwner。
+  const hotkeys = useRef({ seek, togglePlay, goFullscreen, toggleMute });
+  hotkeys.current = { seek, togglePlay, goFullscreen, toggleMute };
+  useEffect(() => {
+    if (fill) return;
+    if (!hotkeyOwner) hotkeyOwner = owner;
+    const onKey = (e: KeyboardEvent) => {
+      if (hotkeyOwner !== owner || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!videoRef.current || typingTarget(e.target)) return;
+      const k = hotkeys.current;
+      switch (e.key) {
+        case 'ArrowLeft':
+          k.seek(-5);
+          break;
+        case 'ArrowRight':
+          k.seek(5);
+          break;
+        case ' ':
+        case 'k':
+        case 'K':
+          k.togglePlay();
+          break;
+        case 'm':
+        case 'M':
+          k.toggleMute();
+          break;
+        case 'f':
+        case 'F':
+          void k.goFullscreen();
+          break;
+        default:
+          return;
+      }
+      // 空格默认会滚页面,还会再"点"一次聚焦着的控制条按钮(刚暂停又被按钮切回播放)
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (hotkeyOwner === owner) hotkeyOwner = null;
+    };
+  }, [fill, owner]);
+
   // 卸载时要交给小窗的最新状态 + 元素事件的最新回调
   const live = useRef({ dockKey, dockTitle, posterUrl, streams, currentStream, platformName, expiresAt, streamError });
   const handlers = useRef<Record<string, () => void>>({});
@@ -503,8 +802,21 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     handlers.current = {
       timeupdate: handleTimeUpdate,
       loadedmetadata: handleLoaded,
+      resize: syncRatio,
+      canplay: () => {
+        const v = videoRef.current;
+        if (v && wantAutoPlay.current && v.paused) tryAutoPlay(v);
+      },
+      playing: () => {
+        wantAutoPlay.current = false;
+        if (!firstFrameSent.current) {
+          firstFrameSent.current = true;
+          onFirstFrame?.();
+        }
+      },
       play: () => {
         setPlaying(true);
+        hotkeyOwner = owner;
         if (dockTitle && videoRef.current) claimMediaSession(videoRef.current, dockTitle, posterUrl);
       },
       pause: () => {
@@ -516,6 +828,13 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         onEnded?.();
       },
       error: () => {
+        // 规则解析模式:交给外壳(静默重解析一次 → 重试界面),不走下面「重新解析直链」那套。
+        // 整段 mp4 / 原生 HLS 的地址出错由 lib/localStream/dash 自己换备用地址(selfRecover),这里不插手
+        if (localSource) {
+          if (videoRef.current?.dataset.selfRecover) return;
+          onLocalFail?.(new Error(`video error ${videoRef.current?.error?.code ?? ''}`));
+          return;
+        }
         // mp4 直链签名过期 / 被回收时浏览器原生 <video> 只会停在黑屏(error.code=4,
         // 经代理的 403 也是这个)。原生 error 事件是唯一能捕捉到的地方(hls.js 那条
         // 路径有自己的 Hls.Events.ERROR)。先重新解析换链,救不回来再报错。
@@ -524,7 +843,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       },
       // 静音可能来自外部(音乐播放器让推荐流静音开播),按钮图标跟着元素走
       volumechange: () => {
-        if (videoRef.current) setMuted(videoRef.current.muted);
+        if (!videoRef.current) return;
+        setMuted(videoRef.current.muted);
+        setVolume(Math.round(videoRef.current.volume * 100));
+        if (!videoRef.current.muted) setAutoMuted(false);
       },
       enterpictureinpicture: () => setPip(true),
       leavepictureinpicture: () => setPip(false),
@@ -536,7 +858,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const attach = useCallback(() => {
     const v = videoRef.current;
     const host = hostRef.current;
-    if (v && host && v.parentNode !== host && !videoDock.isFloating(owner)) host.appendChild(v);
+    if (v && host && v.parentNode !== host && !videoDock.isFloating(owner) && !fsHostRef.current) host.appendChild(v);
   }, [owner]);
 
   const hostCallback = useCallback(
@@ -579,16 +901,22 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       if (isFinite(v.duration)) setDuration(v.duration);
       setPip(inPip(v));
       setMuted(v.muted);
+      if (v.videoWidth > 0 && v.videoHeight > 0) setVideoRatio(v.videoWidth / v.videoHeight);
     } else {
       v = document.createElement('video');
       v.playsInline = true;
       v.setAttribute('webkit-playsinline', '');
+      // 小米 / QQ / 微信(X5)等国产浏览器默认把 <video> 接管成原生播放层:画在所有网页元素之上,
+      // 触摸也归它(竖滑调亮度音量)—— 推荐流上滑翻不动、侧边栏被盖住。同层播放属性让视频留在网页层。
+      v.setAttribute('x5-playsinline', '');
+      v.setAttribute('x5-video-player-type', 'h5-page');
       v.preload = 'metadata';
       // 直连外站流时不带本站 Referer:后端判"能直连"用的就是不带 Referer 的探测,
       // 而不少 CDN 是"有 Referer 且不在白名单才拒",带上本站地址反而会被拒。
       v.setAttribute('referrerpolicy', 'no-referrer');
     }
     v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
+    v.volume = volumeRef.current / 100;
     // 推荐流(fill)自动连播:音乐在放时静音开播(见 lib/player/musicPlayer 的协调器)
     if (fill) v.dataset.autoMute = '1';
     else delete v.dataset.autoMute;
@@ -701,7 +1029,9 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   }));
 
   // 带宽受限时不算"有视频":走下面的封面 + 提示分支,而不是一块黑屏。
-  const hasVideo = (src || streams.length > 0) && !bandwidthLimited;
+  // 规则解析模式(localSource)不设 src / streams,地址直接挂到 <video> 上 —— 必须算"有视频",
+  // 否则这里渲染的是封面图,<video> 从没挂进页面,只听得到声音(2026-09-26 用户报的「只有声音」)。
+  const hasVideo = (src || streams.length > 0 || !!localSource) && !bandwidthLimited;
   // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
   const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
   const originPlatform = originOnlyPlatform(originLink);
@@ -734,6 +1064,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     <Box
       ref={containerRef}
       onMouseMove={() => setControlsVisible(true)}
+      onPointerDown={() => { hotkeyOwner = owner; }}
       sx={fill ? {
         position: 'absolute',
         inset: 0,
@@ -745,7 +1076,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       } : {
         position: 'relative',
         width: '100%',
-        aspectRatio: '16/9',
+        aspectRatio: fitVideo && videoRatio > 0 && !isFs ? String(videoRatio) : '16/9',
+        maxHeight: fitVideo && !isFs ? '75vh' : undefined,
         bgcolor: '#000',
         borderRadius: 2,
         overflow: 'hidden',
@@ -779,7 +1111,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               className="quality-selector"
               sx={{
                 position: 'absolute',
-                top: 10,
+                // 推荐流的右上角是声音/全屏按钮,清晰度放它们下面
+                top: fill ? 56 : 10,
                 right: 10,
                 zIndex: 10,
               }}
@@ -953,6 +1286,34 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         </Box>
       )}
 
+      {/* 有声自动播放被拦、已静音开播:轻触这里(用户手势)把声音打开 */}
+      {hasVideo && autoMuted && muted && playing && (
+        <Box
+          data-no-drag
+          role="button"
+          onClick={() => setMuted(false)}
+          sx={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 3,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 999,
+            fontSize: 12,
+            color: '#fff',
+            bgcolor: 'rgba(0,0,0,0.55)',
+            cursor: 'pointer',
+          }}
+        >
+          <VolumeOffIcon sx={{ fontSize: 16 }} />
+          轻触开启声音
+        </Box>
+      )}
+
       {/* 中心播放按钮 */}
       {hasVideo && !playing && !streamError && !refreshing && (
         <Box
@@ -960,19 +1321,21 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           onClick={togglePlay}
           sx={{
             position: 'absolute',
-            top: '50%',
+            // 手机上播放器只有 ~200px 高,底部控制条占掉 ~60px:按钮往上让半个控制条,不被压住
+            top: compact && !fill ? 'calc(50% - 28px)' : '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            zIndex: 2,
           }}
         >
           <Box
             sx={{
-              width: 72,
-              height: 72,
+              width: compact ? 56 : 72,
+              height: compact ? 56 : 72,
               borderRadius: '50%',
               bgcolor: 'rgba(254, 44, 85, 0.9)',
               display: 'flex',
@@ -981,13 +1344,113 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
             }}
           >
-            <PlayArrowIcon sx={{ fontSize: 44, color: '#fff' }} />
+            <PlayArrowIcon sx={{ fontSize: compact ? 36 : 44, color: '#fff' }} />
           </Box>
         </Box>
       )}
 
+      {/* 推荐流(fill):抖音式 —— 底边一整条粗进度条(拖动时加粗 + 大号时间),声音/全屏收到右上角,
+          不再在底部叠一整排按钮(会压住作者和标题)。单击画面暂停由 RecommendVideoFeed 处理。 */}
+      {hasVideo && fill && (
+        <>
+          <Box
+            data-no-drag
+            className="controls"
+            sx={{ position: 'absolute', top: 10, right: 10, zIndex: 6, display: 'flex', gap: 0.75 }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 99,
+                ...FILL_BTN_SX,
+                '& .qq-vol': { width: 0, opacity: 0, transition: 'width 0.2s, opacity 0.2s, margin 0.2s' },
+                '@media (hover: hover)': {
+                  '&:hover .qq-vol, &:focus-within .qq-vol': { width: 84, opacity: 1, ml: 0.5, mr: 1.5 },
+                },
+              }}
+            >
+              <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+                {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
+              </IconButton>
+              <Box className="qq-vol" sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                <Slider
+                  size="small"
+                  aria-label="音量"
+                  value={muted ? 0 : volume}
+                  onChange={handleVolume}
+                  sx={{ color: '#fff', width: 76, mx: 0.5, flexShrink: 0 }}
+                />
+              </Box>
+            </Box>
+            {pipOk && (
+              <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ ...FILL_BTN_SX, color: pip ? '#FE2C55' : '#fff' }}>
+                <PictureInPictureAltIcon fontSize="small" />
+              </IconButton>
+            )}
+            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={FILL_BTN_SX}>
+              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+            </IconButton>
+          </Box>
+          {/* 拖动时的大号时间,放在作者/标题浮层(底部 ~30–120px)上面 */}
+          {scrub !== null && (
+            <Box
+              aria-hidden
+              sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) + 132px)', zIndex: 6, textAlign: 'center', pointerEvents: 'none', color: '#fff', fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}
+            >
+              {fmt(scrub)} <Box component="span" sx={{ opacity: 0.6 }}>/ {fmt(duration)}</Box>
+            </Box>
+          )}
+          <Box
+            data-no-drag
+            sx={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              // 手机:贴着底栏;桌面:圆角画布里、离底边一点,不被圆角和视口底边切掉
+              bottom: { xs: 'calc(var(--player-inset, 0px) - 10px)', md: 'calc(var(--player-inset, 0px) - 2px)' },
+              zIndex: 6,
+              px: { xs: 1.5, md: 2 },
+            }}
+          >
+            <Slider
+              aria-label="播放进度"
+              value={scrub ?? currentTime}
+              max={duration || 100}
+              onChange={onScrub}
+              onChangeCommitted={onScrubEnd}
+              sx={{
+                ...seekBarSx(true),
+                '@media (min-width: 900px)': {
+                  height: 6,
+                  '&:hover, &:has(.Mui-active)': { height: 10 },
+                  '& .MuiSlider-thumb': { width: 14, height: 14 },
+                },
+              }}
+            />
+          </Box>
+        </>
+      )}
+
+      {pseudoFs &&
+        createPortal(
+          <PseudoFullscreen
+            hostRef={fsHostCallback}
+            playing={playing}
+            currentTime={scrub ?? currentTime}
+            duration={duration}
+            muted={muted || volume === 0}
+            onTogglePlay={togglePlay}
+            onScrub={onScrub}
+            onScrubEnd={onScrubEnd}
+            onToggleMute={toggleMute}
+            onExit={exitPseudoFs}
+          />,
+          document.body,
+        )}
+
       {/* 控制条 */}
-      {hasVideo && (
+      {hasVideo && !fill && (
         <Box
           data-no-drag
           className="controls"
@@ -997,48 +1460,61 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             left: 0,
             right: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)',
-            p: 1.5,
+            px: compact ? 1 : 1.5,
+            pb: compact ? 0.5 : 1,
+            pt: 2,
             opacity: controlsVisible ? 1 : 0,
             transition: 'opacity 0.2s',
           }}
         >
           <Slider
-            size="small"
-            value={currentTime}
+            aria-label="播放进度"
+            value={scrub ?? currentTime}
             max={duration || 100}
-            onChange={handleSeek}
-            sx={{ color: '#FE2C55', mb: 1, py: 0.5 }}
+            onChange={onScrub}
+            onChangeCommitted={onScrubEnd}
+            valueLabelDisplay="auto"
+            valueLabelFormat={fmt}
+            sx={seekBarSx(false)}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff' }}>
-            <IconButton onClick={togglePlay} size="small" sx={{ color: '#fff' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: compact ? 0.25 : 1, color: '#fff' }}>
+            <IconButton onClick={togglePlay} size="small" aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
               {playing ? <PauseIcon /> : <PlayArrowIcon />}
             </IconButton>
-            <IconButton onClick={() => seek(-10)} size="small" sx={{ color: '#fff' }}>
-              <Replay10Icon fontSize="small" />
-            </IconButton>
-            <IconButton onClick={() => seek(10)} size="small" sx={{ color: '#fff' }}>
-              <Forward10Icon fontSize="small" />
-            </IconButton>
-            <Box sx={{ fontSize: 12, minWidth: 80 }}>
-              {fmt(currentTime)} / {fmt(duration)}
+            {!compact && (
+              <>
+                <IconButton onClick={() => seek(-10)} size="small" aria-label="后退 10 秒" sx={{ color: '#fff' }}>
+                  <Replay10Icon fontSize="small" />
+                </IconButton>
+                <IconButton onClick={() => seek(10)} size="small" aria-label="快进 10 秒" sx={{ color: '#fff' }}>
+                  <Forward10Icon fontSize="small" />
+                </IconButton>
+              </>
+            )}
+            <Box sx={{ fontSize: compact ? 11 : 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(scrub ?? currentTime)} / {fmt(duration)}
             </Box>
             <Box sx={{ flex: 1 }} />
-            <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
-              {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
+            <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+              {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
             </IconButton>
-            <Slider
-              size="small"
-              value={muted ? 0 : volume}
-              onChange={handleVolume}
-              sx={{ color: '#FE2C55', width: 80, mx: 1 }}
-            />
+            {/* 手机上音量走系统按键,不放音量条(放了整行就挤出屏幕,全屏键被切掉) */}
+            {!compact && (
+              <Slider
+                size="small"
+                aria-label="音量"
+                value={muted ? 0 : volume}
+                onChange={handleVolume}
+                sx={{ color: '#FE2C55', width: 80, mx: 1 }}
+              />
+            )}
             {pipOk && (
               <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ color: pip ? '#FE2C55' : '#fff' }}>
                 <PictureInPictureAltIcon fontSize="small" />
               </IconButton>
             )}
-            <IconButton onClick={goFullscreen} size="small" aria-label="全屏" sx={{ color: '#fff' }}>
-              <FullscreenIcon fontSize="small" />
+            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={{ color: '#fff' }}>
+              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
             </IconButton>
           </Box>
         </Box>
@@ -1048,25 +1524,222 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 });
 
 /**
- * 对外的播放器入口。源站页面有官方外链播放器(目前是 B 站 UP 主投稿)时直接嵌它,其余走本站播放器。
- *
- * 外链播放器排在最前 —— 连传进来的 src 直链也不看:能映射的平台,流地址一律校验 Referer,
- * 本站又不中转视频(见 apis/stream 的 checkStreamAccess),走本站播放器的结局只能是
- * 「暂不支持站内播放」,还要先白等一次最长 30 秒的流解析。
+ * 页内全屏:铺满视口的黑底浮层,<video> 由 VideoPlayer 挪进 hostRef。点画面切换控制条,
+ * 控制条 3 秒不动自己收起。挂在 body 下(推荐流的祖先有 transform,fixed 在里面铺不满)。
  */
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
+function PseudoFullscreen({
+  hostRef,
+  playing,
+  currentTime,
+  duration,
+  muted,
+  onTogglePlay,
+  onScrub,
+  onScrubEnd,
+  onToggleMute,
+  onExit,
+}: {
+  hostRef: (node: HTMLDivElement | null) => void;
+  playing: boolean;
+  currentTime: number;
+  duration: number;
+  muted: boolean;
+  onTogglePlay: () => void;
+  onScrub: (e: Event, v: number | number[]) => void;
+  onScrubEnd: (e: unknown, v: number | number[]) => void;
+  onToggleMute: () => void;
+  onExit: () => void;
+}) {
+  const [shown, setShown] = useState(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const poke = useCallback(() => {
+    setShown(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShown(false), 3000);
+  }, []);
+  useEffect(() => {
+    poke();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [poke]);
+  return (
+    <Box
+      data-no-drag
+      data-no-swipe
+      role="dialog"
+      aria-label="全屏播放"
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      sx={{ position: 'fixed', inset: 0, zIndex: 1600, bgcolor: '#000', animation: 'qq-fade-in 0.2s ease-out both', touchAction: 'none' }}
+    >
+      <Box ref={hostRef} onClick={() => (shown ? setShown(false) : poke())} sx={{ position: 'absolute', inset: 0 }} />
+      <Box
+        onPointerDown={poke}
+        sx={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          px: 'max(12px, env(safe-area-inset-left))',
+          pb: 'max(8px, var(--sab, 0px))',
+          pt: 3,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+          color: '#fff',
+          opacity: shown ? 1 : 0,
+          pointerEvents: shown ? 'auto' : 'none',
+          transition: 'opacity 0.2s',
+        }}
+      >
+        <Slider aria-label="播放进度" value={currentTime} max={duration || 100} onChange={onScrub} onChangeCommitted={onScrubEnd} sx={seekBarSx(false)} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <IconButton onClick={onTogglePlay} aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
+            {playing ? <PauseIcon /> : <PlayArrowIcon />}
+          </IconButton>
+          <Box sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(currentTime)} / {fmt(duration)}
+          </Box>
+          <Box sx={{ flex: 1 }} />
+          <IconButton onClick={onToggleMute} aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+            {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+          </IconButton>
+          <IconButton onClick={onExit} aria-label="退出全屏" sx={{ color: '#fff' }}>
+            <FullscreenExitIcon />
+          </IconButton>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * 规则解析失败时的界面(本地和服务端都没解出来,或流放不出来)。没有外链 iframe 可退
+ * (2026-09-26 起全站不再嵌 iframe:吞手势、没进度、没小窗):就地给「重试」和「用 XX 打开」,
+ * 客户端里把失败现场报给服务器(lib/clientDiag)。
+ */
+function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
+  const label = matchProvider(pageUrl)?.rule.label ?? '原站';
+  const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
+  return (
+    <Box
+      sx={{
+        position: fill ? 'absolute' : 'relative',
+        inset: fill ? 0 : undefined,
+        width: '100%',
+        aspectRatio: fill ? undefined : '16/9',
+        bgcolor: fill ? 'transparent' : '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        color: 'rgba(255,255,255,0.85)',
+        textAlign: 'center',
+        px: 3,
+      }}
+    >
+      <Box sx={{ fontSize: 15 }}>这条视频暂时没能加载出来</Box>
+      <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>
+        {webCannotFetchMedia(pageUrl) ? `网页版拿不到这个片源（${label}要求在它自己的页面或 App 里取片），可以在清秋月 App 里看，或去${label}看` : message}
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+        <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
+          重试
+        </Box>
+        <Box
+          component="button"
+          type="button"
+          data-no-drag
+          onClick={() => {
+            void openExternalUrl(pageUrl).then((ok) => {
+              if (!ok) window.open(pageUrl, '_blank', 'noopener');
+            });
+          }}
+          sx={btn}
+        >
+          用{label}打开
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(rawProps, ref) {
+  // 播放结果上报:包一层回调,内层播放器不用知道内容 id。
+  const reportId = rawProps.reportContentId;
+  const reportUrl = rawProps.sourceUrl || rawProps.refreshSource || rawProps.src || '';
+  const props: Props = reportId
+    ? {
+        ...rawProps,
+        onFirstFrame: () => {
+          rawProps.onFirstFrame?.();
+          reportPlay(reportId, reportUrl, true);
+        },
+        onPlaybackError: (msg: string) => {
+          rawProps.onPlaybackError?.(msg);
+          reportPlay(reportId, reportUrl, false, msg);
+        },
+      }
+    : rawProps;
   const pageUrl = props.sourceUrl || props.refreshSource || '';
-  const embed = resolveEmbedPlayer(pageUrl);
-  if (embed) {
+  // 对外的播放器入口。有解析规则的源站(B 站投稿、AcFun)一律走本站播放器,两级回退:
+  // 客户端本机解析 → 服务端解析;网页端直接服务端解析(lib/localStream/engine)。取媒体也是两级:
+  // 浏览器直连 → 原生请求带源站要的头(lib/localStream/dash)。全程没有跨域 iframe,
+  // 推荐流的点按/滑动直接作用在播放器上。都失败就地给重试 + 去原站(LocalPlayError)。
+  // 没有规则的地址(站内直链、旧的通用解析)走原来的 NativeVideoPlayer 路径。
+  // 播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
+  const [local, setLocal] = useState(() => typeof window !== 'undefined' && canResolveLocally(pageUrl));
+  const [failure, setFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setLocal(canResolveLocally(pageUrl));
+    setFailure(null);
+    setAttempt(0);
+    // 服务器可能下发了内置默认里没有的站点:规则到手后再判一次
+    void loadRules().then(() => {
+      if (alive) setLocal(canResolveLocally(pageUrl));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [pageUrl]);
+  if (local && pageUrl) {
+    if (failure) {
+      return (
+        <LocalPlayError
+          pageUrl={pageUrl}
+          message={failure}
+          fill={props.fill}
+          onRetry={() => {
+            setFailure(null);
+            setAttempt((n) => n + 1);
+          }}
+        />
+      );
+    }
     return (
-      <EmbedVideoPlayer
+      <NativeVideoPlayer
         ref={ref}
-        embed={embed}
-        originUrl={pageUrl}
-        poster={props.poster}
-        autoPlay={props.autoPlay}
-        isAIGenerated={props.isAIGenerated}
-        fill={props.fill}
+        {...props}
+        key={`${pageUrl}#${attempt}`}
+        src={undefined}
+        sourceUrl={undefined}
+        refreshSource={undefined}
+        localSource={pageUrl}
+        localRefresh={attempt > 0}
+        onLocalFail={(err) => {
+          console.warn('[VideoPlayer] 本站播放器加载失败', pageUrl, err);
+          reportDiag('local_play_failed', `${pageUrl}#${attempt}`, { url: pageUrl, attempt, error: String(err?.message || err).slice(0, 300) });
+          // 第一次失败先静默强制重新解析一次(缓存里的地址过期 / 这次分到的节点不通),
+          // 还不行才给重试界面
+          if (attempt === 0) setAttempt(1);
+          else {
+            setFailure(err?.message || '加载失败');
+            if (reportId) reportPlay(reportId, pageUrl, false, String(err?.message || err || '加载失败'));
+          }
+        }}
       />
     );
   }

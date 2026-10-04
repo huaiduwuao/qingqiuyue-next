@@ -16,6 +16,7 @@ import Chip from '@mui/material/Chip'
 import Switch from '@mui/material/Switch'
 import IconButton from '@mui/material/IconButton'
 import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
@@ -47,6 +48,8 @@ export default function Page() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<Partial<QuotaPackage>>(EMPTY)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [keyword, setKeyword] = useState('')
+  const [enabledFilter, setEnabledFilter] = useState<'' | 'on' | 'off'>('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -101,6 +104,12 @@ export default function Page() {
     await load()
   }
 
+  // 套餐很少,名称/代码与上下架在前端过滤
+  const kw = keyword.trim().toLowerCase()
+  const shown = list.filter(p =>
+    (!kw || `${p.name ?? ''} ${p.code ?? ''}`.toLowerCase().includes(kw))
+    && (!enabledFilter || p.enabled === (enabledFilter === 'on')))
+
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -114,13 +123,31 @@ export default function Page() {
         配置钻石/人民币购买的 LLM 配额套餐。用户购买后,token 累加到 user_quotas.quota_limit(不影响本月 tokens_used)。
       </Typography>
 
+      {list.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+          <TextField size="small" label="名称/代码" value={keyword} onChange={(e) => setKeyword(e.target.value)} sx={{ width: 220 }} />
+          <TextField
+            select size="small" label="状态" value={enabledFilter}
+            onChange={(e) => setEnabledFilter(e.target.value as '' | 'on' | 'off')}
+            sx={{ minWidth: 120 }}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+          >
+            <MenuItem value="">全部</MenuItem>
+            <MenuItem value="on">上架</MenuItem>
+            <MenuItem value="off">下架</MenuItem>
+          </TextField>
+        </Box>
+      )}
+
       {list.length === 0 ? (
         <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 1, p: 3, color: 'text.disabled' }}>
           暂无套餐,点「添加套餐」开始
         </Box>
+      ) : shown.length === 0 ? (
+        <Box sx={{ p: 3, color: 'text.disabled' }}>没有符合条件的套餐</Box>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 1.5 }}>
-          {list.map(p => (
+          {shown.map(p => (
             <Card key={p.id} variant="outlined">
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

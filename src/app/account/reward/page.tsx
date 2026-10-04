@@ -4,6 +4,8 @@ import React, { Suspense, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
+import VideoLibraryRoundedIcon from '@mui/icons-material/VideoLibraryRounded';
 import { WorkspaceShell } from '../components/WorkspaceShell';
 import { useUrlTab } from '../components/useUrlTab';
 import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS } from './navigation';
@@ -60,20 +62,28 @@ function RewardLogo() {
   );
 }
 
+function readUrlId(key: string): number | null {
+  if (typeof window === 'undefined') return null;
+  const n = Number(new URLSearchParams(window.location.search).get(key));
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
 function RewardCenter() {
   const [tab, setTab] = useUrlTab(REWARD_TAB_IDS, REWARD_HOME_TAB);
-  const [boardFocus, setBoardFocus] = useState<BoardFocus>({});
-  const [teamFocus, setTeamFocus] = useState<number | null>(null);
-
   // 意境页的深链:?tab=board&demand=<id> 落在这个需求的任务上,?tab=teams&team=<id> 直接打开团队主页。
-  // 读完就从地址栏去掉,刷新不会反复触发。
+  // 首次渲染就从地址栏取(本组件在 useSearchParams 的 Suspense 边界里,只在客户端渲染),
+  // 看板的 key 从一开始就是最终值 —— 若 mount 后再 setState,看板会被重建一次,
+  // 它自己读走的 ?task=<id>(发布页交付后跳回来时带着)就丢了。
+  const [boardFocus, setBoardFocus] = useState<BoardFocus>(() => {
+    const demand = readUrlId('demand');
+    return demand ? { demandId: demand } : {};
+  });
+  const [teamFocus, setTeamFocus] = useState<number | null>(() => readUrlId('team'));
+
+  // 读完就从地址栏去掉,刷新不会反复触发(?task= 由看板自己读、自己去掉)。
   useEffect(() => {
     const url = new URL(window.location.href);
-    const demand = Number(url.searchParams.get('demand'));
-    const team = Number(url.searchParams.get('team'));
-    if (!demand && !team) return;
-    if (demand) setBoardFocus({ demandId: demand });
-    if (team) setTeamFocus(team);
+    if (!url.searchParams.has('demand') && !url.searchParams.has('team')) return;
     url.searchParams.delete('demand');
     url.searchParams.delete('team');
     window.history.replaceState(window.history.state, '', url.toString());
@@ -111,7 +121,9 @@ function RewardCenter() {
           ? { initialTeamId: teamFocus, onOpenTaskboard: (teamId: number) => openBoard({ teamId }) }
           : tab === 'demands'
             ? { onOpenTaskboard: (did: number) => openBoard({ demandId: did }) }
-            : {};
+            : tab === REWARD_HOME_TAB
+              ? { onOpenTab: setTab }
+              : {};
 
   return (
     <WorkspaceShell
@@ -122,6 +134,10 @@ function RewardCenter() {
       onSelect={setTab}
       // 赏金广场才有右栏(达人榜 / 最近动态);其它子页是整幅的看板/表格。
       aside={tab === REWARD_HOME_TAB ? <RewardAside /> : undefined}
+      crossLinks={[
+        { label: '去创作', description: '发布作品,交付认领的任务', href: '/account/content?tab=hd-publish', icon: <EditNoteRoundedIcon /> },
+        { label: '我的作品', description: '交付时可直接选已发布的作品', href: '/account/content?tab=works', icon: <VideoLibraryRoundedIcon /> },
+      ]}
     >
       <Suspense
         fallback={

@@ -159,6 +159,7 @@ export default function SystemBotPage() {
       <BotLLMPanel onMessage={showMessage} />
       <BotConfigPanel onMessage={showMessage} />
       <DataGridTable
+        queryKey={LIST_KEY}
         title="假人管理"
         columns={columns}
         fetchData={async (params) => {
@@ -172,7 +173,7 @@ export default function SystemBotPage() {
         onDelete={handleDelete}
         filters={{
           fields: [
-            { key: 'name', label: '名称', type: 'text' },
+            { key: 'keyword', label: '名称/昵称', type: 'text' },
             { key: 'status', label: '状态', type: 'select', options: [
               { label: 'active', value: 'active' },
               { label: 'paused', value: 'paused' },

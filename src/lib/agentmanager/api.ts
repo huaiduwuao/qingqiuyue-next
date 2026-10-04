@@ -481,12 +481,15 @@ class AgentManagerAPI {
   }
 
   // ========== Skills ==========
-  async listSkills(params?: { category?: string; source?: string; page?: number; limit?: number }) {
+  async listSkills(params?: { category?: string; source?: string; status?: string; keyword?: string; page?: number; limit?: number }) {
     const query = new URLSearchParams()
     if (params?.category) query.set('category', params.category)
     if (params?.source) query.set('source', params.source)
+    if (params?.status) query.set('status', params.status)
+    if (params?.keyword) query.set('keyword', params.keyword)
     if (params?.page) query.set('page', String(params.page))
-    if (params?.limit) query.set('limit', String(params.limit))
+    // 后端不传 limit 默认 20,管理页会悄悄丢掉第 21 条以后;默认拉到后端上限 500
+    query.set('limit', String(params?.limit ?? 500))
 
     return this.request<{ list: Skill[]; total: number }>(`/skills?${query}`)
   }
@@ -569,8 +572,9 @@ class AgentManagerAPI {
   }
 
   async listAgents() {
-    // 后端返回 { list, total, page, limit },这里取出数组
-    const res = await this.request<{ list: Agent[]; total: number }>('/agents')
+    // 后端返回 { list, total, page, limit },这里取出数组。
+    // 后端默认 limit=20,不传会悄悄丢掉第 21 个以后的 Agent;拉到后端上限 500
+    const res = await this.request<{ list: Agent[]; total: number }>('/agents?limit=500')
     return res.list || []
   }
 

@@ -2,10 +2,17 @@
 
 import type { GridColDef } from '@mui/x-data-grid';
 import { AdminCrudPage, formatDateTime, type CrudFormField } from '@/components/admin/AdminCrudPage';
+import type { FilterField } from '@/components/tables/FilterBar';
 import * as api from '@/apis/wx-mp-user';
 import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 
 const SEX_MAP: Record<string, string> = { '0': '未知', '1': '男', '2': '女' };
+
+const filters: FilterField[] = [
+  { key: 'nickName', label: '昵称', type: 'text' },
+  { key: 'subscribe', label: '是否订阅', type: 'select', options: [{ label: '已关注', value: '1' }, { label: '已取关', value: '0' }] },
+  { key: 'appId', label: 'AppID', type: 'text', placeholder: '精确匹配' },
+];
 
 const columns: GridColDef[] = [
   {
@@ -41,7 +48,7 @@ export default function WxMpUserPage() {
   return (
     <>
       <WxMpStatusBar showSync />
-      <AdminCrudPage title="微信用户" entity="用户" api={api} columns={columns} fields={fields} />
+      <AdminCrudPage title="微信用户" entity="用户" api={api} columns={columns} fields={fields} filters={filters} />
     </>
   );
 }

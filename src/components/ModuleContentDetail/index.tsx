@@ -221,7 +221,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
               borderRadius: 1,
               bgcolor: 'rgba(0,0,0,0.6)',
               backdropFilter: 'blur(8px)',
-              color: 'text.primary',
+              color: '#fff',
               fontSize: 11,
               fontWeight: 600,
               display: 'flex',

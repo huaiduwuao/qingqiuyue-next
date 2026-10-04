@@ -53,6 +53,11 @@ export interface AlwaysListeningOptions {
   wakeWord?: WakeWordConfig
   /** 唤醒词列表 (默认: ['小月', '清秋月', '清秋']), 作为 ASR fallback */
   wakePhrases?: string[]
+  /**
+   * 本地唤醒模型命中后, 把触发前约 2.4s 音频送 ASR 复核, 转写里真有唤醒词才答应 (默认 true)。
+   * 本地模型分不清"小鱼/小谢/小业"这类只差一个韵母的词, ASR 一听就分得清。ASR 出错时放行。
+   */
+  verifyWake?: boolean
   /** 识别出用户命令后调用 */
   onCommand: (text: string) => Promise<void> | void
   /** 状态变化时 (UI 状态指示) */
@@ -82,6 +87,12 @@ export class AlwaysListening {
   private commandBuffer: Float32Array[] = []
   // 主动作开关
   private active = false
+  // 最近 2.4s 原始音频 (16kHz), 本地唤醒命中后拿去给 ASR 复核
+  private static readonly RECENT_SAMPLES = 38400
+  private recent = new Float32Array(AlwaysListening.RECENT_SAMPLES)
+  private recentPos = 0
+  private recentFilled = false
+  private verifying = false
   // 2s 静默检测: 唤醒后无新段时触发命令处理
   private silenceTimer: any = null
   // 静默阈值 (ms) — 用户停止说话 2s 就认为说完了
@@ -125,7 +136,8 @@ export class AlwaysListening {
     const wakeResult = await startWakeWord(this.wakeConfig, {
       onWake: (label, confidence) => {
         voiceLog('info', 'voice', `openWakeWord detected: ${label} (${confidence.toFixed(3)})`)
-        this.handleWakeWord(label)
+        if (this.opts.verifyWake === false) this.handleWakeWord(label)
+        else void this.verifyThenWake(label)
       },
       onError: (err) => {
         voiceLog('warn', 'voice', 'openWakeWord error:', err.message)
@@ -145,6 +157,7 @@ export class AlwaysListening {
         this.onSpeechEnd(audio)
       },
       onAudioFrame: (audio: Float32Array) => {
+        this.keepRecent(audio)
         // 持续喂音频给 openWakeWord (唤醒词检测需要连续流)
         if (this.wakeMode === 'openwakeword') {
           processAudioChunk(audio)
@@ -267,11 +280,8 @@ export class AlwaysListening {
     // VAD 检测到本段结束 (1.2s 静音, redemptionMs=1200)
     this.candidateChunks.push(audio)
 
-    // 把音频喂给 openWakeWord(不限制 state — barge-in 场景下数字人说话时
-    // 也需要本地推理检测唤醒词,不然要等 2s 静默 + ASR 完整转写)
-    if (this.wakeMode === 'openwakeword') {
-      processAudioChunk(audio)
-    }
+    // 不在这里喂 openWakeWord: onAudioFrame 已经把连续音频流逐帧喂过了(数字人说话时也在喂),
+    // 再把整段喂一遍会让引擎看到"时间倒流"的拼接音频, 凭空出分数
 
     // 在 recording 状态: 累积到 command buffer
     // 但如果数字人正在说话, 它自己的音频也会被 VAD 捕获 → 丢弃
@@ -288,6 +298,51 @@ export class AlwaysListening {
     if (this.state === 'recording') {
       if (this.silenceTimer) clearTimeout(this.silenceTimer)
       this.silenceTimer = setTimeout(() => this.onSilenceDetected(), AlwaysListening.SILENCE_MS)
+    }
+  }
+
+  private keepRecent(audio: Float32Array): void {
+    const cap = AlwaysListening.RECENT_SAMPLES
+    for (let i = 0; i < audio.length; i++) {
+      this.recent[this.recentPos++] = audio[i]
+      if (this.recentPos === cap) { this.recentPos = 0; this.recentFilled = true }
+    }
+  }
+
+  private snapshotRecent(): Float32Array {
+    if (!this.recentFilled) return this.recent.slice(0, this.recentPos)
+    const out = new Float32Array(AlwaysListening.RECENT_SAMPLES)
+    out.set(this.recent.subarray(this.recentPos), 0)
+    out.set(this.recent.subarray(0, this.recentPos), AlwaysListening.RECENT_SAMPLES - this.recentPos)
+    return out
+  }
+
+  /**
+   * 两级唤醒: 本地模型命中 → 触发前 2.4s 音频送 ASR → 转写含唤醒词才进入 recording。
+   * 只有本地命中时才调 ASR (一小时零星几次), 不会把日常说话都传上去。
+   */
+  private async verifyThenWake(label: string): Promise<void> {
+    if (this.verifying || this.state !== 'idle') return
+    this.verifying = true
+    const audio = this.snapshotRecent()
+    try {
+      const r = await Promise.race([
+        transcribe(audio, { gatewayUrl: this.opts.asrGatewayUrl, model: this.opts.asrModel, language: this.opts.language }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('ASR 复核超时')), 4000)),
+      ])
+      const text = (r.text || '').replace(/[，。！？、；：""''（）,.!?;:"'()\s]/g, '')
+      if (this.matchWakeWord(text)) {
+        voiceLog('info', 'voice', `wake confirmed by ASR: "${text}"`)
+        this.handleWakeWord(label)
+      } else {
+        voiceLog('info', 'voice', `wake rejected by ASR: "${text}"`)
+      }
+    } catch (e) {
+      // ASR 不可用(未登录/网络)时放行, 别让唤醒整个失灵
+      voiceLog('warn', 'voice', 'wake verify failed, accepting:', (e as Error).message)
+      this.handleWakeWord(label)
+    } finally {
+      this.verifying = false
     }
   }
 
@@ -349,6 +404,9 @@ export class AlwaysListening {
     this.candidateChunks = []
     // 太短 (< 0.15s) 当噪声忽略
     if (merged.length < 2400) return
+    // 本地唤醒模型在跑时, 待机段不再送 ASR 做文本模糊匹配: 那条路会把"晓得/小约/清秋…"
+    // 一类转写都当成唤醒, 是"喊啥都答应"的来源之一; 也省掉待机时每句话一次的 ASR 上传
+    if (this.state === 'idle' && this.wakeMode === 'openwakeword') return
 
     try {
       // ── 优先走 WS 流式 ASR (降低延迟) ──

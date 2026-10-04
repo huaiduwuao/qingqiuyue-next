@@ -25,6 +25,7 @@ const fields: CrudFormField[] = [
 const filters: FilterField[] = [
   { key: 'name', label: '名称', type: 'text' },
   { key: 'code', label: '代码', type: 'text' },
+  { key: 'type', label: '类型', type: 'text' },
 ];
 
 export default function SystemAppConfigPage() {

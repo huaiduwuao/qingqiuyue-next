@@ -12,8 +12,9 @@ services:
     image: localhost/qingqiuyue/web:latest
     container_name: qingqiuyue-web
     restart: unless-stopped
-    ports:
-      - "10809:80"
+    # 不发布宿主端口:宿主 10809 由 edge(qingqiuyue-go docker/docker-compose.infra.yml)发布,
+    # 按容器名 qingqiuyue-web 转发过来。Steward 部署时新旧 web 容器并存再停旧的,两个容器
+    # 不能占同一个宿主端口;这里加回 ports 会让部署退回原地替换(切换时断几秒)。
     networks:
       - backend
     # 🔄 自更新:挂载宿主代码目录

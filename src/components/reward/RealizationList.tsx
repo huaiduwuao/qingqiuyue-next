@@ -7,7 +7,7 @@ import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import { TYPE_LABEL, TYPE_TO_ROUTE } from '@/lib/contentType.gen';
-import { yuan, type Realization } from '@/apis/team';
+import { centsAsDiamonds, type Realization } from '@/apis/team';
 import { CoverImage } from '@/components/common/CoverImage';
 
 interface Props {
@@ -74,7 +74,7 @@ export default function RealizationList({ items, empty = '还没有验收通过�
                   <Chip size="small" label="文字交付" sx={{ height: 20, fontSize: 11 }} />
                 )}
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', ml: 'auto' }}>
-                  {r.settledAt ? `已结账 ¥${yuan(r.amountCents)}` : '待结账'} · {String(r.createdAt || '').slice(0, 10)}
+                  {r.settledAt ? `已结账 ${centsAsDiamonds(r.amountCents)}` : '待结账'} · {String(r.createdAt || '').slice(0, 10)}
                 </Typography>
               </Box>
             </Box>

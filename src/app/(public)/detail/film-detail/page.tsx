@@ -20,10 +20,15 @@ import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import UserPlaySources from '@/components/detail/UserPlaySources';
+import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { useSeoMeta } from '@/hooks/useSeoMeta';
+import { WorkSourcePanel, streamOffers, type WorkInfo } from '@/components/detail/WorkSourcePanel';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
+import { backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
@@ -48,6 +53,28 @@ interface Film {
   commentCount?: number;
   playNotice?: string;
   platforms?: unknown;
+  /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun),优先于 source */
+  playSourceUrl?: string;
+  playSourceLabel?: string;
+  availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
+  /** 这条看不了、同一部作品另有能看的那条时后端给出 */
+  playableAlternative?: PlayableAlternativeInfo | null;
+  /** 所属作品:权威出处 + 全部播放源(已排好选源顺序) */
+  work?: WorkInfo | null;
+}
+
+/**
+ * 进页面就定好的播放来源,不让用户再点一次来源面板:跨源绑定的页面 > 作品里能播的来源
+ * (本条收录自己那条优先,其次作品排好序的第一条)> 这条自己的 source(作品没有能播来源时)。
+ * availability 的「能看」判的是这条收录,source 本身可能只是百科 / 番剧页这种放不了的页面,
+ * 能播的是作品里另一条(比如欧乐影院的 qqy-vs),所以作品有能播来源时一律用它。
+ */
+function defaultPlayUrl(data: Partial<Film>, id: string | null): string {
+  if (data.playSourceUrl) return data.playSourceUrl;
+  const offers = streamOffers(data.work);
+  const offer = offers.find((o) => o.url === data.source) || offers.find((o) => o.contentId === id) || offers[0];
+  if (offer) return offer.url;
+  return data.availability?.watchable === true ? data.source || '' : '';
 }
 
 function FilmDetailContent() {
@@ -58,7 +85,11 @@ function FilmDetailContent() {
     queryKey: ['detail', 'film', id],
     queryFn: () => contentDetail('film', { id: id! }).then((r) => r as Partial<Film>),
     enabled: !!id,
+    // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询,找到就直接换成播放器。
+    refetchInterval: backfillRefetchInterval,
   });
+
+  useSeoMeta({ id, title: query.data?.title, description: query.data?.description });
 
   React.useEffect(() => {
     if (id) {
@@ -77,6 +108,9 @@ function FilmDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
+  // 用户手动切换的播放来源(作品的其它来源);换一部片就作废
+  const [chosenSource, setChosenSource] = React.useState<{ id: string | null; url: string } | null>(null);
+
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
@@ -84,6 +118,8 @@ function FilmDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title || '电影详情'}
+        playId={id}
+        playType="FILM"
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton
@@ -99,21 +135,34 @@ function FilmDetailContent() {
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes="none" />}>
         {(data) => (
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                {linkOutNoticeOf(data, data.source) && !data.videoUrl ? (
-                  // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
-                  <UnavailablePlayer notice={linkOutNoticeOf(data, data.source)} platforms={platformsOf(data)} poster={data.cover} />
-                ) : (
-                  <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
-                )}
+                {(() => {
+                  // 选源:用户手动选的 > defaultPlayUrl(进页面就选好,点进哪一条收录都能看)> 原始 source。
+                  const offers = streamOffers(data.work);
+                  const chosen = chosenSource && chosenSource.id === id ? chosenSource.url : '';
+                  const playPage = chosen || defaultPlayUrl(data, id) || data.source || '';
+                  const notice = data.playSourceUrl || chosen || offers.length > 0 ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
+                  return notice && !data.videoUrl ? (
+                    // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
+                    <UnavailablePlayer notice={notice} platforms={platformsOf(data)} poster={data.cover} />
+                  ) : (
+                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} fitVideo reportContentId={id || undefined} />
+                  );
+                })()}
               </Container>
             </Box>
+            {streamOffers(data.work).length === 0 && <PlayableAlternative alt={data.playableAlternative} />}
 
             <Container maxWidth="lg" sx={{ py: 3 }}>
+              <WorkSourcePanel
+                work={data.work}
+                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || defaultPlayUrl(data, id)}
+                onSelect={(o) => setChosenSource({ id, url: o.url })}
+              />
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                 <Box sx={{ flex: 1 }}>
                   <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, sm: 24, md: 32 }, color: 'text.primary', mb: 1, lineHeight: 1.3 }}>

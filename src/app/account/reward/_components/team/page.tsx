@@ -27,8 +27,10 @@ import Typography from '@mui/material/Typography';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { useApp } from '@/contexts/AppContext';
 import RealmSelect from '@/components/reward/RealmSelect';
-import { acceptTeamRequest, applyTeam, createTeam, listTeams, myTeams, removeTeamMember, yuan, type MyTeam, type Team } from '@/apis/team';
+import { acceptTeamRequest, applyTeam, createTeam, listTeams, myTeams, removeTeamMember, centsAsDiamonds, type MyTeam, type Team } from '@/apis/team';
 import TeamDialog from './TeamDialog';
+import TeamMobile from './TeamMobile';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const ROLE_LABEL: Record<string, string> = { owner: '队长', admin: '管理员', member: '成员' };
 
@@ -42,6 +44,7 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
   const { currentUser } = useApp();
   const me = Number(currentUser?.id ?? 0);
   const qc = useQueryClient();
+  const { isMobile } = useResponsive();
   const [openId, setOpenId] = useState<number | null>(initialTeamId ?? null);
   const [creating, setCreating] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -74,6 +77,61 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
   const myIds = new Set(myList.map((t) => t.id));
   const invites = myList.filter((t) => t.myStatus === 'invited');
   const joined = myList.filter((t) => t.myStatus !== 'invited');
+
+  const dialogs = (
+    <>
+      <CreateDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(t) => {
+          setCreating(false);
+          setToast({ msg: `团队「${t.name}」已创建`, ok: true });
+          refresh();
+          setOpenId(t.id);
+        }}
+      />
+      {openId != null && (
+        <TeamDialog
+          teamId={openId}
+          me={me}
+          onClose={() => setOpenId(null)}
+          onChanged={refresh}
+          onOpenTaskboard={onOpenTaskboard}
+          notify={(msg, ok = true) => setToast({ msg, ok })}
+        />
+      )}
+      <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity={toast?.ok ? 'success' : 'error'} variant="filled" onClose={() => setToast(null)}>
+          {toast?.msg}
+        </Alert>
+      </Snackbar>
+    </>
+  );
+
+  // 手机:不要标题卡和说明段(顶部 tab 已写着「团队」),「创建团队」挪到右下角 Fab
+  if (isMobile) {
+    return (
+      <>
+        <TeamMobile
+          me={me}
+          invites={invites}
+          joined={joined}
+          square={square.data || []}
+          squareLoading={square.isFetching}
+          myIds={myIds}
+          search={search}
+          keyword={keyword}
+          onKeyword={setKeyword}
+          onOpen={setOpenId}
+          onCreate={() => setCreating(true)}
+          onAccept={(t) => run(() => acceptTeamRequest(t.id, me), `已加入「${t.name}」`)}
+          onReject={(t) => run(() => removeTeamMember(t.id, me), '已拒绝邀请')}
+          onApply={(t) => run(() => applyTeam(t.id), '申请已提交,等队长同意')}
+        />
+        {dialogs}
+      </>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -174,31 +232,7 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
         )}
       </Box>
 
-      <CreateDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        onCreated={(t) => {
-          setCreating(false);
-          setToast({ msg: `团队「${t.name}」已创建`, ok: true });
-          refresh();
-          setOpenId(t.id);
-        }}
-      />
-      {openId != null && (
-        <TeamDialog
-          teamId={openId}
-          me={me}
-          onClose={() => setOpenId(null)}
-          onChanged={refresh}
-          onOpenTaskboard={onOpenTaskboard}
-          notify={(msg, ok = true) => setToast({ msg, ok })}
-        />
-      )}
-      <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity={toast?.ok ? 'success' : 'error'} variant="filled" onClose={() => setToast(null)}>
-          {toast?.msg}
-        </Alert>
-      </Snackbar>
+      {dialogs}
     </Box>
   );
 }
@@ -263,7 +297,7 @@ function TeamCard({
             {team.name}
           </Typography>
           <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>
-            {team.memberCount} 人 · 交付 {team.realizedCount} · 收入 ¥{yuan(team.earnedCents)}
+            {team.memberCount} 人 · 交付 {team.realizedCount} · 收入 {centsAsDiamonds(team.earnedCents)}
           </Typography>
         </Box>
         {badge && <Chip size="small" label={badge} />}

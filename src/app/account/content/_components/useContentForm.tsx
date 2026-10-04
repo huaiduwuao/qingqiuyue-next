@@ -41,6 +41,16 @@ import { ScheduleFields } from './ScheduleFields';
 export type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
 export interface SnackMsg { msg: string; severity: SnackSeverity; }
 
+/**
+ * POST /module/content 的返回(拦截器已剥掉 body.data):后端 respondSaved 给 {id, status},
+ * id 是十进制字符串(BIGINT),原样透传,绝不 Number()。
+ */
+export interface SavedContent {
+  id?: string | number;
+  status?: string;
+  [k: string]: unknown;
+}
+
 export interface UseContentFormOptions<TPayload> {
   /** 后端 contentType:VIDEO / PICTURE / ARTICLE / NOVEL / ... */
   contentType: string;
@@ -56,8 +66,8 @@ export interface UseContentFormOptions<TPayload> {
   buildPayload: () => TPayload;
   /** 成功后是否自动跳回工作台(默认 true) */
   redirectOnSuccess?: boolean;
-  /** 自定义跳转(默认 setActiveTab('content')) */
-  onSuccess?: () => void;
+  /** 自定义跳转(默认 setActiveTab('content'));拿得到时带上刚保存的记录(含新 id) */
+  onSuccess?: (saved?: SavedContent) => void;
   /** 标题是否必填(默认 true) */
   requireTitle?: boolean;
   /** 简介是否必填(默认 false) */
@@ -171,11 +181,11 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       setSnack({ msg: validationError, severity: 'warning' });
       return { ok: false, error: validationError };
     }
-    let saved: { status?: string } | undefined;
+    let saved: SavedContent | undefined;
     try {
       // 拦截器已经把 body.data 剥出来了,再取一层 .data 永远是 undefined ——
       // 在此之前不论发布成功还是定时成功,提示都落到「已提交审核」那个兜底分支。
-      saved = (await createMutation.mutateAsync()) as { status?: string } | undefined;
+      saved = (await createMutation.mutateAsync()) as SavedContent | undefined;
     } catch (e: any) {
       if (isAuthError(e)) {
         setSnack({ msg: '请重新登录', severity: 'error' });
@@ -188,7 +198,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     }
     setSnack({ msg: savedMessage(saved?.status), severity: 'success' });
     if (onSuccess) {
-      onSuccess();
+      onSuccess(saved && typeof saved === 'object' ? saved : undefined);
     } else if (redirectOnSuccess) {
       // Fallback:view 没传 onSuccess 时,主动派发一个自定义事件让宿主跳回工作台。
       // PublishForms/ 的 ImageForm 等都传 onSuccess,这里兜底给忘记传的人。

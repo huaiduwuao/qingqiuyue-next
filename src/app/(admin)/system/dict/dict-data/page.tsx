@@ -14,6 +14,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -75,6 +76,31 @@ function buildTree(records: DictDataItem[]): TreeItem[] {
   return map(roots);
 }
 
+/** 按标签 / 值关键字过滤树:节点自身命中则保留整棵子树,否则只保留命中的后代及其祖先路径。 */
+function filterTree(items: TreeItem[], keyword: string): TreeItem[] {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return items;
+  const out: TreeItem[] = [];
+  for (const it of items) {
+    const hit = it.label.toLowerCase().includes(k) || String(it.data?.value ?? '').toLowerCase().includes(k);
+    if (hit) {
+      out.push(it);
+      continue;
+    }
+    const kids = it.children ? filterTree(it.children, keyword) : [];
+    if (kids.length) out.push({ ...it, children: kids });
+  }
+  return out;
+}
+
+function collectIds(items: TreeItem[], acc: string[] = []): string[] {
+  items.forEach((it) => {
+    acc.push(it.id);
+    if (it.children) collectIds(it.children, acc);
+  });
+  return acc;
+}
+
 function countDescendants(item: DictDataItem): number {
   if (!Array.isArray((item as any).children) || (item as any).children.length === 0) return 0;
   return (item as any).children.reduce(
@@ -86,6 +112,7 @@ function countDescendants(item: DictDataItem): number {
 export default function SystemDictDataPage() {
   const qc = useQueryClient();
   const [selectedType, setSelectedType] = useState<string>('');
+  const [keyword, setKeyword] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DictDataItem | null>(null);
   const [parentForCreate, setParentForCreate] = useState<DictDataItem | null>(null);
@@ -129,6 +156,8 @@ export default function SystemDictDataPage() {
   });
 
   const treeItems = useMemo(() => buildTree(treeQuery.data || []), [treeQuery.data]);
+  // 关键字只在已加载的树上做前端过滤(整类字典一次性拉全量)
+  const visibleItems = useMemo(() => filterTree(treeItems, keyword), [treeItems, keyword]);
 
   // id -> DictDataItem 反查表,供 item slot 通过 itemId 找到原始数据
   const itemLookup = useMemo(() => {
@@ -274,6 +303,14 @@ export default function SystemDictDataPage() {
             ))}
           </Select>
         </FormControl>
+        <TextField
+          size="small"
+          label="标签 / 值"
+          placeholder="按标签或值搜索"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          sx={{ minWidth: 200 }}
+        />
         <Box
           sx={{
             flex: 1,
@@ -342,12 +379,18 @@ export default function SystemDictDataPage() {
               新增根项
             </Button>
           </Box>
+        ) : visibleItems.length === 0 ? (
+          <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
+            <Typography variant="body2">没有匹配「{keyword.trim()}」的字典项</Typography>
+          </Box>
         ) : (
           <RichTreeView
-            items={treeItems}
+            // 过滤条件变化时重挂载,让命中项所在的分支全部展开
+            key={keyword.trim() ? `kw:${keyword.trim()}` : 'all'}
+            items={visibleItems}
             getItemId={(it) => (it as unknown as TreeItem).id}
             getItemLabel={(it) => (it as unknown as TreeItem).label}
-            defaultExpandedItems={treeItems.map((it) => it.id)}
+            defaultExpandedItems={keyword.trim() ? collectIds(visibleItems) : treeItems.map((it) => it.id)}
             sx={{
               // 缩进用一条渐隐的引导线 + 节点悬停背景,让多层树有"层级感"
               '& .MuiTreeItem-root': {
