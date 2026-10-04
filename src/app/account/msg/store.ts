@@ -21,7 +21,7 @@ export const useMsgUi = create<MsgUiState>()(
     (set) => ({
       mainTab: 'dm',
       subType: 'all',
-      selectedId: 1,
+      selectedId: null,
       setMainTab: (mainTab) => set({ mainTab }),
       setSubType: (subType) => set({ subType }),
       setSelectedId: (selectedId) => set({ selectedId }),
