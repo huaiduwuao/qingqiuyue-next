@@ -640,7 +640,9 @@ export default function HdPublishPage() {
       const res = await accountClient.post('/file/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const url = (res as { data?: { url?: string } })?.data?.url;
+      // 拦截器已把 {code,msg,data:{url}} 剥到业务层,返回值就是 {url}。以前读 res.data.url
+      // 永远是 undefined,每个视频都上传成功却被判成「未返回文件地址」,根本提交不了。
+      const url = (res as { url?: string })?.url;
       if (url) {
         setUploadFileUrl(url);
         setUploadStatus('uploaded');
