@@ -7,7 +7,8 @@
 //   时间线:唐 → 宋 → 1949 年以前 → … → 当下,同一种心事在每个年代的作品
 // 页签上方是「论」(编者观点)和「不同角度」的故事(史书原典的白话转述,标出处),
 // 以及可用性筛选:全部 / 本站可播 / 直接可看 —— 两个页签共用,作品卡上也打同样的标。
-// 底部是「写给自己」(只存在本机)和同组的其它主题。
+// 作品页签按内容层分组(一层照见 / 二层体味 / 三层参悟),心境境界以内的层展开、更深的折叠;
+// 顶上是修习阶梯,底部是「自问」(登录记到心路,没登录存本机)和同组的其它主题。
 //
 // 静态导出不能用 [key] 动态段,所以用 ?key=,且 useSearchParams 必须包在 Suspense 里。
 
@@ -20,15 +21,12 @@ import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
-import TextField from '@mui/material/TextField';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { EmptyState } from '@/components/common/AsyncState';
 import {
   overview,
   theme as fetchTheme,
   pushRecentTheme,
-  readNote,
-  writeNote,
   type InsightAvail,
   type InsightTheme,
 } from '@/apis/insight';
@@ -37,49 +35,9 @@ import { AvailFilter, TimelineTab, WorksTab } from '@/components/insight/ThemeWo
 import { list as fetchJourneys } from '@/apis/journey';
 import { BranchStrip } from '@/components/insight/Branches';
 import { useTopicOpen } from '@/lib/topicTrack';
+import { AskBox, PracticeLadder } from '@/components/insight/Mind';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
-
-/** 写给自己。只存在本机 —— 不上传,换设备不跟着走,页面上要说清楚。 */
-function NoteBox({ t, accent }: { t: InsightTheme; accent: string }) {
-  const [text, setText] = React.useState('');
-  const [saved, setSaved] = React.useState(false);
-  React.useEffect(() => {
-    setText(readNote(t.key));
-    setSaved(false);
-  }, [t.key]);
-  return (
-    <Box sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, border: '1px dashed', borderColor: 'divider', mb: 5 }}>
-      <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>写给自己</Typography>
-      <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5, lineHeight: 1.8 }}>
-        <Box component="span" sx={{ color: accent, mr: 1 }}>
-          问
-        </Box>
-        {t.ask}
-      </Typography>
-      <TextField
-        multiline
-        minRows={3}
-        fullWidth
-        size="small"
-        placeholder="想到什么就写什么"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setSaved(false);
-        }}
-        onBlur={() => {
-          writeNote(t.key, text);
-          setSaved(true);
-        }}
-        slotProps={{ htmlInput: { maxLength: 2000 } }}
-      />
-      <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 1 }}>
-        {saved ? '已保存在这台设备上。' : '只保存在这台设备上,不会上传,也没有别人能看到。'}
-      </Typography>
-    </Box>
-  );
-}
 
 function ThemeInner() {
   const router = useRouter();
@@ -158,6 +116,9 @@ function ThemeInner() {
         </Typography>
         <Epigraph line={t.line} src={t.lineSrc} accent={accent} size={17} />
       </Box>
+
+      {/* 修习:照见 → 体味 → 参悟 → 自问(components/insight/Mind) */}
+      <PracticeLadder themeKey={t.key} accent={accent} hasJourney={(journeys.data?.list?.length ?? 0) > 0} />
 
       {/* 回廊:同一个主题,换一种走进去的方式 */}
       {(journeys.data?.list ?? []).map((j) => (
@@ -255,7 +216,7 @@ function ThemeInner() {
       )}
 
       <Box sx={{ mt: 5 }}>
-        <NoteBox t={t} accent={accent} />
+        <AskBox t={t} accent={accent} />
       </Box>
 
       {siblings.length > 0 && (

@@ -190,6 +190,14 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
               回廊《{n.scriptTitle || n.scriptKey}》
             </Typography>
           )}
+          {n.kind === 'ask' && (
+            <Typography
+              onClick={() => n.theme && router.push(`/insight/theme?key=${encodeURIComponent(n.theme)}`)}
+              sx={{ fontSize: 11, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+            >
+              自问 · {n.themeName || n.theme}
+            </Typography>
+          )}
           {n.kind === 'scene' && (
             <Typography
               onClick={() => { const o = n.space?.startsWith('room:') ? n.space.slice(5) : ''; if (o) router.push(`/digital-human?room=${encodeURIComponent(o)}`); }}

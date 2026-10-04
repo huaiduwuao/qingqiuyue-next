@@ -19,17 +19,19 @@ export interface LifeAxisMeta {
 export interface LifePathNode {
   id: number;
   /** scene:虚拟世界的人生场景里留下的一句感悟(space = room:房主) */
-  kind: 'journey' | 'moment' | 'scene';
+  kind: 'journey' | 'moment' | 'scene' | 'ask';
   axis: LifeAxis | '';
   feel: string;
   text: string;
   createdAt: number;
   scriptKey?: string;
   space?: string;
-  /** scene:场景问他的那个问题(text 是他自己写的) */
+  /** scene:场景问他的那个问题;ask:编者一问(text 是他自己写的) */
   prompt?: string;
   scriptTitle?: string;
+  /** journey:回廊所属主题;ask:回答的是哪个感悟主题的一问 */
   theme?: string;
+  themeName?: string;
   ending?: string;
   refType?: string;
   refId?: string;

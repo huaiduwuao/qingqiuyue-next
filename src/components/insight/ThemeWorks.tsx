@@ -23,6 +23,8 @@ import {
 import { AVAIL_META, InsightCard } from '@/components/insight/InsightCards';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { workClickCapture } from '@/lib/topicTrack';
+import { layerOf } from '@/apis/mind';
+import { layerMeta, useMindMe } from '@/components/insight/mindHooks';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 const PAGE_SIZE = 24;
@@ -194,19 +196,87 @@ export function WorksTab({ t, avail, accent }: { t: InsightTheme; avail: Insight
       {type ? (
         <PagedList themeKey={t.key} type={type} avail={avail} accent={accent} />
       ) : (
-        sections.map((s) => (
-          <SectionRow
-            key={s.contentType}
-            s={s}
-            accent={accent}
-            onMore={() => {
-              setType(s.contentType);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          />
-        ))
+        <LayeredSections
+          sections={sections}
+          accent={accent}
+          onMore={(ct) => {
+            setType(ct);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       )}
     </Box>
+  );
+}
+
+/**
+ * 按内容层分组的分栏:一层照见(歌、短片、短剧)→ 二层体味(影视、书、文章)→ 三层参悟(诗词)。
+ * 心境境界以内的层展开;更深的层只露一行,点「往深一层」展开 —— 软引导,不锁(后端 mind.go)。
+ */
+function LayeredSections({
+  sections,
+  accent,
+  onMore,
+}: {
+  sections: InsightSection[];
+  accent: string;
+  onMore: (contentType: string) => void;
+}) {
+  const m = useMindMe().data;
+  const stageLayer = m?.stage.layer ?? 1;
+  const [opened, setOpened] = React.useState<Record<number, boolean>>({});
+  const layers = [1, 2, 3]
+    .map((l) => ({ l, secs: sections.filter((s) => (s.layer ?? layerOf(s.contentType)) === l) }))
+    .filter((x) => x.secs.length > 0);
+  return (
+    <>
+      {layers.map(({ l, secs }) => {
+        const meta = layerMeta(m, l);
+        const open = l <= stageLayer || opened[l];
+        return (
+          <Box key={l} sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, mb: 1.5, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontFamily: SERIF, fontSize: 19, fontWeight: 700, color: accent, letterSpacing: '0.1em' }}>
+                {['一', '二', '三'][l - 1]}层 · {meta.name}
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{meta.hint}</Typography>
+            </Box>
+            {open ? (
+              secs.map((s) => <SectionRow key={s.contentType} s={s} accent={accent} onMore={() => onMore(s.contentType)} />)
+            ) : (
+              <Box sx={{ position: 'relative', mb: 4 }}>
+                {/* 只露一行:让人知道下面还有,不挡着 */}
+                <Box sx={{ maxHeight: 132, overflow: 'hidden', opacity: 0.55, pointerEvents: 'none' }}>
+                  <ItemGrid list={secs[0].items.slice(0, 8)} accent={accent} compact />
+                </Box>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    pb: 1,
+                    background: (th) => `linear-gradient(180deg, transparent 0%, ${th.palette.background.default} 85%)`,
+                  }}
+                >
+                  <Typography
+                    onClick={() => setOpened((o) => ({ ...o, [l]: true }))}
+                    sx={{ fontSize: 14, fontWeight: 600, color: accent, cursor: 'pointer' }}
+                  >
+                    往深一层 · {secs.map((s) => `${typeName(s.contentType)} ${s.total.toLocaleString()}`).join(' · ')} ›
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.25 }}>
+                    心境到了「{m?.stages?.find((x) => x.layer === l)?.name ?? '下一境'}」会默认展开
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        );
+      })}
+    </>
   );
 }
 

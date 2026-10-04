@@ -67,10 +67,14 @@ export interface InsightItem {
   dynasty?: string;
   rating?: number;
   avail?: InsightAvail;
+  /** 内容层(心境):1 照见 / 2 体味 / 3 参悟,按作品形式定 */
+  layer?: 1 | 2 | 3;
 }
 
 export interface InsightSection {
   contentType: string;
+  /** 内容层(心境):1 照见 / 2 体味 / 3 参悟 */
+  layer?: 1 | 2 | 3;
   total: number;
   items: InsightItem[];
 }
