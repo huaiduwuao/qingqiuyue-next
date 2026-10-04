@@ -384,6 +384,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
    * 拒绝有声播放。以前这里 .catch(() => {}) 吞掉,视频就停在第一帧,看着像"一划就暂停"。
    * 被拒时改成静音开播,再给一个开声音的入口。
    */
+  const loadSeqRef = useRef(0);
   const autoStart = (v: HTMLVideoElement) => {
     // 记下「要自动播放」:地址还没挂上 / 正在换源时 play() 会以 AbortError / NotSupportedError 失败
     // (AcFun 的 HLS 要先异步加载 hls.js 才挂得上流,play() 早就被拒了),等 canplay 再补一次。
@@ -404,6 +405,9 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   // loadStream 真正把地址喂给 <video>/hls.js。外面的 playStream 先做直连判定。
   const loadStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
+    // 每次装载递增:hls.js 是异步 import 的,快速切集 / 换清晰度时旧的那次 then 回来
+    // 还会再 new 一个 Hls、把旧地址挂上去,和新地址的实例抢同一个 <video>。
+    const seq = ++loadSeqRef.current;
     // 原地址直接播:视频不经本站带宽,不再包成 /api/proxy?url=(见 playStream)。
     const playUrl = url;
     // 换链恢复时按原播放状态继续,否则按 autoPlay
@@ -431,7 +435,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
     // 动态导入 hls.js
     import('hls.js').then(({ default: Hls }) => {
-      if (!videoRef.current) return;
+      if (!videoRef.current || seq !== loadSeqRef.current) return;
 
       if (Hls.isSupported()) {
         const hls = new Hls({
