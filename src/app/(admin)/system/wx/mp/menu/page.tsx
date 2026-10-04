@@ -16,7 +16,6 @@ import { formatApiError } from '@/lib/api/client';
 import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { v4 as uuidv4 } from 'uuid';
 
 const LIST_KEY = ['wx-mp-menu'];
 
@@ -63,14 +62,14 @@ export default function WxMpMenuPage() {
       showMessage('最多只能添加3个一级菜单', 'error');
       return;
     }
-    const newData = [...data, { name: '一级菜单', id: uuidv4(), sub_button: [], type: '' }];
+    const newData = [...data, { name: '一级菜单', id: crypto.randomUUID(), sub_button: [], type: '' }];
     qc.setQueryData(LIST_KEY, newData);
   };
 
   const addSubMenu = (firMenu: any) => {
     const newData = data.map(ele => {
       if (ele.id === firMenu.id) {
-        return { ...ele, sub_button: [...(ele.sub_button || []), { name: '子菜单', id: uuidv4(), type: '' }] };
+        return { ...ele, sub_button: [...(ele.sub_button || []), { name: '子菜单', id: crypto.randomUUID(), type: '' }] };
       }
       return ele;
     });

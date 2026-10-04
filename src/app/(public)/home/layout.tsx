@@ -6,6 +6,8 @@ import { loginHref } from '@/lib/auth/redirect';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -16,7 +18,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
-import { MyHomePage, ME_DRAWER_TITLES } from '@/components/home/MyHomePage';
+import { ME_DRAWER_TITLES } from '@/components/home/meDrawer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import SearchIcon from '@mui/icons-material/Search';
 import DiamondIcon from '@mui/icons-material/Diamond';
@@ -38,20 +40,13 @@ import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
-import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import TrendingBoard from '@/components/home/TrendingBoard';
 import HotspotBoard from '@/components/home/HotspotBoard';
 import BountyPulse from '@/components/home/BountyPulse';
-import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
 import { parseSectionId } from '@/lib/homeSections';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 // 客户端下载入口:跳到独立 /download 介绍页
-import { LivePanel } from './panels/LivePanel';
-import { TheaterPanel } from './panels/TheaterPanel';
-import { DramaPanel } from './panels/DramaPanel';
-import { CommunityPanel } from '@/components/community/CommunityPanel';
-import { TopicHub } from '@/components/community/TopicHub';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
@@ -64,6 +59,23 @@ import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import FirstRunGuide from '@/components/onboarding/FirstRunGuide';
 import { useShellScrollLock } from '@/lib/shellScrollLock';
 import { useSwipeTabs } from '@/hooks/useSwipeTabs';
+
+// 页签面板按需加载:同一时刻只渲染一个,之前全部静态 import,进首页就要把
+// 「我的」(2000+ 行)、榜单、直播、放映厅、社区等全部下载下来。
+// 默认页签「精选」(FeedPanel)和推荐页(本路由自己的 page)保持静态。
+const PanelLoading = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+    <CircularProgress size={28} />
+  </Box>
+);
+const MyHomePage = dynamic(() => import('@/components/home/MyHomePage').then((m) => m.MyHomePage), { loading: PanelLoading });
+const AIRecommendPanel = dynamic(() => import('./panels/AIRecommendPanel').then((m) => m.AIRecommendPanel), { loading: PanelLoading });
+const LeaderboardPanel = dynamic(() => import('@/components/leaderboard/LeaderboardPanel').then((m) => m.LeaderboardPanel), { loading: PanelLoading });
+const LivePanel = dynamic(() => import('./panels/LivePanel').then((m) => m.LivePanel), { loading: PanelLoading });
+const TheaterPanel = dynamic(() => import('./panels/TheaterPanel').then((m) => m.TheaterPanel), { loading: PanelLoading });
+const DramaPanel = dynamic(() => import('./panels/DramaPanel').then((m) => m.DramaPanel), { loading: PanelLoading });
+const CommunityPanel = dynamic(() => import('@/components/community/CommunityPanel').then((m) => m.CommunityPanel), { loading: PanelLoading });
+const TopicHub = dynamic(() => import('@/components/community/TopicHub').then((m) => m.TopicHub), { loading: PanelLoading });
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },

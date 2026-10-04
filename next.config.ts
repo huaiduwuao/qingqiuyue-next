@@ -89,44 +89,6 @@ const nextConfig: NextConfig = {
       fullUrl: true,
     },
   },
-  // pg 等 Node-only 依赖被客户端组件间接引用(task-engine 等),临时 fallback 避免构建失败。
-  // 这些模块在浏览器端实际不会执行(DB 写入已被 try/catch 吞掉),后续应把持久化逻辑彻底拆到服务端。
-  // 当前项目使用 webpack 构建(见 package.json build script),此 fallback 仅作用于客户端 bundle。
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // fallback 把 require('fs') 等替换成空模块, 但 pg 内部的 require 仍会触发
-      // webpack 分析时报 "Can't resolve 'fs'" → 进一步把 pg 家族强制成 client external,
-      // 浏览器端 require 直接抛错(代码路径不会被走到)
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        dns: false,
-        fs: false,
-        net: false,
-        tls: false,
-        path: false,
-        crypto: false,
-        'util/types': false,
-        'pg-native': false,
-        'pg-connection-string': false,
-      };
-      config.externals = [
-        ...(config.externals || []),
-        // @ts-expect-error - pg 家族包类型在 webpack 文档里没声明
-        function externalPgOrDrizzle(request, callback) {
-          if (
-            request === 'pg' ||
-            request === 'pg-connection-string' ||
-            request === 'drizzle-orm/node-postgres' ||
-            request === 'drizzle-orm'
-          ) {
-            return callback(undefined, 'commonjs ' + request);
-          }
-          callback();
-        },
-      ];
-    }
-    return config;
-  },
   // (改完 Blender 脚本重生成 GLB 后,普通 F5 刷新就能拿新版,不用 Ctrl+Shift+R)
 };
 
