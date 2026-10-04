@@ -110,6 +110,11 @@ const NETWORK_BLOCKED_NOTICE = '这个片源只对中国大陆网络开放：当
  * 国内用户要开 VPN(海外节点)才能看;后端体检会把这类内容换到国内能放的片源,换不到才会看到这句。
  */
 const OVERSEAS_ONLY_NOTICE = '这个片源只对海外网络开放：它拒绝中国大陆 IP，需要开 VPN（海外节点）才能观看，国内片源正在补';
+/** 开播前挂在画面上的地区提示(StreamInfo.region),播放失败时再给上面两句完整原因 */
+const REGION_HINT: Record<string, string> = {
+  mainland: '仅限国内网络观看 · 开着 VPN / 代理会放不了',
+  overseas: '海外片源 · 国内需开 VPN 才能观看',
+};
 /** 看的人这边的网络问题,不是片源坏了:原样显示,不说「已记录」 */
 const isNetworkNotice = (msg: string | null) => msg === NETWORK_BLOCKED_NOTICE || msg === OVERSEAS_ONLY_NOTICE;
 /** 恢复后正常播放超过这么久,重置重试计数(长视频两小时后签名再次过期时还能再救) */
@@ -1352,6 +1357,29 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               </IconButton>
             )
           )}
+        </Box>
+      )}
+
+      {/* 片源地区限制:开播前 / 暂停时显示,播起来就收起 */}
+      {hasVideo && !playing && !streamError && REGION_HINT[streams[currentStream]?.region || ''] && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: fill ? 'calc(env(safe-area-inset-top, 0px) + 64px)' : 10,
+            right: 10,
+            zIndex: 3,
+            maxWidth: 'calc(100% - 20px)',
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 999,
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: '#fff',
+            bgcolor: streams[currentStream]?.region === 'overseas' ? 'rgba(217,119,6,0.85)' : 'rgba(0,0,0,0.6)',
+            pointerEvents: 'none',
+          }}
+        >
+          {REGION_HINT[streams[currentStream]?.region || '']}
         </Box>
       )}
 

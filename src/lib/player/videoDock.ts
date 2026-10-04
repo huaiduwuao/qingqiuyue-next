@@ -21,6 +21,8 @@ export interface StreamInfo {
   format: string;
   /** 浏览器能不能直连(后端 streamaccess:direct / referer_required / cors_blocked / unreachable) */
   access?: string;
+  /** 地区限制(后端登记片源实测):mainland = 只有中国大陆网络能看,overseas = 拒绝大陆 IP、要开 VPN */
+  region?: 'mainland' | 'overseas' | string;
 }
 
 export interface DockEntry {
