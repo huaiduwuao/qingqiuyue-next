@@ -226,7 +226,10 @@ export default function HdPublishPage() {
   const [uploadFileSizeMB, setUploadFileSizeMB] = useState(0);
   const [uploadFileUrl, setUploadFileUrl] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  // 上传代次:换文件 / 清空后,上一个文件的上传回包按代次丢弃
+  const uploadSeqRef = useRef(0);
   const resetUpload = React.useCallback(() => {
+    uploadSeqRef.current += 1;
     setUploadFileName(null);
     setUploadFileSizeMB(0);
     setUploadFileUrl(null);
@@ -628,6 +631,9 @@ export default function HdPublishPage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    // 大文件上传途中又换了一个:先选的那个后回包会把它的地址填进来,
+    // 页面显示的是新文件名,提交出去的却是旧视频。只认最后一次选择。
+    const seq = ++uploadSeqRef.current;
     setUploadTitle((p) => p || file.name.replace(/\.[^.]+$/, ''));
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
     setUploadFileName(file.name);
@@ -643,6 +649,7 @@ export default function HdPublishPage() {
       // 拦截器已把 {code,msg,data:{url}} 剥到业务层,返回值就是 {url}。以前读 res.data.url
       // 永远是 undefined,每个视频都上传成功却被判成「未返回文件地址」,根本提交不了。
       const url = (res as { url?: string })?.url;
+      if (seq !== uploadSeqRef.current) return;
       if (url) {
         setUploadFileUrl(url);
         setUploadStatus('uploaded');
@@ -653,6 +660,7 @@ export default function HdPublishPage() {
         setSnack({ msg: '上传成功但未返回文件地址,请重试', severity: 'error' });
       }
     } catch (e) {
+      if (seq !== uploadSeqRef.current) return;
       setUploadStatus('failed');
       setSnack({ msg: `文件上传失败:${formatApiError(e)}`, severity: 'error' });
     }
@@ -1309,10 +1317,7 @@ export default function HdPublishPage() {
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
             <Button
               onClick={() => {
-                setUploadFileName(null);
-                setUploadFileSizeMB(0);
-                setUploadFileUrl(null);
-                setUploadStatus('idle');
+                resetUpload();
                 setUploadTitle('');
                 setUploadHdr(true);
                 setUploadAutoCover(true);
