@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import HotspotBoard from '@/components/home/HotspotBoard';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -740,7 +740,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               {feedList.length > 0 ? (
                 <ListLayout minColumnWidth={260} minColumns={isMobile ? 2 : 1} gap={isMobile ? 8 : 12} listMaxWidth="var(--page-max-narrow)">
                   {feedList.map((item, i) => (
-                    <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35}>
+                    <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35} sx={OFFSCREEN_SKIP_SX}>
                       <FeedCard item={item} />
                     </FadeContent>
                   ))}
@@ -825,7 +825,27 @@ function PlaylistChannelHeader({ list }: { list: MyListItem }) {
 }
 
 // ─── 卡片 ───
-function FeedCard({ item }: { item: FeedItem }) {
+/**
+ * 无限滚动的卡片越刷越多:离开视口的卡片交给浏览器跳过样式/布局/绘制(content-visibility:auto),
+ * 长时间刷下去滚动和重排不会随卡片数线性变慢。
+ *
+ * 没有用真正的虚拟列表(只挂载可见的几十张):列数随容器宽度变、三种列表样式卡片高度各不相同,
+ * 自己算行高/偏移容易在追加页、切样式时跳动,也不值得为它再加一个依赖。代价是 DOM 节点和
+ * React 树仍然随页数增长(每张卡片几十个节点,几千张以内可接受),只是不再参与渲染。
+ * - contain-intrinsic-size 的 auto:渲染过一次后记住真实高度,滚回去不跳;没渲染过的先按 240px 占位。
+ * - content-visibility 自带 paint containment,会把卡片悬停时的位移 + 阴影裁掉,用
+ *   overflow-clip-margin 放出余量;不支持它的浏览器(老 Safari)整段不启用,保持原样。
+ */
+const OFFSCREEN_SKIP_SX = {
+  '@supports (overflow-clip-margin: 1px)': {
+    contentVisibility: 'auto',
+    containIntrinsicBlockSize: 'auto 240px',
+    overflowClipMargin: '48px',
+  },
+} as const;
+
+// memo:追加下一页时已有卡片的 item 引用不变(react-query 结构共享),不必整列重渲染
+const FeedCard = memo(function FeedCard({ item }: { item: FeedItem }) {
   const navigate = useContentNavigate();
 
   // 后端 /feed 返回的 item.category 实际是 module_content.content_type(已是规范大写
@@ -1009,7 +1029,7 @@ function FeedCard({ item }: { item: FeedItem }) {
       </Box>
     </SpotlightCard>
   );
-}
+});
 
 function Stat({ icon, value }: { icon: React.ReactNode; value: number }) {
   return (
