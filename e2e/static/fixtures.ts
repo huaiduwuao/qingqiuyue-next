@@ -165,6 +165,8 @@ export const RECHARGE: MockRule[] = [
       { id: 2, name: '300 钻', diamondAmount: 300, priceCents: 3000, originalPriceCents: 3300 },
     ]),
   },
+  // 充值页只露真开通的通道,没开通就不下单(6a423ff1)
+  { path: /^\/core\/payment\/channels$/, body: ok({ wechat: true, alipay: false }) },
   { path: /^\/core\/recharge\/benefits$/, body: ok({ list: [] }) },
   { path: /^\/core\/recharge\/activity$/, body: ok(null) },
   { path: /^\/core\/wallet$/, body: ok({ id: 1, userId: 10001, balance: 0, frozen: 0, updateTime: '2026-10-04T08:00:00+08:00' }) },
