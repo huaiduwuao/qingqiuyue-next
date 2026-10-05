@@ -58,6 +58,17 @@ import { PoseBoneEditor } from '@/components/digital-human/PoseBoneEditor';
 import { list as listMenus, save as saveMenu, update as updateMenu, remove as deleteMenu } from '@/apis/menu';
 import type { MenuItem as DbMenuItem } from '@/beans/system';
 import { errMessage } from '@/lib/errMessage';
+import type {
+  VrmModelConfig, ActionConfig, DanceStyleConfig, PoseConfig,
+  ExpressionPresetConfig, VisemeConfig, SceneConfig, LightConfig, DecorationConfig,
+} from '@/digital-human/vrm/config/types';
+
+/** 编辑中的草稿:新建时 id 为 0(保存走 create),字段可能不全(整 JSON 编辑器能写任意内容) */
+type DeepPartial<T> = T extends unknown[] ? T : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+type Draft<T> = Omit<DeepPartial<T>, 'id'> & { id?: string | number };
+/** 页面按 durationMs 读写动作时长(类型里叫 duration),原样保留 */
+type ActionDraftConfig = ActionConfig & { durationMs?: number };
+type EditorProps<T> = { value: Draft<T>; onChange: (v: Draft<T>) => void; onSave: (v: Draft<T>) => void; onCancel: () => void };
 
 // 复用 DbMenuItem 引用
 type MenuItem = DbMenuItem;
@@ -112,10 +123,10 @@ export default function DigitalHumanConfigPage() {
 // ============================================================================
 function ModelsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'models'], queryFn: () => listModels(), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<VrmModelConfig> | null>(null);
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateModel(editing.id, e) : createModel(e),
+    mutationFn: (e: Draft<VrmModelConfig>) => editing?.id ? updateModel(editing.id as string, e as VrmModelConfig) : createModel(e as VrmModelConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'models'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -138,7 +149,7 @@ function ModelsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
         </Button>
       </Stack>
       <Stack spacing={1}>
-        {list.data?.map((m: any) => (
+        {list.data?.map((m) => (
           <Card key={m.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Box sx={{ flex: 1 }}>
@@ -159,8 +170,8 @@ function ModelsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function ModelEditor({ value, onChange, onSave, onCancel }: any) {
-  const update = (patch: any) => onChange({ ...value, ...patch });
+function ModelEditor({ value, onChange, onSave, onCancel }: EditorProps<VrmModelConfig>) {
+  const update = (patch: Draft<VrmModelConfig>) => onChange({ ...value, ...patch });
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑模型' : '新建模型'}</Typography>
@@ -193,7 +204,7 @@ function ModelEditor({ value, onChange, onSave, onCancel }: any) {
 // Actions
 // ============================================================================
 /** 列表前端筛选:category 下拉,选项取自当前数据 */
-function CategoryFilter({ items, value, onChange }: { items: any[]; value: string; onChange: (v: string) => void }) {
+function CategoryFilter({ items, value, onChange }: { items: { category?: string }[]; value: string; onChange: (v: string) => void }) {
   const cats = Array.from(new Set(items.map((x) => x?.category).filter(Boolean) as string[])).sort();
   return (
     <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -213,12 +224,12 @@ const matchKw = (kw: string, ...xs: (string | undefined)[]) => {
 
 function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'actions'], queryFn: () => listActions('character'), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<ActionDraftConfig> | null>(null);
   const [filter, setFilter] = React.useState('');
   const [category, setCategory] = React.useState('');
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateAction(editing.id, e) : createAction(e),
+    mutationFn: (e: Draft<ActionDraftConfig>) => editing?.id ? updateAction(editing.id as string, e as ActionConfig) : createAction(e as ActionConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'actions'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -228,7 +239,7 @@ function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   if (editing) return <ActionEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
-  const filtered = (list.data ?? []).filter((a: any) => matchKw(filter, a.name, a.label) && (!category || a.category === category));
+  const filtered = (list.data ?? []).filter((a) => matchKw(filter, a.name, a.label) && (!category || a.category === category));
 
   return (
     <Stack spacing={1}>
@@ -244,7 +255,7 @@ function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
       </Stack>
       <Box sx={{ maxHeight: 480, overflow: 'auto' }}>
         <Stack spacing={0.5}>
-          {filtered.map((a: any) => (
+          {filtered.map((a: ActionDraftConfig) => (
             <Card key={a.id} variant="outlined" sx={{ p: 1 }}>
               <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                 <Chip label={a.category} size="small" />
@@ -262,8 +273,8 @@ function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function ActionEditor({ value, onChange, onSave, onCancel }: any) {
-  const update = (patch: any) => onChange({ ...value, ...patch });
+function ActionEditor({ value, onChange, onSave, onCancel }: EditorProps<ActionDraftConfig>) {
+  const update = (patch: Draft<ActionDraftConfig>) => onChange({ ...value, ...patch });
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑动作' : '新建动作'}</Typography>
@@ -312,12 +323,12 @@ function ActionEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'dances'], queryFn: () => listDanceStyles('character'), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<DanceStyleConfig> | null>(null);
   const [filter, setFilter] = React.useState('');
   const [category, setCategory] = React.useState('');
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateDanceStyle(editing.id, e) : createDanceStyle(e),
+    mutationFn: (e: Draft<DanceStyleConfig>) => editing?.id ? updateDanceStyle(editing.id as string, e as DanceStyleConfig) : createDanceStyle(e as DanceStyleConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'dances'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -328,8 +339,8 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   if (editing) return <DanceEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
   // 旧数据 category 可能为空,展示和筛选都按 idle_bounce 处理
-  const items = (list.data ?? []).map((d: any) => ({ ...d, category: d.category || 'idle_bounce' }));
-  const filtered = items.filter((d: any) => matchKw(filter, d.name, d.label) && (!category || d.category === category));
+  const items = (list.data ?? []).map((d) => ({ ...d, category: d.category || 'idle_bounce' }));
+  const filtered = items.filter((d) => matchKw(filter, d.name, d.label) && (!category || d.category === category));
 
   return (
     <Stack spacing={1}>
@@ -343,7 +354,7 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建舞蹈风格</Button>
       </Stack>
       <Stack spacing={1}>
-        {filtered.map((d: any) => (
+        {filtered.map((d) => (
           <Card key={d.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Chip label={d.category || 'idle_bounce'} size="small" />
@@ -363,8 +374,8 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function DanceEditor({ value, onChange, onSave, onCancel }: any) {
-  const update = (patch: any) => onChange({ ...value, ...patch });
+function DanceEditor({ value, onChange, onSave, onCancel }: EditorProps<DanceStyleConfig>) {
+  const update = (patch: Draft<DanceStyleConfig>) => onChange({ ...value, ...patch });
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑舞蹈风格' : '新建舞蹈风格'}</Typography>
@@ -409,11 +420,11 @@ function DanceEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'poses'], queryFn: () => listPoses('character'), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<PoseConfig> | null>(null);
   const [filter, setFilter] = React.useState('');
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updatePose(editing.id, e) : createPose(e),
+    mutationFn: (e: Draft<PoseConfig>) => editing?.id ? updatePose(editing.id as string, e as PoseConfig) : createPose(e as PoseConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'poses'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -424,7 +435,7 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   if (editing) return <PoseEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
   // 姿势没有 category 字段,只做 name / label / 描述关键字
-  const filtered = (list.data ?? []).filter((p: any) => matchKw(filter, p.name, p.label, p.description));
+  const filtered = (list.data ?? []).filter((p) => matchKw(filter, p.name, p.label, p.description));
 
   return (
     <Stack spacing={1}>
@@ -437,7 +448,7 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建姿势</Button>
       </Stack>
       <Stack spacing={1}>
-        {filtered.map((p: any) => (
+        {filtered.map((p) => (
           <Card key={p.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{p.name}</Typography>
@@ -453,7 +464,7 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function PoseEditor({ value, onChange, onSave, onCancel }: any) {
+function PoseEditor({ value, onChange, onSave, onCancel }: EditorProps<PoseConfig>) {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑姿势' : '新建姿势'}</Typography>
@@ -485,7 +496,7 @@ function PoseEditor({ value, onChange, onSave, onCancel }: any) {
       </Stack>
       {/* 骨骼编辑器 */}
       <PoseBoneEditor
-        initialRotations={value.boneRotations || {}}
+        initialRotations={(value.boneRotations || {}) as PoseConfig['boneRotations']}
         onChange={(boneRotations) => onChange({ ...value, boneRotations })}
       />
       <Stack direction="row" spacing={1}>
@@ -501,10 +512,10 @@ function PoseEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 function ExpressionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'expressions'], queryFn: () => listExpressionPresets('character'), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<ExpressionPresetConfig> | null>(null);
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateExpressionPreset(editing.id, e) : createExpressionPreset(e),
+    mutationFn: (e: Draft<ExpressionPresetConfig>) => editing?.id ? updateExpressionPreset(editing.id as string, e as ExpressionPresetConfig) : createExpressionPreset(e as ExpressionPresetConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'expressions'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -524,7 +535,7 @@ function ExpressionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建表情</Button>
       </Stack>
       <Stack spacing={1}>
-        {list.data?.map((e: any) => (
+        {list.data?.map((e) => (
           <Card key={e.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Typography sx={{ fontSize: 18 }}>{e.emoji}</Typography>
@@ -542,7 +553,7 @@ function ExpressionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function ExpressionEditor({ value, onChange, onSave, onCancel }: any) {
+function ExpressionEditor({ value, onChange, onSave, onCancel }: EditorProps<ExpressionPresetConfig>) {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑表情' : '新建表情'}</Typography>
@@ -560,10 +571,10 @@ function ExpressionEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 function VisemesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'visemes'], queryFn: () => listVisemes('character'), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<VisemeConfig> | null>(null);
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateViseme(editing.id, e) : createViseme(e),
+    mutationFn: (e: Draft<VisemeConfig>) => editing?.id ? updateViseme(editing.id as string, e as VisemeConfig) : createViseme(e as VisemeConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'visemes'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -583,7 +594,7 @@ function VisemesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建口型</Button>
       </Stack>
       <Stack spacing={1}>
-        {list.data?.map((v: any) => (
+        {list.data?.map((v) => (
           <Card key={v.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{v.name}</Typography>
@@ -599,7 +610,7 @@ function VisemesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function VisemeEditor({ value, onChange, onSave, onCancel }: any) {
+function VisemeEditor({ value, onChange, onSave, onCancel }: EditorProps<VisemeConfig>) {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑口型' : '新建口型'}</Typography>
@@ -617,10 +628,10 @@ function VisemeEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'scenes'], queryFn: () => listScenes(), refetchInterval: 60_000 });
-  const [editing, setEditing] = React.useState<any | null>(null);
+  const [editing, setEditing] = React.useState<Draft<SceneConfig> | null>(null);
 
   const save = useMutation({
-    mutationFn: (e: any) => editing?.id ? updateScene(editing.id, e) : createScene(e),
+    mutationFn: (e: Draft<SceneConfig>) => editing?.id ? updateScene(editing.id as string, e as SceneConfig) : createScene(e as SceneConfig),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'scenes'] }); setEditing(null); },
   });
   const del = useMutation({
@@ -643,7 +654,7 @@ function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             isDefault: false,
           })}>新建场景</Button>
       </Stack>
-      {list.data?.map((s: any) => (
+      {list.data?.map((s) => (
         <Card key={s.id} variant="outlined" sx={{ p: 1.5 }}>
           <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
             <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 90 }}>{s.name}</Typography>
@@ -660,9 +671,10 @@ function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   );
 }
 
-function SceneEditor({ value, onChange, onCancel, onSave }: any) {
-  const update = (patch: any) => onChange({ ...value, ...patch });
-  const updateNested = (key: string, patch: any) => onChange({ ...value, [key]: { ...value[key], ...patch } });
+function SceneEditor({ value, onChange, onCancel, onSave }: EditorProps<SceneConfig>) {
+  const update = (patch: Draft<SceneConfig>) => onChange({ ...value, ...patch });
+  const updateNested = <K extends 'background' | 'floor'>(key: K, patch: Partial<SceneConfig[K]>) =>
+    onChange({ ...value, [key]: { ...value[key], ...patch } });
 
   // 灯光操作
   const addLight = () => {
@@ -670,13 +682,13 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
     lights.push({ id: `light-${Date.now()}`, type: 'point', color: 0xffffff, intensity: 1, position: [0, 3, 0] });
     onChange({ ...value, lights });
   };
-  const updateLight = (index: number, patch: any) => {
-    const lights = [...value.lights];
+  const updateLight = (index: number, patch: Partial<LightConfig>) => {
+    const lights = [...value.lights!];
     lights[index] = { ...lights[index], ...patch };
     onChange({ ...value, lights });
   };
   const removeLight = (index: number) => {
-    const lights = value.lights.filter((_: any, i: number) => i !== index);
+    const lights = value.lights!.filter((_, i) => i !== index);
     onChange({ ...value, lights });
   };
 
@@ -686,13 +698,13 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
     decorations.push({ id: `deco-${Date.now()}`, type: 'truss', position: [0, 0, -2], params: { width: 10, depth: 4 } });
     onChange({ ...value, decorations });
   };
-  const updateDecoration = (index: number, patch: any) => {
-    const decorations = [...value.decorations];
+  const updateDecoration = (index: number, patch: Partial<DecorationConfig>) => {
+    const decorations = [...value.decorations!];
     decorations[index] = { ...decorations[index], ...patch };
     onChange({ ...value, decorations });
   };
   const removeDecoration = (index: number) => {
-    const decorations = value.decorations.filter((_: any, i: number) => i !== index);
+    const decorations = value.decorations!.filter((_, i) => i !== index);
     onChange({ ...value, decorations });
   };
 
@@ -784,7 +796,7 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={1}>
-            {value.lights?.map((light: any, idx: number) => (
+            {value.lights?.map((light, idx) => (
               <Card key={light.id} variant="outlined" sx={{ p: 1 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <FormControl size="small" sx={{ minWidth: 90 }}>
@@ -825,7 +837,7 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={1}>
-            {value.decorations?.map((deco: any, idx: number) => (
+            {value.decorations?.map((deco, idx) => (
               <Card key={deco.id} variant="outlined" sx={{ p: 1 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -905,7 +917,7 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
 // ============================================================================
 // Shared JSON editor
 // ============================================================================
-function JsonEditor({ label, value, onChange, minRows = 12 }: { label: string; value: any; onChange: (v: any) => void; minRows?: number }) {
+function JsonEditor<T>({ label, value, onChange, minRows = 12 }: { label: string; value: T; onChange: (v: T) => void; minRows?: number }) {
   const [text, setText] = React.useState(() => JSON.stringify(value, null, 2));
   const [error, setError] = React.useState<string | null>(null);
 
