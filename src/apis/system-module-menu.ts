@@ -20,8 +20,8 @@ export async function page(params: Record<string, unknown>) {
   });
 }
 
-// 获取模块菜单树。口令合集带上解锁时拿到的通行证 modulePass,否则菜单不带内容 id
-export async function clientTree(params: { moduleId: number; modulePass?: string }) {
+// 获取频道菜单树(频道一律公开)
+export async function clientTree(params: { moduleId: number }) {
   return contentClient<ModuleMenuInfo[]>("/module/menu/client/tree", {
     params
   });
