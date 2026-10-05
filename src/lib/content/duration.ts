@@ -7,6 +7,9 @@
  * 以前是拿正则在 content 正文里找 "mm:ss":线上命中的全是正文里的钟点(资讯的
  * "2026/9/10 20:38:27"、综艺的"每周四中午12:00更新"),卡片角标显示的是假时长;
  * 而且列表接口现在只带正文前 300 字,不再靠正文。
+ *
+ * 列表里的 metadata 是裁过的,只剩白名单键(Go repository.ListMetadataKeys);duration /
+ * duration_ms 在白名单里,删之前先看这里。
  */
 export function listItemDurationSec(item: { durationSec?: unknown; duration?: unknown; metadata?: unknown }): number {
   const direct = Number(item.durationSec || item.duration || 0);

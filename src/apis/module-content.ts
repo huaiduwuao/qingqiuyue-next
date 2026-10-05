@@ -21,7 +21,7 @@ export interface ModuleContentItem {
   categoryId?: number;
   title: string;
   subtitle?: string;
-  /** 列表接口里只有正文前 300 字(JSON 正文除外),完整正文走详情接口 */
+  /** 公开列表接口里只有正文前 300 字(JSON 正文除外),完整正文走详情接口;管理列表(managePage)不截 */
   content?: string;
   /** 列表里的 content 被截过 */
   contentTruncated?: boolean;
@@ -48,7 +48,13 @@ export interface ModuleContentItem {
   rating?: number;
   ratingCount?: number;
   releaseDate?: string;
-  metadata?: string; // Doris 的 JSON 列,序列化成字符串下发
+  /**
+   * Doris 的 JSON 列,序列化成字符串下发。
+   * 公开列表(/module/content/list 等)只保留白名单键(Go 端 repository.ListMetadataKeys:
+   * duration、source_url、orientation、cover……),description / platforms 等要去详情接口取;
+   * 管理列表(managePage)给完整的。卡片要读新键,先在后端白名单里加上。
+   */
+  metadata?: string;
   publishTime?: string;
   publishAt?: string;
   accessScope?: string;
