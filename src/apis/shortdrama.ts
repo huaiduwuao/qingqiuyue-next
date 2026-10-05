@@ -51,6 +51,8 @@ export interface Capability {
   available: boolean;
   workflows: string[];
   minCost: number;
+  /** 不可用原因(ComfyUI 未连接 / 模型没装 / 没有启用的模板),gen-api 实测得出 */
+  reason?: string;
 }
 
 /** 一个可选语种 */

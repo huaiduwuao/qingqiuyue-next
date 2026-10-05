@@ -10,6 +10,7 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -123,10 +124,17 @@ export default function SettingsSection({ projectId }: SectionProps) {
         <Stack spacing={1.5}>
           <TextField size="small" label="风格前缀(英文,注入每张图)" multiline value={str('style_prefix')} onChange={(e) => setS('style_prefix', e.target.value)} />
           <TextField size="small" label="全局负面词(英文)" multiline value={str('global_negative')} onChange={(e) => setS('global_negative', e.target.value)} />
+          {/* 模型/步数/cfg 按种类分开:出图用 SD 类模型,图生视频用 SVD,混用一个 ckpt 会让视频环节直接报错。
+              旧的通用 ckpt_name / steps / cfg 只作出图(文生图/图生图)的后备。模型名必须是 ComfyUI 上已安装的。 */}
+          {(['t2i', 'i2i', 'i2v'] as const).map((k) => (
+            <Stack key={k} direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <TextField size="small" fullWidth label={`${KIND_LABEL[k]} 模型 ckpt_name`} placeholder="留空用模板默认" value={str(`ckpt_name_${k}`)} onChange={(e) => setS(`ckpt_name_${k}`, e.target.value)} />
+              <TextField size="small" sx={{ minWidth: 110 }} label={`${KIND_LABEL[k]} steps`} value={str(`steps_${k}`)} onChange={(e) => setS(`steps_${k}`, e.target.value)} />
+              <TextField size="small" sx={{ minWidth: 110 }} label={`${KIND_LABEL[k]} cfg`} value={str(`cfg_${k}`)} onChange={(e) => setS(`cfg_${k}`, e.target.value)} />
+            </Stack>
+          ))}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <TextField size="small" fullWidth label="ckpt_name(覆盖模板)" value={str('ckpt_name')} onChange={(e) => setS('ckpt_name', e.target.value)} />
-            <TextField size="small" fullWidth label="steps" value={str('steps')} onChange={(e) => setS('steps', e.target.value)} />
-            <TextField size="small" fullWidth label="cfg" value={str('cfg')} onChange={(e) => setS('cfg', e.target.value)} />
+            <TextField size="small" fullWidth label="出图通用 ckpt_name(旧,后备)" value={str('ckpt_name')} onChange={(e) => setS('ckpt_name', e.target.value)} />
             <TextField size="small" fullWidth label="图生图 denoise(0-1)" value={str('i2i_denoise')} onChange={(e) => setS('i2i_denoise', e.target.value)} />
           </Stack>
           <FormControlLabel control={<Switch checked={bool('use_reference', true)} onChange={(e) => setS('use_reference', e.target.checked)} />} label="镜头出图时用角色定妆照做图生图参考(需启用 i2i 模板)" />
@@ -152,7 +160,9 @@ export default function SettingsSection({ projectId }: SectionProps) {
         {caps.data?.error && <Alert severity="warning">{caps.data.error}</Alert>}
         <Stack sx={{ flexWrap: 'wrap' }} direction="row" spacing={1} useFlexGap>
           {(['t2i', 'i2i', 't2v', 'i2v'] as const).map((k) => (
-            <Chip key={k} label={`${KIND_LABEL[k]}:${c?.[k]?.available ? `${c[k].workflows.join(' / ')}(${c[k].minCost} 钻)` : '未启用'}`} color={c?.[k]?.available ? 'success' : 'default'} variant="outlined" />
+            <Tooltip key={k} title={c?.[k]?.available ? '' : c?.[k]?.reason || ''}>
+              <Chip label={`${KIND_LABEL[k]}:${c?.[k]?.available ? `${c[k].workflows.join(' / ')}(${c[k].minCost} 钻)` : '不可用'}`} color={c?.[k]?.available ? 'success' : 'default'} variant="outlined" />
+            </Tooltip>
           ))}
           <Chip label={`LLM:${caps.data?.llm_ready ? '已配置' : '未配置'}`} color={caps.data?.llm_ready ? 'success' : 'error'} variant="outlined" />
         </Stack>
