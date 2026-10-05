@@ -25,6 +25,7 @@ import { myPage as listMyDemands } from '@/apis/reward-demand';
 import type { RewardTask, TaskPriority, DemandItem } from '@/beans/reward';
 import { normalizeRewardTaskStatus } from './status';
 import { demandPayDiamonds, formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
+import { errMessage } from '@/lib/errMessage';
 
 interface Props {
   open: boolean;
@@ -102,8 +103,8 @@ export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved
       } as Partial<RewardTask>;
       const res = record?.id ? await updateTask(record.id, data) : await createTask(data);
       onSaved(res as RewardTask);
-    } catch (e: any) {
-      onError(e?.message || '保存失败');
+    } catch (e) {
+      onError(errMessage(e) || '保存失败');
     } finally {
       setSaving(false);
     }

@@ -36,6 +36,7 @@ import {
   type TopicInsightsPayload,
   type TopicTemplateConfig,
 } from '@/apis/topic';
+import { errMessage } from '@/lib/errMessage';
 
 interface Props {
   open: boolean;
@@ -142,8 +143,8 @@ export function TopicInsightsEditorDialog({ open, topicId, topicTitle, onClose, 
       await updateTopicMetadata(topicId, payload);
       onSaved?.();
       onClose();
-    } catch (e: any) {
-      setError(e?.message || '保存失败');
+    } catch (e) {
+      setError(errMessage(e) || '保存失败');
     } finally {
       setSaving(false);
     }

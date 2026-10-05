@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { canvasAPI } from './api'
 import type { WorkflowResult, SkillResult, SkillKind } from './types'
+import { errMessage } from '@/lib/errMessage'
 
 interface GeneratorChatProps {
   agentId: number
@@ -49,8 +50,8 @@ export default function GeneratorChat({ agentId, agentContext, onWorkflowGenerat
         setSkResult(result)
         if (result.success) onSkillGenerated?.(result)
       }
-    } catch (e: any) {
-      setSaveMsg(`生成失败: ${e.message}`)
+    } catch (e) {
+      setSaveMsg(`生成失败: ${errMessage(e)}`)
     } finally {
       setLoading(false)
     }
@@ -66,8 +67,8 @@ export default function GeneratorChat({ agentId, agentContext, onWorkflowGenerat
         workflow_type: wfResult.workflow_type,
       })
       setSaveMsg('✅ 工作流已保存并关联到 Agent')
-    } catch (e: any) {
-      setSaveMsg(`保存失败: ${e.message}`)
+    } catch (e) {
+      setSaveMsg(`保存失败: ${errMessage(e)}`)
     }
   }
 

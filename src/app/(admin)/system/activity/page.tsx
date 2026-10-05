@@ -27,6 +27,7 @@ import {
   type AdminActivity,
   type AdminSubmission,
 } from '@/apis/admin-activity';
+import { errMessage } from '@/lib/errMessage';
 
 /**
  * 创作者活动:新建、编辑、发布活动(发布时通知开启了活动提醒的用户),投稿截止后评审入围与获奖
@@ -111,8 +112,8 @@ export default function SystemActivityPage() {
       setMsg({ text: ok, severity: 'success' });
       qc.invalidateQueries({ queryKey: ['admin-activity'] });
       return true;
-    } catch (err: any) {
-      setMsg({ text: err?.message || '操作失败', severity: 'error' });
+    } catch (err) {
+      setMsg({ text: errMessage(err) || '操作失败', severity: 'error' });
       return false;
     }
   };

@@ -39,6 +39,7 @@ import {
 } from '@/apis/share';
 import { PLATFORMS } from '@/apis/share-account';
 import type { EntityId } from '@/lib/id';
+import { errMessage } from '@/lib/errMessage';
 
 export interface ShareTaskDialogProps {
   open: boolean;
@@ -157,8 +158,8 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
         onSuccess?.();
         onClose();
       }, 1500);
-    } catch (e: any) {
-      setError(e?.message || '提交失败');
+    } catch (e) {
+      setError(errMessage(e) || '提交失败');
     } finally {
       setSubmitting(false);
     }

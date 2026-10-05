@@ -21,6 +21,7 @@ import PublicTopBar from '@/components/layout/PublicTopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { acceptGroupInvite } from '@/apis/group';
+import { errMessage } from '@/lib/errMessage';
 
 export default function GroupInvitePage() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function GroupInvitePage() {
     onSuccess: (g: any) => {
       setAcceptedId(g.id);
     },
-    onError: (e: any) => setError(e?.message || '接受邀请失败'),
+    onError: (e: unknown) => setError(errMessage(e) || '接受邀请失败'),
   });
 
   React.useEffect(() => {

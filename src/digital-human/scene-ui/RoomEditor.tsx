@@ -21,6 +21,7 @@ import { roomBounds, type WorldDef } from '../vrm/world/worldLayout';
 import { WorldUpload } from './WorldUpload';
 import { RoomLayouts } from './RoomLayouts';
 import { EntityPanel, KindsDrawer } from './RoomEntities';
+import { errMessage } from '@/lib/errMessage';
 
 type Objects = {
   items: WorldPlacement[];
@@ -236,8 +237,8 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
           const f = await fetchWorldAsset(a.key);
           asset = { ...a, status: f.status };
           toast('🛠️', `「${a.nameZh}」开始现做,先放一团光占位`);
-        } catch (e: any) {
-          toast('⚠️', e?.message || '现做排不上队');
+        } catch (e) {
+          toast('⚠️', errMessage(e) || '现做排不上队');
           return;
         }
       }
@@ -311,8 +312,8 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       const r = await uploadRoomCover(dataUrlToBlob(url));
       onCover?.(r.cover);
       toast('📷', '封面换好了,串门列表里大家看到的就是这一幕');
-    } catch (e: any) {
-      toast('⚠️', e?.message || '封面没传上去');
+    } catch (e) {
+      toast('⚠️', errMessage(e) || '封面没传上去');
     } finally {
       setCovering(false);
     }

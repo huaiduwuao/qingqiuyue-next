@@ -49,7 +49,7 @@ export default function WxMpMenuPage() {
       showMessage(r?.msg || r?.message || '已保存');
       qc.invalidateQueries({ queryKey: LIST_KEY }); // 拿回落库后的真实 id
     },
-    onError: (err: any) => showMessage(formatApiError(err) || '保存失败', 'error'),
+    onError: (err: unknown) => showMessage(formatApiError(err) || '保存失败', 'error'),
   });
 
   const dealPublish = () => {

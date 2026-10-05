@@ -32,6 +32,7 @@ import {
   type Purchase,
 } from '@/apis/social-monetize';
 import { WALLET_HREF, diamondsToYuan } from '@/apis/wallet';
+import { errMessage } from '@/lib/errMessage';
 
 // 收益和提现在个人中心的钱包;这里只留打赏、订阅、付费内容的明细
 function WalletEntry() {
@@ -272,8 +273,8 @@ function PaidContentsTab() {
       setContentId('');
       setPrice('');
       refetch();
-    } catch (e: any) {
-      setError(e?.message || '设置失败,请确认内容 ID 正确且属于你');
+    } catch (e) {
+      setError(errMessage(e) || '设置失败,请确认内容 ID 正确且属于你');
     } finally {
       setSubmitting(false);
     }

@@ -17,6 +17,7 @@ import { buildExpressionFromPreset, EXPRESSION_PRESETS } from './expressions';
 import type { BlendshapeDict, ExpressionTemplateName } from './expressions';
 import type { VisemeName } from './visemes';
 import { ALL_VISEME_NAMES, textToVisemeTimeline } from './visemes';
+import { errMessage } from '@/lib/errMessage';
 
 /**
  * tool_call (LLM 输出格式)
@@ -269,8 +270,8 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
       default:
         return { ok: false, toolName: call.name, error: `handler not registered: ${call.name}` };
     }
-  } catch (e: any) {
-    return { ok: false, toolName: call.name, error: e?.message || String(e) };
+  } catch (e) {
+    return { ok: false, toolName: call.name, error: errMessage(e) || String(e) };
   }
 }
 

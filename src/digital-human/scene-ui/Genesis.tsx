@@ -32,6 +32,7 @@ import { useRealtimeEvent, type RealtimeEvent } from '@/lib/realtime';
 import { DesignBar } from './RoomAI';
 import { EventsList, FollowOwnerButton, RoomEventBadge } from './RoomSocial';
 import type { DesignPlan } from './useWorldObjects';
+import { errMessage } from '@/lib/errMessage';
 
 /** 底模地址 → 能加载的 URL:站内 /avatars/… 原样;qq-media/world 下的补前缀 */
 export function avatarUrlOf(base: string | undefined | null): string | null {
@@ -301,7 +302,7 @@ export function RoomsSection({ g, current, onPick, toast }: { g: Genesis; curren
   const visit = async (ownerId: string) => {
     setBusy(ownerId);
     setErr(null);
-    try { onPick(await g.room.enter(ownerId)); } catch (e: any) { setErr(e?.message || '进不去'); } finally { setBusy(null); }
+    try { onPick(await g.room.enter(ownerId)); } catch (e) { setErr(errMessage(e) || '进不去'); } finally { setBusy(null); }
   };
   const mineKey = g.room.mine ? `room:${g.room.mine.ownerId}` : null;
   return (

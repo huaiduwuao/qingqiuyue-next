@@ -57,6 +57,7 @@ import {
 import { PoseBoneEditor } from '@/components/digital-human/PoseBoneEditor';
 import { list as listMenus, save as saveMenu, update as updateMenu, remove as deleteMenu } from '@/apis/menu';
 import type { MenuItem as DbMenuItem } from '@/beans/system';
+import { errMessage } from '@/lib/errMessage';
 
 // 复用 DbMenuItem 引用
 type MenuItem = DbMenuItem;
@@ -923,8 +924,8 @@ function JsonEditor({ label, value, onChange, minRows = 12 }: { label: string; v
           const parsed = JSON.parse(e.target.value);
           setError(null);
           onChange(parsed);
-        } catch (err: any) {
-          setError(err.message);
+        } catch (err) {
+          setError(errMessage(err) ?? null);
         }
       }}
       multiline

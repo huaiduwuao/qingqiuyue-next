@@ -198,7 +198,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
       setInstanceStats(instStatsRes.instances || [])
       setUsageStats(usageRes)
       setAgentsList(agentsRes || [])
-    } catch (e: any) {
+    } catch (e) {
       console.error('Load data error:', e)
     } finally {
       setLoading(false)
@@ -213,7 +213,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     try {
       const res = await agentmAPI.listSkills()
       setSkills(res.list || [])
-    } catch (e: any) {
+    } catch (e) {
       console.error('Load skills error:', e)
     } finally {
       setLoading(false)

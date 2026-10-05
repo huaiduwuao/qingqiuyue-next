@@ -32,6 +32,7 @@ import { agentmExtendedAPI } from '../api-extended'
 import { canvasAPI } from '../canvas/api'
 import type { AgentAssociations } from '../canvas/types'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
+import { errMessage } from '@/lib/errMessage'
 
 const NODE_PALETTE = [
   { kind: 'agent', label: 'Agent' },
@@ -119,8 +120,8 @@ function CreateWorkflowDialog({ agentId, open, onClose, onCreated }: { agentId: 
       })
       onCreated()
       onClose()
-    } catch (e: any) {
-      alert(`创建失败: ${e.message}`)
+    } catch (e) {
+      alert(`创建失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -156,8 +157,8 @@ function CreateMemoryDialog({ agentId, open, onClose, onCreated }: { agentId: nu
       await canvasAPI.setMemory(agentId, { name: name.trim(), content: content.trim(), memory_type: 'long_term' })
       onCreated()
       onClose()
-    } catch (e: any) {
-      alert(`创建失败: ${e.message}`)
+    } catch (e) {
+      alert(`创建失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -202,7 +203,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.linkSkill(agentId, skillId)
       await refresh()
       onMsg('✅ 技能已绑定')
-    } catch (e: any) { onMsg(`绑定失败: ${e.message}`) }
+    } catch (e) { onMsg(`绑定失败: ${errMessage(e)}`) }
   }
 
   // 解绑技能
@@ -211,7 +212,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.unlinkSkill(agentId, skillId)
       await refresh()
       onMsg('✅ 技能已解绑')
-    } catch (e: any) { onMsg(`解绑失败: ${e.message}`) }
+    } catch (e) { onMsg(`解绑失败: ${errMessage(e)}`) }
   }
 
   // 绑定 MCP
@@ -220,7 +221,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.linkMCP(agentId, mcpId)
       await refresh()
       onMsg('✅ MCP 已绑定')
-    } catch (e: any) { onMsg(`绑定失败: ${e.message}`) }
+    } catch (e) { onMsg(`绑定失败: ${errMessage(e)}`) }
   }
 
   // 解绑 MCP
@@ -229,7 +230,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.unlinkMCP(agentId, mcpId)
       await refresh()
       onMsg('✅ MCP 已解绑')
-    } catch (e: any) { onMsg(`解绑失败: ${e.message}`) }
+    } catch (e) { onMsg(`解绑失败: ${errMessage(e)}`) }
   }
 
   // 删除记忆
@@ -238,7 +239,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.deleteMemory(agentId, memoryId)
       await refresh()
       onMsg('✅ 记忆已删除')
-    } catch (e: any) { onMsg(`删除失败: ${e.message}`) }
+    } catch (e) { onMsg(`删除失败: ${errMessage(e)}`) }
   }
 
   // 删除工作流
@@ -247,7 +248,7 @@ function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: st
       await canvasAPI.deleteWorkflow(agentId, workflowId)
       await refresh()
       onMsg('✅ 工作流已删除')
-    } catch (e: any) { onMsg(`删除失败: ${e.message}`) }
+    } catch (e) { onMsg(`删除失败: ${errMessage(e)}`) }
   }
 
   return (
@@ -462,8 +463,8 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
         setAgentId(created.id)
       }
       setDirty(false)
-    } catch (e: any) {
-      alert(`保存失败: ${e.message}`)
+    } catch (e) {
+      alert(`保存失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }

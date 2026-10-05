@@ -18,6 +18,7 @@ import Chip from '@mui/material/Chip'
 import { agentmAPI } from '@/lib/agentmanager/api'
 import { canvasAPI } from './api'
 import type { AgentAssociations } from './types'
+import { errMessage } from '@/lib/errMessage'
 
 // 画布和生成器客户端渲染
 const CanvasFlow = dynamic(() => import('./CanvasFlow'), {
@@ -69,8 +70,8 @@ export default function AgentDetail({ agentId }: AgentDetailProps) {
         if (!mounted) return
         setAgent(agentData)
         setAssoc(assocData)
-      } catch (e: any) {
-        if (mounted) setError(e.message || '加载失败')
+      } catch (e) {
+        if (mounted) setError(errMessage(e) || '加载失败')
       } finally {
         if (mounted) setLoading(false)
       }

@@ -39,6 +39,7 @@ import {
   applyDraftsBatch,
   discardSourceDraft,
 } from '@/apis/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const CAND_KEY = ['spider', 'source-candidates'];
 const DRAFT_KEY = ['spider', 'source-drafts'];
@@ -78,7 +79,7 @@ export default function SourceSetupPage() {
       show(`发现完成:搜到 ${r.found} 个,新入库 ${r.new} 个,已接入 ${r.existing} 个,被拦 ${r.blocked} 个`);
       refresh();
     },
-    onError: (e: any) => show(e.message || '发现失败', 'error'),
+    onError: (e: unknown) => show(errMessage(e) || '发现失败', 'error'),
   });
 
   const draftMut = useMutation({
@@ -88,7 +89,7 @@ export default function SourceSetupPage() {
       setSelCands(new Set());
       refresh();
     },
-    onError: (e: any) => show(e.message || '起草失败', 'error'),
+    onError: (e: unknown) => show(errMessage(e) || '起草失败', 'error'),
   });
 
   const applyMut = useMutation({
@@ -98,13 +99,13 @@ export default function SourceSetupPage() {
       setSelDrafts(new Set());
       refresh();
     },
-    onError: (e: any) => show(e.message || '入库失败', 'error'),
+    onError: (e: unknown) => show(errMessage(e) || '入库失败', 'error'),
   });
 
   const discardMut = useMutation({
     mutationFn: (id: string) => discardSourceDraft(id),
     onSuccess: () => { show('已丢弃'); refresh(); },
-    onError: (e: any) => show(e.message || '丢弃失败', 'error'),
+    onError: (e: unknown) => show(errMessage(e) || '丢弃失败', 'error'),
   });
 
   const candList = cands.data?.list || [];

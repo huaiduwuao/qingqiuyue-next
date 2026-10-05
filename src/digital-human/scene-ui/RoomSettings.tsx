@@ -15,6 +15,7 @@ import type { SplatStatus } from '../vrm/world/roomShell';
 import { WorldUpload } from './WorldUpload';
 import { RoomAISection } from './RoomAI';
 import { RoomEventsSection } from './RoomSocial';
+import { errMessage } from '@/lib/errMessage';
 
 const glass = { bgcolor: 'rgba(10,12,24,0.82)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' } as const;
 const TEMPLATES: { key: RoomTemplate; emoji: string; hint: string }[] = [
@@ -62,8 +63,8 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
       await save(p);
       if (ok) toast('🏠', ok);
       return true;
-    } catch (e: any) {
-      toast('⚠️', e?.message || '没存上');
+    } catch (e) {
+      toast('⚠️', errMessage(e) || '没存上');
       return false;
     } finally {
       setBusy(false);

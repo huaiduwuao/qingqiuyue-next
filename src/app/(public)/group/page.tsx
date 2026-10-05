@@ -71,6 +71,7 @@ import {
   type TeamSettlement,
 } from '@/apis/group';
 import { coverBackground } from '@/lib/media';
+import { errMessage } from '@/lib/errMessage';
 
 function GroupDetailContent() {
   const router = useRouter();
@@ -104,7 +105,7 @@ function GroupDetailContent() {
       qc.invalidateQueries({ queryKey: ['group', gid] });
       setSnack('已加入');
     },
-    onError: (e: any) => setSnack(e?.message || '加入失败'),
+    onError: (e: unknown) => setSnack(errMessage(e) || '加入失败'),
   });
   const leaveM = useMutation({
     mutationFn: () => leaveGroup(gid),
@@ -113,7 +114,7 @@ function GroupDetailContent() {
       qc.invalidateQueries({ queryKey: ['group-messages', gid] });
       setSnack('已退出');
     },
-    onError: (e: any) => setSnack(e?.message || '退群失败'),
+    onError: (e: unknown) => setSnack(errMessage(e) || '退群失败'),
   });
   const dismissM = useMutation({
     mutationFn: () => dismissGroup(gid),
@@ -121,7 +122,7 @@ function GroupDetailContent() {
       setSnack('已解散');
       router.replace('/account/group');
     },
-    onError: (e: any) => setSnack(e?.message || '解散失败'),
+    onError: (e: unknown) => setSnack(errMessage(e) || '解散失败'),
   });
 
   // 发消息
@@ -132,7 +133,7 @@ function GroupDetailContent() {
       qc.invalidateQueries({ queryKey: ['group-messages', gid] });
       qc.invalidateQueries({ queryKey: ['group', gid] });
     },
-    onError: (e: any) => setSnack(e?.message || '发送失败'),
+    onError: (e: unknown) => setSnack(errMessage(e) || '发送失败'),
   });
 
   const handleSend = () => {
@@ -151,8 +152,8 @@ function GroupDetailContent() {
       } catch {
         setSnack(`链接: ${link}`);
       }
-    } catch (e: any) {
-      setSnack(e?.message || '邀请失败');
+    } catch (e) {
+      setSnack(errMessage(e) || '邀请失败');
     }
   };
 
@@ -651,8 +652,8 @@ function SettlementPanel({
       setNote('');
       onChanged();
       setSnack('已发起分账,按团队成员比例自动入账');
-    } catch (e: any) {
-      setSnack(e?.message || '分账失败');
+    } catch (e) {
+      setSnack(errMessage(e) || '分账失败');
     } finally {
       setBusy(false);
     }

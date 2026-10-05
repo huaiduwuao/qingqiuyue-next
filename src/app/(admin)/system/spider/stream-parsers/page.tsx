@@ -40,6 +40,7 @@ import {
   type StreamParserInput,
 } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['spider', 'stream-parsers'];
 const ENGINES = ['http', 'browser'];
@@ -61,7 +62,7 @@ export default function StreamParsersPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => deleteStreamParser(id),
     onSuccess: () => { showMessage('已删除'); reload(); },
-    onError: (e: any) => showMessage(e?.message ?? '删除失败', 'error'),
+    onError: (e: unknown) => showMessage(errMessage(e) ?? '删除失败', 'error'),
   });
 
   const openCreate = () => {
@@ -80,7 +81,7 @@ export default function StreamParsersPage() {
       showMessage(id == null ? '已创建' : '已更新');
       reload();
       setEditorOpen(false);
-    }).catch((e: any) => showMessage(e?.message ?? '保存失败', 'error'));
+    }).catch((e: unknown) => showMessage(errMessage(e) ?? '保存失败', 'error'));
   };
 
   const columns: GridColDef[] = [
@@ -227,7 +228,7 @@ function StreamParserEditor({ open, initial, onClose, onSave }: EditorProps) {
 
   const submit = async () => {
     let bcParsed: any = null;
-    try { bcParsed = JSON.parse(browserConfig); } catch (e: any) { setErr(`browser_config 不是合法 JSON:${e.message ?? e}`); return; }
+    try { bcParsed = JSON.parse(browserConfig); } catch (e) { setErr(`browser_config 不是合法 JSON:${errMessage(e) ?? e}`); return; }
     if (!name.trim()) { setErr('name 必填'); return; }
     await onSave({
       name: name.trim(),

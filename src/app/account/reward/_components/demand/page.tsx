@@ -49,6 +49,7 @@ import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/b
 import { useResponsive } from '@/hooks/useResponsive';
 import DemandMobileList from './DemandMobileList';
 import { demandPayDiamonds, fenToDiamonds, formatDiamonds } from '@/apis/wallet';
+import { errMessage } from '@/lib/errMessage';
 
 const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
   { value: '', label: '全部' },
@@ -214,8 +215,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       setSettleVisible(false);
       setDetailVisible(false);
       query.refetch();
-    } catch (err: any) {
-      showMessage(err?.message || '结账失败', 'error');
+    } catch (err) {
+      showMessage(errMessage(err) || '结账失败', 'error');
     } finally {
       setSettling(false);
     }
@@ -274,8 +275,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       }
       setWriteVisible(false);
       query.refetch();
-    } catch (err: any) {
-      showMessage(err.message || '操作失败', 'error');
+    } catch (err) {
+      showMessage(errMessage(err) || '操作失败', 'error');
     }
   };
 
@@ -295,8 +296,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       if (detailVisible && selectedRecord?.id === record.id) {
         setSelectedRecord(res ?? { ...selectedRecord, status });
       }
-    } catch (err: any) {
-      showMessage(err.message || '操作失败', 'error');
+    } catch (err) {
+      showMessage(errMessage(err) || '操作失败', 'error');
     }
   };
 

@@ -22,6 +22,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import type { MCPCatalogEntry, MCPServer, MCPTool } from '../api-extended'
 import { API_PREFIX } from '@/lib/api/prefix'
+import { errMessage } from '@/lib/errMessage'
 
 interface Props {
   token: string
@@ -68,8 +69,8 @@ export default function MCPManager({ token }: Props) {
       const [c, s] = await Promise.all([api<{ list: MCPCatalogEntry[] }>('/catalog'), api<{ list: MCPServer[] }>('/servers')])
       setCatalog(c.list || [])
       setServers(s.list || [])
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     } finally {
       setLoading(false)
     }
@@ -96,8 +97,8 @@ export default function MCPManager({ token }: Props) {
       await api('/servers', { method: 'POST', body: JSON.stringify(body) })
       setInstalling(null)
       await load()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
       await load()
     } finally {
       setBusy(false)
@@ -111,8 +112,8 @@ export default function MCPManager({ token }: Props) {
       if (action === 'remove') await api(`/servers/${s.id}`, { method: 'DELETE' })
       else await api(`/servers/${s.id}/${action}`, { method: 'POST' })
       await load()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
       await load()
     } finally {
       setBusy(false)
@@ -125,8 +126,8 @@ export default function MCPManager({ token }: Props) {
     try {
       const r = await api<{ logs: string }>(`/servers/${s.id}/logs?tail=200`)
       setLogs({ name: s.name, text: r.logs || '(没有日志)' })
-    } catch (e: any) {
-      setLogs({ name: s.name, text: `读日志失败: ${e.message}` })
+    } catch (e) {
+      setLogs({ name: s.name, text: `读日志失败: ${errMessage(e)}` })
     }
   }
 
@@ -134,8 +135,8 @@ export default function MCPManager({ token }: Props) {
     try {
       const r = await api<{ list: MCPTool[] }>(`/servers/${s.id}/tools`)
       setTools((prev) => ({ ...prev, [s.id]: r.list || [] }))
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     }
   }
 

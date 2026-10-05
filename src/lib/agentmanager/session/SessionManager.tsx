@@ -45,6 +45,7 @@ import {
   type SessionMessageRow,
 } from '@/apis/agentmanager-session'
 import { agentmAPI, type Agent } from '../api'
+import { errMessage } from '@/lib/errMessage'
 
 /** 会话状态展示映射。未收录的状态原样显示(见下方渲染逻辑)。 */
 const SESSION_STATUS: Record<string, { label: string; color: 'success' | 'default' | 'info' }> = {
@@ -158,8 +159,8 @@ export default function SessionManager() {
     if (!confirm(`确定删除会话「${row.title || row.id}」?此操作不可恢复。`)) return
     try {
       await deleteSession(row.id)
-    } catch (e: any) {
-      alert(`删除失败: ${e?.message || e}`)
+    } catch (e) {
+      alert(`删除失败: ${errMessage(e) || e}`)
       return
     }
     setReloadTick((t) => t + 1)
@@ -169,8 +170,8 @@ export default function SessionManager() {
   const handleArchive = useCallback(async (row: SessionRow) => {
     try {
       await archiveSession(row.id)
-    } catch (e: any) {
-      alert(`归档失败: ${e?.message || e}`)
+    } catch (e) {
+      alert(`归档失败: ${errMessage(e) || e}`)
       return
     }
     setReloadTick((t) => t + 1)
@@ -180,8 +181,8 @@ export default function SessionManager() {
   const handleUnarchive = useCallback(async (row: SessionRow) => {
     try {
       await unarchiveSession(row.id)
-    } catch (e: any) {
-      alert(`取消归档失败: ${e?.message || e}`)
+    } catch (e) {
+      alert(`取消归档失败: ${errMessage(e) || e}`)
       return
     }
     setReloadTick((t) => t + 1)

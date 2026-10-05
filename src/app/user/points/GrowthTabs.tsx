@@ -34,6 +34,7 @@ import {
   type UserCosmetic,
 } from '@/apis/growth';
 import { decorBackground, invalidateDecor } from '@/lib/decor';
+import { errMessage } from '@/lib/errMessage';
 
 const card = { p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } as const;
 
@@ -52,7 +53,7 @@ export function SignCard({ userId }: { userId: number | string }) {
       qc.invalidateQueries({ queryKey: ['user-point', userId] });
       qc.invalidateQueries({ queryKey: ['user-point-records'] });
     },
-    onError: (e: any) => setToast(e?.message || '签到失败'),
+    onError: (e: unknown) => setToast(errMessage(e) || '签到失败'),
   });
   if (!g) return null;
   const span = g.nextMin ? g.nextMin - g.levelMin : 1;
@@ -198,7 +199,7 @@ export function AddressTab({ userId }: { userId: number | string }) {
   const save = useMutation({
     mutationFn: saveAddress,
     onSuccess: () => { refresh(); setEdit(null); },
-    onError: (e: any) => setToast(e?.message || '保存失败'),
+    onError: (e: unknown) => setToast(errMessage(e) || '保存失败'),
   });
   const remove = useMutation({ mutationFn: deleteAddress, onSuccess: refresh });
   const list = q.data ?? [];

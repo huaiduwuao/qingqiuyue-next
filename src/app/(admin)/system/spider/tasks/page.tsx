@@ -41,6 +41,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import { useSpiderWebSocket, type CrawlTaskFromWS } from '@/hooks/useSpiderWebSocket';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { CrawlTask, SpiderSource } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   pending: 'default', queued: 'default', paused: 'default', running: 'info', stopping: 'warning', stopped: 'warning',
@@ -183,31 +184,31 @@ export default function SpiderTasksPage() {
   const createMutation = useMutation({
     mutationFn: (vals: any) => createTask(vals),
     onSuccess: () => { showMsg('任务已创建'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
-    onError: (err: any) => showMsg(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '创建失败', 'error'),
   });
 
   const createRuleMutation = useMutation({
     mutationFn: (vals: any) => createRuleTask(vals),
     onSuccess: () => { showMsg('规则任务已入队,空闲 Worker 会马上认领(站点调度里可看并发/暂停)'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
-    onError: (err: any) => showMsg(err.message || '创建规则任务失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '创建规则任务失败', 'error'),
   });
 
   const stopMutation = useMutation({
     mutationFn: (id: string) => apiStopTask(id),
     onSuccess: () => { showMsg('已发送停止,当前请求结束后退出'); refresh(); },
-    onError: (err: any) => showMsg(err.message || '停止失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '停止失败', 'error'),
   });
 
   const retryMutation = useMutation({
     mutationFn: (id: string) => apiRetryTask(id),
     onSuccess: () => { showMsg('已重新排队'); refresh(); },
-    onError: (err: any) => showMsg(err.message || '重新排队失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '重新排队失败', 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDeleteTask(id),
     onSuccess: () => { showMsg('已删除'); refresh(); },
-    onError: (err: any) => showMsg(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '删除失败', 'error'),
   });
 
   const handleCreate = () => {
@@ -323,8 +324,8 @@ export default function SpiderTasksPage() {
               return { ...task, sourceName: task.sourceName || sourceMap.get(raw.source_id) || '-' };
             });
             return { records: list, totalRow: res.total || 0 };
-          } catch (err: any) {
-            showMsg(err.message || '获取数据失败', 'error');
+          } catch (err) {
+            showMsg(errMessage(err) || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };
           }
         }}

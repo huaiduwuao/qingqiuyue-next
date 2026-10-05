@@ -27,6 +27,7 @@ import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
 import { DeliveredWork, useGoCreateForTask, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
 import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
+import { errMessage } from '@/lib/errMessage';
 
 interface Props {
   open: boolean;
@@ -101,8 +102,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     try {
       const res = await disputeTask(task.id!, disputeReason);
       onChanged(res);
-    } catch (e: any) {
-      onError(e?.message || '申请仲裁失败');
+    } catch (e) {
+      onError(errMessage(e) || '申请仲裁失败');
     } finally {
       setSubmitting(false);
     }
@@ -114,8 +115,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
 const res = await claimTask(task.id!, claimAs || undefined);
       // 拦截器已在 code !== 0 时 reject,这里就是成功路径
       onChanged(res);
-    } catch (e: any) {
-      onError(e?.message || '领取失败');
+    } catch (e) {
+      onError(errMessage(e) || '领取失败');
     } finally {
       setSubmitting(false);
     }
@@ -130,8 +131,8 @@ const res = await claimTask(task.id!, claimAs || undefined);
     try {
       const res = await submitTask(task.id!, deliverable, pickedWork?.id);
       onChanged(res);
-    } catch (e: any) {
-      onError(e?.message || '提交失败');
+    } catch (e) {
+      onError(errMessage(e) || '提交失败');
     } finally {
       setSubmitting(false);
     }
@@ -142,8 +143,8 @@ const res = await claimTask(task.id!, claimAs || undefined);
     try {
       const res = await reviewTask(task.id!, approved, reviewNote);
       onChanged(res);
-    } catch (e: any) {
-      onError(e?.message || '审稿失败');
+    } catch (e) {
+      onError(errMessage(e) || '审稿失败');
     } finally {
       setSubmitting(false);
     }
@@ -155,8 +156,8 @@ const res = await claimTask(task.id!, claimAs || undefined);
     try {
       await deleteTask(task.id!);
       onDeleted(task.id!);
-    } catch (e: any) {
-      onError(e?.message || '删除失败');
+    } catch (e) {
+      onError(errMessage(e) || '删除失败');
     }
   };
 

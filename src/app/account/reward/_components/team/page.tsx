@@ -31,6 +31,7 @@ import { acceptTeamRequest, applyTeam, createTeam, listTeams, myTeams, removeTea
 import TeamDialog from './TeamDialog';
 import TeamMobile from './TeamMobile';
 import { useResponsive } from '@/hooks/useResponsive';
+import { errMessage } from '@/lib/errMessage';
 
 const ROLE_LABEL: Record<string, string> = { owner: '队长', admin: '管理员', member: '成员' };
 
@@ -68,8 +69,8 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
       await fn();
       setToast({ msg: okMsg, ok: true });
       refresh();
-    } catch (e: any) {
-      setToast({ msg: e?.message || '操作失败', ok: false });
+    } catch (e) {
+      setToast({ msg: errMessage(e) || '操作失败', ok: false });
     }
   };
 
@@ -338,8 +339,8 @@ function CreateDialog({ open, onClose, onCreated }: { open: boolean; onClose: ()
     setError('');
     try {
       onCreated(await createTeam({ name: name.trim(), intro: intro.trim(), topicId }));
-    } catch (e: any) {
-      setError(e?.message || '创建失败');
+    } catch (e) {
+      setError(errMessage(e) || '创建失败');
     } finally {
       setBusy(false);
     }

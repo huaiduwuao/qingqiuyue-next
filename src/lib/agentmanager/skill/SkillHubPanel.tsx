@@ -22,6 +22,7 @@ import DialogActions from '@mui/material/DialogActions'
 import CircularProgress from '@mui/material/CircularProgress'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { hubAPI, type HubCandidate, type HubReport, type HubScan, type HubSource } from './hubApi'
+import { errMessage } from '@/lib/errMessage'
 
 const SEVERITY: Record<string, 'error' | 'warning' | 'default'> = { critical: 'error', high: 'warning', medium: 'default' }
 
@@ -42,8 +43,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
   const loadSources = useCallback(async () => {
     try {
       setSources(await hubAPI.sources())
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     }
   }, [])
 
@@ -58,8 +59,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
       const r = await hubAPI.search(q)
       setResults(r.list || [])
       setFetchErrors(r.errors || {})
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     } finally {
       setSearching(false)
     }
@@ -72,8 +73,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
     try {
       setScan({ cand, data: await hubAPI.scan(cand.source, cand.identifier) })
       setForce(false)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     } finally {
       setScanning(null)
     }
@@ -90,8 +91,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
       setResults((prev) => prev.map((c) => (c.source === cand.source && c.identifier === cand.identifier ? { ...c, installed_id: r.id } : c)))
       onInstalled?.()
       alert(`已安装「${r.name}」,数字员工可用工具 ${r.tool}${r.entry ? `,入口 ${r.entry}` : '(只有说明)'}`)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     } finally {
       setInstalling(false)
     }
@@ -103,8 +104,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
       setAddOpen(false)
       setDraft({ name: '', type: 'github', url: '', ref: '', trusted: false })
       loadSources()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     }
   }
 
@@ -113,8 +114,8 @@ export default function SkillHubPanel({ isAdmin, onInstalled }: { isAdmin: boole
     try {
       await hubAPI.deleteSource(s.id)
       loadSources()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     }
   }
 

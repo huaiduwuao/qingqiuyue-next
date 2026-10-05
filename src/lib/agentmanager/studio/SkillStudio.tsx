@@ -18,6 +18,7 @@ import { canvasAPI } from '../canvas/api'
 import type { SkillResult } from '../canvas/types'
 import StudioLayout, { type ChatMessage } from './StudioLayout'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
+import { errMessage } from '@/lib/errMessage'
 
 const CATEGORIES = ['图像/视觉处理', '内容生成/写作', '数据/信息处理', '其他']
 
@@ -127,8 +128,8 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
         onResult: (r) => setLast(applyResult(r)),
         onError: (e) => setLast(`生成失败: ${e}`),
       })
-    } catch (e: any) {
-      setLast(`生成失败: ${e.message}`)
+    } catch (e) {
+      setLast(`生成失败: ${errMessage(e)}`)
     } finally {
       setGenerating(false)
     }
@@ -161,8 +162,8 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
       }
       setDirty(false)
       setMessages((m) => [...m, { role: 'assistant', text: `✅ 技能「${name}」已保存。` }])
-    } catch (e: any) {
-      alert(`保存失败: ${e.message}`)
+    } catch (e) {
+      alert(`保存失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }

@@ -50,6 +50,7 @@ import {
   listBatch, createBatch, startBatch, pauseBatch, resumeBatch, cancelBatch, deleteBatch, getBatchDetail, listSites,
 } from '@/apis/spider';
 import type { BatchJob, BatchStatus, SiteRow } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const POLL_MS = 5000;
 
@@ -111,7 +112,7 @@ export default function SpiderBatchPage() {
       });
     },
     onSuccess: () => { showMsg(form.start ? '已创建并入队' : '已创建,点「开始」后入队'); setCreateOpen(false); setForm(EMPTY_FORM); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '创建失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '创建失败', 'error'),
   });
 
   const actionM = useMutation({
@@ -125,7 +126,7 @@ export default function SpiderBatchPage() {
       }
     },
     onSuccess: (msg) => { showMsg(msg || '完成'); invalidate(); qc.invalidateQueries({ queryKey: ['spider', 'batch-detail'] }); },
-    onError: (e: any) => showMsg(e?.message || '操作失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '操作失败', 'error'),
   });
   const act = (action: 'start' | 'pause' | 'resume' | 'cancel' | 'delete', b: BatchJob) => {
     if (action === 'cancel' && !confirm(`取消「${b.name}」?排队的站点直接停,在跑的会收到停止。`)) return;

@@ -34,6 +34,7 @@ import {
   REWARD_TASK_STATUS_LABEL,
 } from '../taskboard/status';
 import { formatDiamonds, taskRewardDiamonds } from '@/apis/wallet';
+import { errMessage } from '@/lib/errMessage';
 
 
 
@@ -98,8 +99,8 @@ export default function BountyDetailDialog({
       setMessage({ text: '认领成功,完成后在任务里提交交付物', severity: 'success' });
       setActiveTask(mapRewardTaskFromBackend(res));
         refresh();
-    } catch (e: any) {
-      setMessage({ text: e?.message || '认领失败', severity: 'error' });
+    } catch (e) {
+      setMessage({ text: errMessage(e) || '认领失败', severity: 'error' });
     } finally {
       setClaimingId(null);
     }

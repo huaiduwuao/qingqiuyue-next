@@ -49,6 +49,7 @@ import {
 } from '../hd-publish/data';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { formatCount } from '@/lib/utils/format';
+import { errMessage } from '@/lib/errMessage';
 
 type ReviewTab = 'pending' | 'reviewed';
 
@@ -307,8 +308,8 @@ export default function HdReviewPage() {
         categoryName: selectedRejectReasons.join('、') || undefined,
       });
       refetchQueue();
-    } catch (e: any) {
-      setSnack(`提交审核结论失败:${e.message || '未知错误'}`);
+    } catch (e) {
+      setSnack(`提交审核结论失败:${errMessage(e) || '未知错误'}`);
       return;
     } finally {
       setSubmittingVerdict(false);

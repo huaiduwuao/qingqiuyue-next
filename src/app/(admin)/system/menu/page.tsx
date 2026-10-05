@@ -28,6 +28,7 @@ import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
 import { MENU_ICON_NAMES, resolveMenuIcon } from '@/lib/menuIcons';
 import { MENU_GROUP_ORDER, MENU_GROUP_LABELS } from '@/lib/menuGroups';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['system', 'menu'];
 
@@ -66,19 +67,19 @@ export default function SystemMenuPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => remove(id),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const saveMutation = useMutation({
     mutationFn: (vals: any) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vals: any) => update(vals.id, vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;

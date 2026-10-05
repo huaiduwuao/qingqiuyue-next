@@ -7,6 +7,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { agentmAPI } from './api'
+import { errMessage } from '@/lib/errMessage'
 
 interface Message {
   id: string
@@ -69,8 +70,8 @@ export function ChatPanel({ agentId = 'xiaoyue', title = 'AI 助手', onClose }:
       }
 
       setMessages(prev => [...prev, assistantMessage])
-    } catch (e: any) {
-      setError(e.message || '发送失败')
+    } catch (e) {
+      setError(errMessage(e) || '发送失败')
     } finally {
       setLoading(false)
     }

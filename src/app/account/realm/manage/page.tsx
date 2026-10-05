@@ -18,6 +18,7 @@ import { fetchTopic } from '@/apis/community';
 import { updateTopicByOwner } from '@/apis/topic';
 import { useAuth } from '@/contexts/AuthContext';
 import { topicHref } from '@/components/community/format';
+import { errMessage } from '@/lib/errMessage';
 
 // 意境主理人控制台 /account/realm/manage?id=<topic.id>
 //
@@ -110,8 +111,8 @@ function RealmManage() {
       });
       setSavedAt(Date.now());
       q.refetch();
-    } catch (e: any) {
-      setError(e?.message || '保存失败,请重试');
+    } catch (e) {
+      setError(errMessage(e) || '保存失败,请重试');
     } finally {
       setSaving(false);
     }

@@ -57,6 +57,7 @@ import {
   type FieldDef,
   type SectionDef,
 } from './schema';
+import { errMessage } from '@/lib/errMessage';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
@@ -127,8 +128,8 @@ function JsonInput({ value, onChange, minRows = 4 }: { value: any; onChange: (v:
           if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('需要一个 JSON 对象 {…}');
           setErr('');
           onChange(v);
-        } catch (ex: any) {
-          setErr(ex?.message || 'JSON 无效');
+        } catch (ex) {
+          setErr(errMessage(ex) || 'JSON 无效');
         }
       }}
       slotProps={{ input: { sx: { fontFamily: MONO, fontSize: 12 } } }}
@@ -472,8 +473,8 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
       setJsonErr('');
       setCfg(v);
       setRawBroken(false);
-    } catch (e: any) {
-      setJsonErr(e?.message || 'JSON 无效');
+    } catch (e) {
+      setJsonErr(errMessage(e) || 'JSON 无效');
     }
   };
 
@@ -520,7 +521,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
         qc.setQueryData(['spider', 'template', templateId], (old: any) => (old ? { ...old, template: saved } : old));
       }
     },
-    onError: (e: any) => setSaveErr(e?.message || '保存失败'),
+    onError: (e: unknown) => setSaveErr(errMessage(e) || '保存失败'),
   });
 
   const onSave = () => {
@@ -567,7 +568,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
       });
     },
     onSuccess: (r) => setTestRes(r),
-    onError: (e: any) => setTestRes({ success: false, error: e?.message || '请求失败' }),
+    onError: (e: unknown) => setTestRes({ success: false, error: errMessage(e) || '请求失败' }),
   });
 
   // ─── 渲染 ───

@@ -25,6 +25,7 @@ import ExpressionPreview from '@/components/digital-human/ExpressionPreview';
 import ToolCatalog from '@/components/digital-human/ToolCatalog';
 import type { ExpressionTemplateName } from '@/digital-human/tools/expressions';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_FRACTION = '320px';
 
@@ -63,7 +64,7 @@ export default function DigitalHumanInstructionsPage() {
       setSnack({ open: true, msg: editing ? '更新成功' : '创建成功', severity: 'success' });
       handleClose();
     },
-    onError: (e: any) => setSnack({ open: true, msg: e.message, severity: 'error' }),
+    onError: (e: unknown) => setSnack({ open: true, msg: errMessage(e) ?? '', severity: 'error' }),
   });
 
   const deleteMutation = useMutation({
@@ -72,7 +73,7 @@ export default function DigitalHumanInstructionsPage() {
       qc.invalidateQueries({ queryKey: ['digital-human', 'instructions'] });
       setSnack({ open: true, msg: '已删除', severity: 'success' });
     },
-    onError: (e: any) => setSnack({ open: true, msg: e.message, severity: 'error' }),
+    onError: (e: unknown) => setSnack({ open: true, msg: errMessage(e) ?? '', severity: 'error' }),
   });
 
   function handleNew() {

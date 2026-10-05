@@ -36,6 +36,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
 import CircleRoundedIcon from '@mui/icons-material/CircleRounded';
 import * as ops from '@/apis/ops';
+import { errMessage } from '@/lib/errMessage';
 
 // ── 容器条目(后端 steward ContainerStatus) ──
 type Container = {
@@ -107,8 +108,8 @@ export default function DashboardMonitorPage() {
       else await ops.restartContainer(id);
       toast(`${action} 已执行`);
       await refresh();
-    } catch (e: any) {
-      toast(e?.message || `${action} 失败`, 'error');
+    } catch (e) {
+      toast(errMessage(e) || `${action} 失败`, 'error');
     } finally {
       setBusy('');
     }
@@ -120,8 +121,8 @@ export default function DashboardMonitorPage() {
     try {
       const res = await ops.containerLogs(id, 300);
       setLogText(res?.logs || '(空)');
-    } catch (e: any) {
-      setLogText('日志获取失败: ' + (e?.message || e));
+    } catch (e) {
+      setLogText('日志获取失败: ' + (errMessage(e) || e));
     }
   };
 

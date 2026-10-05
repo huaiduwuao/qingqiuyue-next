@@ -26,6 +26,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['spider', 'sources'];
 
@@ -68,19 +69,19 @@ export default function SpiderSourcesPage() {
   const saveMutation = useMutation({
     mutationFn: (vals: SourceFormData) => createSource(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vars: { id: number; vals: SourceFormData }) => updateSource(vars.id, vars.vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteSource(id),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const handleEdit = (record: any) => {

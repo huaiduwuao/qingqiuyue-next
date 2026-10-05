@@ -23,6 +23,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['system', 'data-permission'];
 
@@ -52,19 +53,19 @@ export default function SystemDataPermissionPage() {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const saveMutation = useMutation({
     mutationFn: (vals: any) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); qc.invalidateQueries({ queryKey: LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vals: any) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); qc.invalidateQueries({ queryKey: LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;

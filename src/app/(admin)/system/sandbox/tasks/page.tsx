@@ -31,6 +31,7 @@ import type { FilterField } from '@/components/tables/FilterBar';
 import { listTasks, createTask, getTask, getTaskLogs, getTaskStatus, cancelTask, listImages, getTaskResult, importTaskResult } from '@/apis/sandbox';
 import { SANDBOX_SCRIPT_TEMPLATES, PLACEHOLDER_BOOK_URL, PLACEHOLDER_FROM, PLACEHOLDER_TO } from '@/components/sandbox/scriptTemplates';
 import { TASK_STATUS_LABELS, TASK_STATUS_COLORS, type SandboxTaskResp, type SandboxImageResp } from '@/beans/sandbox';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['sandbox', 'tasks'];
 
@@ -79,7 +80,7 @@ export default function TasksPage() {
       setWriteVisible(false);
       refresh();
     },
-    onError: (err: any) => showMsg(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '创建失败', 'error'),
   });
 
   const cancelMutation = useMutation({
@@ -88,15 +89,15 @@ export default function TasksPage() {
       showMsg('任务已取消');
       refresh();
     },
-    onError: (err: any) => showMsg(err.message || '取消失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '取消失败', 'error'),
   });
 
   const handleView = async (taskId: string) => {
     try {
       const res = await getTask(taskId);
       setViewing(res || null);
-    } catch (err: any) {
-      showMsg(err.message || '获取详情失败', 'error');
+    } catch (err) {
+      showMsg(errMessage(err) || '获取详情失败', 'error');
     }
   };
 
@@ -168,8 +169,8 @@ export default function TasksPage() {
             // DataGrid 要求每行有唯一 id,任务只有 taskId —— 不补的话有任务时整页直接崩
             const records = (res?.records || res?.list || []).map((t) => ({ ...t, id: t.taskId }));
             return { records, totalRow: res?.total || res?.totalRow || 0 };
-          } catch (err: any) {
-            showMsg(err.message || '获取数据失败', 'error');
+          } catch (err) {
+            showMsg(errMessage(err) || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };
           }
         }}
@@ -570,13 +571,13 @@ function ImportResultTab({ taskId }: { taskId: string }) {
   const previewM = useMutation({
     mutationFn: () => getTaskResult(taskId),
     onSuccess: (res) => { setPreview(res); setErr(''); },
-    onError: (e: any) => { setPreview(null); setErr(e?.message || '读取失败'); },
+    onError: (e: unknown) => { setPreview(null); setErr(errMessage(e) || '读取失败'); },
   });
 
   const importM = useMutation({
     mutationFn: () => importTaskResult(taskId, contentId.trim()),
     onSuccess: (res) => { setImportStats(res); setErr(''); },
-    onError: (e: any) => { setImportStats(null); setErr(e?.message || '入库失败'); },
+    onError: (e: unknown) => { setImportStats(null); setErr(errMessage(e) || '入库失败'); },
   });
 
   return (

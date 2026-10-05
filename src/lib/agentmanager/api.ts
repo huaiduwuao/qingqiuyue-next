@@ -5,6 +5,7 @@
 
 import { getAuthToken as readSessionToken, setAuthToken, authFetch } from '@/lib/api/auth'
 import { AGENTMANAGER_BASE as API_BASE, agentmRequest, agentmResponseError, type AgentmRequestOptions } from './request'
+import { errMessage, errName } from '@/lib/errMessage'
 
 class AgentManagerAPI {
   /**
@@ -260,10 +261,10 @@ class AgentManagerAPI {
         body: JSON.stringify(params),
         signal,
       })
-    } catch (e: any) {
+    } catch (e) {
       // 主动打断不是错误,静默结束,别在聊天记录里留一条 ❌
-      if (e?.name === 'AbortError') return
-      handlers.onError?.(e?.message || '请求失败')
+      if (errName(e) === 'AbortError') return
+      handlers.onError?.(errMessage(e) || '请求失败')
       return
     }
     if (!res.ok) {
@@ -358,9 +359,9 @@ class AgentManagerAPI {
           }
         }
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return // 打断:静默结束,不触发 onDone/onError
-      handlers.onError?.(e?.message || '读取流失败')
+    } catch (e) {
+      if (errName(e) === 'AbortError') return // 打断:静默结束,不触发 onDone/onError
+      handlers.onError?.(errMessage(e) || '读取流失败')
       return
     }
 

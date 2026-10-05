@@ -58,6 +58,7 @@ import type { AvatarParams } from '@/apis/world';
 import { detectVrmVersion, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
+import { errMessage } from '@/lib/errMessage';
 
 export interface VrmStageHandle {
   setEmotion: (dict: Record<string, number>) => void;
@@ -600,9 +601,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         applyAvatarNow();
         onAvatarLoadedRef.current?.(inspectAvatar(cached.vrm));
         setLoading(false);
-      } catch (e: any) {
+      } catch (e) {
         devLog.error('[VrmStage] load failed', e);
-        setError(e?.message || String(e));
+        setError(errMessage(e) || String(e));
         setLoading(false);
       }
     })();

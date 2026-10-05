@@ -35,6 +35,7 @@ import {
   type TeamMember,
   type TeamRole,
 } from '@/apis/team';
+import { errMessage } from '@/lib/errMessage';
 
 const ROLE_LABEL: Record<string, string> = { owner: '队长', admin: '管理员', member: '成员' };
 
@@ -78,8 +79,8 @@ export default function TeamDialog({ teamId, me, onClose, onChanged, onOpenTaskb
       qc.invalidateQueries({ queryKey: ['team'] });
       onChanged();
       if (close) onClose();
-    } catch (e: any) {
-      notify(e?.message || '操作失败', false);
+    } catch (e) {
+      notify(errMessage(e) || '操作失败', false);
     }
   };
 

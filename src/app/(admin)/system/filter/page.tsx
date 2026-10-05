@@ -56,6 +56,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const TYPE_KEY = ['system', 'filter', 'types'];
 const SUBCAT_KEY = ['system', 'filter', 'subcats'];
@@ -128,12 +129,12 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
   const saveMutation = useMutation({
     mutationFn: (vals: Partial<ContentTypeRow>) => saveContentType(vals),
     onSuccess: () => { showMessage('保存成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '保存失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '保存失败', 'error'),
   });
   const removeMutation = useMutation({
     mutationFn: (ids: number[]) => removeContentTypes(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const toggle = (code: string) => setExpanded((e) => ({ ...e, [code]: !e[code] }));
@@ -270,12 +271,12 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
   const saveMutation = useMutation({
     mutationFn: (vals: Partial<SubcategoryRow>) => saveSubcategory(vals),
     onSuccess: () => { showMessage('保存成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '保存失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '保存失败', 'error'),
   });
   const removeMutation = useMutation({
     mutationFn: (ids: number[]) => removeSubcategories(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const columns: GridColDef[] = [

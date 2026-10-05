@@ -23,6 +23,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { runsAPI, streamRunEvents, isTerminal, type Approval, type Run, type RunEvent, type RunStatus } from './api'
 import { toTimeline } from './timeline'
 import { API_PREFIX } from '@/lib/api/prefix'
+import { errMessage } from '@/lib/errMessage'
 
 const STATUS: Record<RunStatus, { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
   queued: { label: '排队中', color: 'default' },
@@ -60,8 +61,8 @@ export default function RunsPanel({ token }: { token: string }) {
   const loadRuns = useCallback(async () => {
     try {
       setRuns(await runsAPI.list(token, { all, status: fStatus, agent: fAgent, userId: /^d+$/.test(fUser.trim()) ? fUser.trim() : '' }))
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     }
   }, [token, all, fStatus, fAgent, fUser])
 
@@ -92,8 +93,8 @@ export default function RunsPanel({ token }: { token: string }) {
       setInput('')
       await loadRuns()
       setSelected(run.id)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e) {
+      setError(errMessage(e) ?? null)
     } finally {
       setStarting(false)
     }
@@ -284,8 +285,8 @@ function RunDetail({ token, runId, onChanged }: { token: string; runId: string; 
     try {
       await runsAPI.decide(token, runId, a.id, d)
       await refresh()
-    } catch (e: any) {
-      setErr(e.message)
+    } catch (e) {
+      setErr(errMessage(e) ?? null)
     } finally {
       setBusy(false)
     }
@@ -298,8 +299,8 @@ function RunDetail({ token, runId, onChanged }: { token: string; runId: string; 
       await runsAPI.cancel(token, runId)
       await refresh()
       onChanged()
-    } catch (e: any) {
-      setErr(e.message)
+    } catch (e) {
+      setErr(errMessage(e) ?? null)
     } finally {
       setBusy(false)
     }

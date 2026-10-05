@@ -39,6 +39,7 @@ import {
   type TopicTemplateConfig,
   type TopicVisibility,
 } from '@/apis/topic';
+import { errMessage } from '@/lib/errMessage';
 
 // 自动收录规则可选的内容类型
 const RULE_CONTENT_TYPES: { value: string; label: string }[] = [
@@ -203,8 +204,8 @@ export function TopicFormDialog({ open, onClose, topic, isAdmin, showTemplates, 
         const res = await createTopic(payload);
         onSaved({ id: res.id, pendingReview: res.pendingReview });
       }
-    } catch (e: any) {
-      setError(e?.message || '保存失败,请重试');
+    } catch (e) {
+      setError(errMessage(e) || '保存失败,请重试');
     } finally {
       setSaving(false);
     }

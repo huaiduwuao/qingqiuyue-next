@@ -18,6 +18,7 @@ import { listSensitiveWords, addSensitiveWord, deleteSensitiveWord } from '@/api
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['system', 'moderation', 'sensitive-words'];
 
@@ -96,7 +97,7 @@ export default function ModerationSensitiveWordsPage() {
       setLevel(2);
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '添加失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '添加失败', 'error'),
   });
 
   const deleteMutation = useMutation({
@@ -105,7 +106,7 @@ export default function ModerationSensitiveWordsPage() {
       showMessage('删除成功');
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const handleAdd = () => {

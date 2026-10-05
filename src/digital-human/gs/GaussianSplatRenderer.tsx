@@ -24,6 +24,7 @@ import { loadGaussianAsset } from './gaussianLoader';
 import { sortGaussiansFast } from './gaussianSorter';
 import { mountEffectCanvas } from '../effectCanvas';
 import type * as THREE from 'three';
+import { errMessage } from '@/lib/errMessage';
 
 export type QualityMode = 'quality' | 'balanced' | 'performance';
 
@@ -253,9 +254,9 @@ export default function GaussianSplatRenderer({
         };
         window.addEventListener('resize', onResize);
         disposers.push(() => window.removeEventListener('resize', onResize));
-      } catch (err: any) {
+      } catch (err) {
         if (!cancelled) {
-          setError(err.message || '加载失败');
+          setError(errMessage(err) || '加载失败');
           setLoading(false);
         }
       }

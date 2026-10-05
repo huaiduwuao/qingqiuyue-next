@@ -19,6 +19,7 @@ import { listReports, reviewReport } from '@/apis/system-moderation';
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['system', 'moderation', 'reports'];
 
@@ -124,7 +125,7 @@ export default function ModerationReportsPage() {
       setReviewNote('');
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '审核失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '审核失败', 'error'),
   });
 
   const handleReview = (status: 'resolved' | 'rejected') => {

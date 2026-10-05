@@ -22,6 +22,7 @@ import type { VrmStageHandle } from '../VrmStage';
 import type { PlacedObject } from '../vrm/world/worldObjects';
 import { interactOf } from '../vrm/world/interact';
 import type { WorldDef } from '../vrm/world/worldLayout';
+import { errMessage } from '@/lib/errMessage';
 
 export type WorldToolEvent = { name: 'world_place' | 'world_edit' | 'scene_go' | 'room_design'; args: Record<string, any>; result?: any };
 
@@ -187,8 +188,8 @@ export function useWorldObjects(opts: Options) {
         setItems((cur) => [...cur, withAsset]);
         h.upsertPlacement(toPlaced(withAsset));
         lastRef.current = withAsset.id;
-      } catch (e: any) {
-        optsRef.current.toast('⚠️', isPublic ? '公共场景只有管理员能摆' : `没摆成:${e?.message || e}`);
+      } catch (e) {
+        optsRef.current.toast('⚠️', isPublic ? '公共场景只有管理员能摆' : `没摆成:${errMessage(e) || e}`);
         return;
       }
     }
@@ -231,8 +232,8 @@ export function useWorldObjects(opts: Options) {
       setItems((cur) => cur.map((x) => (x.id === p.id ? next : x)));
       h.upsertPlacement(toPlaced(next));
       lastRef.current = p.id;
-    } catch (e: any) {
-      optsRef.current.toast('⚠️', `没改成:${e?.message || e}`);
+    } catch (e) {
+      optsRef.current.toast('⚠️', `没改成:${errMessage(e) || e}`);
     }
   }, [findTarget, spotFor]);
 
@@ -335,8 +336,8 @@ export function useWorldObjects(opts: Options) {
       h.upsertPlacement(toPlaced(withAsset));
       lastRef.current = withAsset.id;
       return withAsset;
-    } catch (e: any) {
-      optsRef.current.toast('⚠️', `没摆成:${e?.message || e}`);
+    } catch (e) {
+      optsRef.current.toast('⚠️', `没摆成:${errMessage(e) || e}`);
       return null;
     }
   }, [spotFor]);
@@ -354,8 +355,8 @@ export function useWorldObjects(opts: Options) {
       h.upsertPlacement(toPlaced(p));
       lastRef.current = p.id;
       return p;
-    } catch (e: any) {
-      optsRef.current.toast('⚠️', `没放成:${e?.message || e}`);
+    } catch (e) {
+      optsRef.current.toast('⚠️', `没放成:${errMessage(e) || e}`);
       return null;
     }
   }, [spotFor]);
@@ -380,10 +381,10 @@ export function useWorldObjects(opts: Options) {
     try {
       await updatePlacement(id, patch, p.public);
       return true;
-    } catch (e: any) {
+    } catch (e) {
       setItems((cur) => cur.map((x) => (x.id === id ? p : x)));
       h.upsertPlacement(toPlaced(p));
-      optsRef.current.toast('⚠️', `没改成:${e?.message || e}`);
+      optsRef.current.toast('⚠️', `没改成:${errMessage(e) || e}`);
       return false;
     }
   }, []);
@@ -397,8 +398,8 @@ export function useWorldObjects(opts: Options) {
       h.removePlacement(id);
       setItems((cur) => cur.filter((x) => x.id !== id));
       return p;
-    } catch (e: any) {
-      optsRef.current.toast('⚠️', `没删掉:${e?.message || e}`);
+    } catch (e) {
+      optsRef.current.toast('⚠️', `没删掉:${errMessage(e) || e}`);
       return null;
     }
   }, []);
@@ -413,8 +414,8 @@ export function useWorldObjects(opts: Options) {
       setItems((cur) => [...cur, withAsset]);
       h.upsertPlacement(toPlaced(withAsset));
       return withAsset;
-    } catch (e: any) {
-      optsRef.current.toast('⚠️', `没恢复:${e?.message || e}`);
+    } catch (e) {
+      optsRef.current.toast('⚠️', `没恢复:${errMessage(e) || e}`);
       return null;
     }
   }, []);

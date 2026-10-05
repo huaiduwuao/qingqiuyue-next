@@ -48,6 +48,7 @@ import {
   type OpsTaskStartReq,
   type OpsTaskStatus,
 } from '@/beans/opstask';
+import { errMessage } from '@/lib/errMessage';
 
 const POLL_INTERVAL_MS = 2000;
 const LIST_POLL_INTERVAL_MS = 5000; // 列表弱实时,5s 够用;详情 2s 才及时
@@ -105,8 +106,8 @@ export default function OpsTasksPage() {
       // 启动后立刻刷一次列表,不等 5s 轮询。
       qc.invalidateQueries({ queryKey: ['opstask', 'list'] });
       refresh();
-    } catch (err: any) {
-      setSnack({ open: true, severity: 'error', msg: `启动失败: ${err?.message || err}` });
+    } catch (err) {
+      setSnack({ open: true, severity: 'error', msg: `启动失败: ${errMessage(err) || err}` });
     } finally {
       setSubmitting(false);
     }
@@ -133,8 +134,8 @@ export default function OpsTasksPage() {
       setSnack({ open: true, severity: 'success', msg: `已发送取消信号 #${id}` });
       qc.invalidateQueries({ queryKey: ['opstask', 'list'] });
       if (detailId === id) qc.invalidateQueries({ queryKey: ['opstask', 'detail', id] });
-    } catch (err: any) {
-      setSnack({ open: true, severity: 'error', msg: `取消失败: ${err?.message || err}` });
+    } catch (err) {
+      setSnack({ open: true, severity: 'error', msg: `取消失败: ${errMessage(err) || err}` });
     }
   };
 

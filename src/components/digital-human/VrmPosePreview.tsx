@@ -18,6 +18,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { acquireAvatar, releaseAvatar, type Cached } from '@/digital-human/vrm/loadAvatar';
 import { getBone, detectVrmVersion } from '@/digital-human/vrm/vrmCompat';
+import { errMessage } from '@/lib/errMessage';
 
 export interface VrmBoneEditorHandle {
   applyBoneRotations: (rotations: Record<string, [number, number, number]>) => void;
@@ -401,9 +402,9 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
           detectVrmVersion(cached.vrm);
           setLoading(false);
           onLoad?.();
-        } catch (e: any) {
+        } catch (e) {
           console.error('[VrmBoneEditor] load failed', e);
-          setError(e?.message || String(e));
+          setError(errMessage(e) || String(e));
           setLoading(false);
         }
       })();

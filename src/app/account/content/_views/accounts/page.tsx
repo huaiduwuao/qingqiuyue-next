@@ -57,6 +57,7 @@ import {
   refreshAuth,
   type ShareAccount,
 } from '@/apis/share-account';
+import { errMessage } from '@/lib/errMessage';
 
 interface FormState {
   open: boolean;
@@ -122,7 +123,7 @@ export default function AccountsPage() {
       invalidate();
       setForm(emptyForm);
     },
-    onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '新建失败' }),
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '新建失败' }),
   });
 
   const doUpdate = useMutation({
@@ -132,7 +133,7 @@ export default function AccountsPage() {
       invalidate();
       setForm(emptyForm);
     },
-    onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '更新失败' }),
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '更新失败' }),
   });
 
   const doRemove = useMutation({
@@ -141,7 +142,7 @@ export default function AccountsPage() {
       setToast({ open: true, severity: 'success', msg: '已删除' });
       invalidate();
     },
-    onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '删除失败' }),
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '删除失败' }),
   });
 
   const doAuth = useMutation({
@@ -150,7 +151,7 @@ export default function AccountsPage() {
       // 新标签页打开三方授权页
       window.open(res.url, '_blank', 'width=600,height=800,noopener,noreferrer');
     },
-    onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '获取授权链接失败' }),
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '获取授权链接失败' }),
   });
 
   const doRefresh = useMutation({
@@ -159,7 +160,7 @@ export default function AccountsPage() {
       setToast({ open: true, severity: 'success', msg: '已刷新授权' });
       invalidate();
     },
-    onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '刷新失败' }),
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '刷新失败' }),
   });
 
   const overlays = (

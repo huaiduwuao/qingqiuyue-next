@@ -34,6 +34,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CheckIcon from '@mui/icons-material/Check';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { TemplateAttr, AutoTemplateRule, AutoTemplateResult } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const TYPE_LABELS: Record<string, string> = {
   novel: '小说', video: '视频', news: '新闻', music: '音乐',
@@ -80,25 +81,25 @@ export default function SpiderTemplatesPage() {
   const createMutation = useMutation({
     mutationFn: (values: TemplateFormData) => createTemplate(values),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); refresh(); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vars: { id: number; values: TemplateFormData }) => updateTemplate(vars.id, vars.values),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); refresh(); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteTemplate(id),
     onSuccess: () => { showMessage('删除成功'); refresh(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
   const autoGenMutation = useMutation({
     mutationFn: (url: string) => autoGenerateTemplate({ url }),
     onSuccess: (res: any) => setAutoResult(res),
-    onError: (err: any) => showMessage(err.message || '生成失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '生成失败', 'error'),
   });
 
   const applyRuleMutation = useMutation({
@@ -113,7 +114,7 @@ export default function SpiderTemplatesPage() {
       showMessage(`已应用规则: ${vars.rule.code}`);
       qc.invalidateQueries({ queryKey: ['spider', 'template-detail', vars.templateId] });
     },
-    onError: (err: any) => showMessage(err.message || '应用失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '应用失败', 'error'),
   });
 
   const router = useRouter();
@@ -203,8 +204,8 @@ export default function SpiderTemplatesPage() {
               domain: params.domain,
             });
             return { records: res.list || [], totalRow: res.total || 0 };
-          } catch (err: any) {
-            showMessage(err.message || '获取数据失败', 'error');
+          } catch (err) {
+            showMessage(errMessage(err) || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };
           }
         }}
@@ -333,13 +334,13 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
   const addAttrMutation = useMutation({
     mutationFn: (attr: typeof draft) => addTemplateAttr(templateId, attr),
     onSuccess: () => { onMsg('已新增'); setAdding(false); setDraft({ name: '', type: 'text', code: 'title', content: '{"selector":""}', remark: '' }); refresh(); },
-    onError: (err: any) => onMsg(err.message || '新增失败', 'error'),
+    onError: (err: unknown) => onMsg(errMessage(err) || '新增失败', 'error'),
   });
 
   const deleteAttrMutation = useMutation({
     mutationFn: (attrId: number) => deleteTemplateAttr(attrId),
     onSuccess: () => { onMsg('已删除'); refresh(); },
-    onError: (err: any) => onMsg(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => onMsg(errMessage(err) || '删除失败', 'error'),
   });
 
   return (

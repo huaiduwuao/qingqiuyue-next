@@ -11,6 +11,7 @@
 import React from 'react';
 import { Box, Button, ButtonBase, Checkbox, FormControlLabel, LinearProgress, MenuItem, TextField, Typography } from '@mui/material';
 import { uploadWorldAsset, type WorldAssetFull } from '@/apis/world';
+import { errMessage } from '@/lib/errMessage';
 
 export const UPLOAD_CATEGORIES: { value: string; label: string }[] = [
   { value: 'furniture', label: '家具' },
@@ -98,8 +99,8 @@ export function WorldUpload({ kind, label, onUploaded, toast, admin, compact }: 
       toast?.('📦', a.status === 'ready' ? `「${a.nameZh}」传好了` : `「${a.nameZh}」传好了,正在加工`);
       onUploaded(a);
       setFile(null);
-    } catch (e: any) {
-      setErr(e?.message || '上传失败');
+    } catch (e) {
+      setErr(errMessage(e) || '上传失败');
     } finally {
       setBusy(null);
     }

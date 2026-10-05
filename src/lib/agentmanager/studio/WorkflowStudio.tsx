@@ -19,6 +19,7 @@ import { canvasAPI } from '../canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from '../canvas/types'
 import StudioLayout, { type ChatMessage } from './StudioLayout'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
+import { errMessage } from '@/lib/errMessage'
 
 const TYPE_LABEL: Record<WorkflowType, string> = {
   sequential: '顺序',
@@ -189,10 +190,10 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
           })
         },
       })
-    } catch (e: any) {
+    } catch (e) {
       setMessages((m) => {
         const copy = [...m]
-        copy[copy.length - 1] = { role: 'assistant', text: `生成失败: ${e.message}` }
+        copy[copy.length - 1] = { role: 'assistant', text: `生成失败: ${errMessage(e)}` }
         return copy
       })
     } finally {
@@ -250,8 +251,8 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
       }
       setDirty(false)
       setMessages((m) => [...m, { role: 'assistant', text: `✅ 工作流「${name}」已保存。` }])
-    } catch (e: any) {
-      alert(`保存失败: ${e.message}`)
+    } catch (e) {
+      alert(`保存失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }

@@ -37,6 +37,7 @@ import { agentmAPI } from '@/lib/agentmanager/api'
 import { agentmExtendedAPI } from '@/lib/agentmanager/api-extended'
 import type { AgentAssociations, CanvasNodeType } from './types'
 import { NODE_TYPE_META as META } from './types'
+import { errMessage } from '@/lib/errMessage'
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode }
 
@@ -129,8 +130,8 @@ function CreateWorkflowDialog({ agentId, onClose, onCreated }: CreateWorkflowDia
       })
       onCreated()
       onClose()
-    } catch (e: any) {
-      alert(`创建失败: ${e.message}`)
+    } catch (e) {
+      alert(`创建失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -178,8 +179,8 @@ function CreateMemoryDialog({ agentId, onClose, onCreated }: CreateMemoryDialogP
       await canvasAPI.setMemory(agentId, { name: name.trim(), content: content.trim(), memory_type: 'long_term' })
       onCreated()
       onClose()
-    } catch (e: any) {
-      alert(`创建失败: ${e.message}`)
+    } catch (e) {
+      alert(`创建失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -279,8 +280,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
         setNodes(loadedNodes)
         setEdges(loadedEdges)
         setAssoc(associations)
-      } catch (e: any) {
-        setMsg(`加载失败: ${e.message}`)
+      } catch (e) {
+        setMsg(`加载失败: ${errMessage(e)}`)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -318,8 +319,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       }
       await canvasAPI.saveCanvas(agentId, canvasData)
       setMsg('✅ 已保存')
-    } catch (e: any) {
-      setMsg(`保存失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`保存失败: ${errMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -359,8 +360,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       await canvasAPI.linkSkill(agentId, skillId)
       await refreshAssoc()
       setMsg('✅ 技能已绑定')
-    } catch (e: any) {
-      setMsg(`绑定失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`绑定失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc])
 
@@ -372,8 +373,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       setNodes((nds) => nds.filter((n) => !(n.data?.nodeType === 'skill' && n.data?.refId === skillId)))
       await refreshAssoc()
       setMsg('✅ 技能已解绑')
-    } catch (e: any) {
-      setMsg(`解绑失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`解绑失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc, setNodes])
 
@@ -383,8 +384,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       await canvasAPI.linkMCP(agentId, mcpId)
       await refreshAssoc()
       setMsg('✅ MCP 已绑定')
-    } catch (e: any) {
-      setMsg(`绑定失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`绑定失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc])
 
@@ -395,8 +396,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       setNodes((nds) => nds.filter((n) => !(n.data?.nodeType === 'mcp' && n.data?.refId === mcpId)))
       await refreshAssoc()
       setMsg('✅ MCP 已解绑')
-    } catch (e: any) {
-      setMsg(`解绑失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`解绑失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc, setNodes])
 
@@ -407,8 +408,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       setNodes((nds) => nds.filter((n) => !(n.data?.nodeType === 'memory' && n.data?.refId === memoryId)))
       await refreshAssoc()
       setMsg('✅ 记忆已删除')
-    } catch (e: any) {
-      setMsg(`删除失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`删除失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc, setNodes])
 
@@ -419,8 +420,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
       setNodes((nds) => nds.filter((n) => !(n.data?.nodeType === 'workflow' && n.data?.refId === workflowId)))
       await refreshAssoc()
       setMsg('✅ 工作流已删除')
-    } catch (e: any) {
-      setMsg(`删除失败: ${e.message}`)
+    } catch (e) {
+      setMsg(`删除失败: ${errMessage(e)}`)
     }
   }, [agentId, refreshAssoc, setNodes])
 

@@ -19,6 +19,7 @@
  */
 
 import { useCallback } from 'react';
+import { errName } from '@/lib/errMessage';
 
 export interface UseShareArgs {
   contentType: string;
@@ -44,8 +45,8 @@ export function useShare(args: UseShareArgs) {
       } else if (nav.clipboard?.writeText) {
         await nav.clipboard.writeText(url);
       }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') {
+    } catch (e) {
+      if (errName(e) !== 'AbortError') {
         // ignore
       }
     }

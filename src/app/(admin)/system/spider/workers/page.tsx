@@ -48,6 +48,7 @@ import {
 } from '@/apis/spider';
 import { useAuthority } from '@/contexts/AuthContext';
 import type { Worker, WorkerKind, WorkerState } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const POLL_MS = 5000;
 
@@ -106,22 +107,22 @@ export default function SpiderWorkersPage() {
   const updateM = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { slots?: number; desired?: 'active' | 'draining' } }) => updateWorker(id, data),
     onSuccess: () => { showMsg('已保存,Worker 下一次心跳(≤10 秒)生效'); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '保存失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '保存失败', 'error'),
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => deleteWorker(id),
     onSuccess: () => { showMsg('已清理'); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '清理失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '清理失败', 'error'),
   });
   const launchM = useMutation({
     mutationFn: (slots: number) => launchWorkerContainer(slots),
     onSuccess: (r) => { showMsg(`已拉起 ${r?.name ?? 'Worker 容器'},启动后自动注册`); setLaunchOpen(false); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '拉起失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '拉起失败', 'error'),
   });
   const removeM = useMutation({
     mutationFn: (name: string) => removeWorkerContainer(name),
     onSuccess: () => { showMsg('已移除,它手上的任务已放回队列'); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '移除失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '移除失败', 'error'),
   });
 
   const all = workersQ.data?.list || [];

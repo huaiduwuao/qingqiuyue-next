@@ -7,6 +7,7 @@ import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import { createBatch } from '@/apis/spider';
+import { errMessage } from '@/lib/errMessage';
 
 interface SendToSpiderProps {
   url?: string;
@@ -54,8 +55,8 @@ export default function SendToSpider({
       });
       setInputUrl('');
       onSuccess?.(`已发送到爬虫:${targetUrl}`);
-    } catch (err: any) {
-      onError?.(err?.message || '发送失败');
+    } catch (err) {
+      onError?.(errMessage(err) || '发送失败');
     } finally {
       setBusy(false);
     }

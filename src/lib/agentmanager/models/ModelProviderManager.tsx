@@ -29,6 +29,7 @@ import AddIcon from '@mui/icons-material/Add'
 import StarIcon from '@mui/icons-material/Star'
 
 import { agentmAPI, type ModelProvider, type ModelProviderType } from '../api'
+import { errMessage } from '@/lib/errMessage'
 
 const TYPE_META: Record<ModelProviderType, { label: string; color: string; hint: string }> = {
   llm: { label: 'LLM 大模型', color: '#1976d2', hint: '对话/生成用的语言模型(OpenAI 兼容)' },
@@ -106,8 +107,8 @@ export default function ModelProviderManager() {
       }
       setOpen(false)
       await load()
-    } catch (e: any) {
-      alert(`保存失败: ${e.message}`)
+    } catch (e) {
+      alert(`保存失败: ${errMessage(e)}`)
     }
   }
 

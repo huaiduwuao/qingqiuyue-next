@@ -8,6 +8,7 @@ import { updateShare } from '@/apis/module-content';
 import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/lib/api/client';
 import { PricingFields } from './PricingFields';
 import { ScheduleFields } from './ScheduleFields';
+import { errMessage } from '@/lib/errMessage';
 
 /**
  * useContentForm — 创作者中心发布表单的共享基础 hook。
@@ -186,7 +187,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       // 拦截器已经把 body.data 剥出来了,再取一层 .data 永远是 undefined ——
       // 在此之前不论发布成功还是定时成功,提示都落到「已提交审核」那个兜底分支。
       saved = (await createMutation.mutateAsync()) as SavedContent | undefined;
-    } catch (e: any) {
+    } catch (e) {
       if (isAuthError(e)) {
         setSnack({ msg: '请重新登录', severity: 'error' });
       } else if (isNetworkError(e)) {
@@ -194,7 +195,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       } else {
         setSnack({ msg: `发布失败:${formatApiError(e)}`, severity: 'error' });
       }
-      return { ok: false, error: e?.message };
+      return { ok: false, error: errMessage(e) };
     }
     setSnack({ msg: savedMessage(saved?.status), severity: 'success' });
     if (onSuccess) {

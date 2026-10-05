@@ -48,6 +48,7 @@ import {
 } from '@/apis/spider';
 import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
 import { useSessionState } from './useSessionState';
+import { errMessage } from '@/lib/errMessage';
 
 // 裁决结果的展示元数据。文案要说人话 —— 运营不该去猜 "only_one_source" 是什么意思。
 const VERDICT_META: Record<string, { label: string; color: 'default' | 'success' | 'warning' | 'error' | 'info'; hint: string }> = {
@@ -141,9 +142,9 @@ export default function ContentRepairPanel(_props: { compact?: boolean }) {
       onProgress: (p, taskId) => setProgress({ p, taskId }),
     })
       .then((r) => setReport(r))
-      .catch((e: any) => {
+      .catch((e: unknown) => {
         if (ac.signal.aborted) return;
-        setErrMsg(e?.message || (run.dryRun ? '诊断失败' : '应用失败'));
+        setErrMsg(errMessage(e) || (run.dryRun ? '诊断失败' : '应用失败'));
         if (run.dryRun) setReport(null);
         // 任务已失败 / 过期:不再记着它,免得每次回来都报同一个错
         setRun(null);
@@ -180,8 +181,8 @@ export default function ContentRepairPanel(_props: { compact?: boolean }) {
       setRun({ taskId, dryRun });
       setViewTaskId(taskId);
       qc.invalidateQueries({ queryKey: ['repair-tasks'] });
-    } catch (e: any) {
-      setErrMsg(e?.message || (dryRun ? '诊断失败' : '应用失败'));
+    } catch (e) {
+      setErrMsg(errMessage(e) || (dryRun ? '诊断失败' : '应用失败'));
     } finally {
       setStarting(null);
     }

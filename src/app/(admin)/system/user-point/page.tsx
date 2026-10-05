@@ -16,6 +16,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { adjustUserPoint, listPointRecords } from '@/apis/system-user-point';
 import type { GridColDef } from '@mui/x-data-grid';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['system', 'user-point'];
 
@@ -43,7 +44,7 @@ export default function SystemUserPointPage() {
       setAdjustOpen(false);
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err?.message || '调整失败', 'error'),
+    onError: (err: unknown) => showMessage(errMessage(err) || '调整失败', 'error'),
   });
 
   const submitAdjust = () => {

@@ -10,6 +10,7 @@ import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, Switch, Typography } from '@mui/material';
 import { dismissAI, getMyRoomAI, inviteAI, listAIAgents, type AIAgentOption, type AIMember, type RoomPatch, type WorldRoom } from '@/apis/world';
 import type { DesignPlan } from './useWorldObjects';
+import { errMessage } from '@/lib/errMessage';
 
 export function RoomAISection({ room, save, toast }: { room: WorldRoom; save: (p: RoomPatch) => Promise<WorldRoom>; toast: (icon: string, text: string) => void }) {
   const [agents, setAgents] = React.useState<AIAgentOption[] | null>(null);
@@ -27,7 +28,7 @@ export function RoomAISection({ room, save, toast }: { room: WorldRoom; save: (p
 
   const run = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
     setBusy(key);
-    try { await fn(); if (ok) toast('🤖', ok); await refresh(); } catch (e: any) { toast('⚠️', e?.message || '没成功'); } finally { setBusy(null); }
+    try { await fn(); if (ok) toast('🤖', ok); await refresh(); } catch (e) { toast('⚠️', errMessage(e) || '没成功'); } finally { setBusy(null); }
   };
   const here = new Set(members.map((m) => m.key));
 

@@ -39,6 +39,7 @@ import {
   type PointMallItem as ApiMallItem,
   type PointMallRecord as ApiRecord,
 } from '@/apis/dashboard';
+import { errMessage } from '@/lib/errMessage';
 
 type Category = 'all' | 'virtual' | 'privilege' | 'physical' | 'limited';
 
@@ -238,8 +239,8 @@ export function PointsMallTab({ initialPoints }: Props) {
           : '兑换成功',
       );
     },
-    onError: (err: any) => {
-      setToast(err?.message || '兑换失败,请重试');
+    onError: (err: unknown) => {
+      setToast(errMessage(err) || '兑换失败,请重试');
     },
   });
 

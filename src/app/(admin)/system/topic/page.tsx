@@ -52,6 +52,7 @@ import { useAuthority } from '@/contexts/AuthContext';
 import { moduleContentPage } from '@/apis/home';
 import { TopicInsightsEditorDialog } from './InsightsEditorDialog';
 import { TopicFormDialog } from '@/components/topic/TopicFormDialog';
+import { errMessage } from '@/lib/errMessage';
 
 // 内容搜索结果类型(内容 id 超过 2^53 时是字符串)
 interface ContentItem {
@@ -103,8 +104,8 @@ export default function TopicAdminPage() {
         );
       }
       loadTopics();
-    } catch (error: any) {
-      setCurateNote(`生成失败:${error?.message || error}`);
+    } catch (error) {
+      setCurateNote(`生成失败:${errMessage(error) || error}`);
     } finally {
       setCurating(false);
     }
@@ -144,9 +145,9 @@ export default function TopicAdminPage() {
     try {
       await (approve ? approveTopic(topic.id) : rejectTopic(topic.id));
       loadTopics();
-    } catch (error: any) {
+    } catch (error) {
       console.error('审核失败:', error);
-      alert(`审核失败:${error?.message || error}`);
+      alert(`审核失败:${errMessage(error) || error}`);
     }
   };
 

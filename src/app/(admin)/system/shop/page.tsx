@@ -33,6 +33,7 @@ import {
   type AdminGift,
   type AdminRedemption,
 } from '@/apis/admin-shop';
+import { errMessage } from '@/lib/errMessage';
 
 /**
  * 商城与礼物:商城商品、订单发货、礼物目录。
@@ -95,8 +96,8 @@ export default function SystemShopPage() {
       setMsg({ text: ok, severity: 'success' });
       qc.invalidateQueries({ queryKey: ['admin-shop'] });
       return true;
-    } catch (err: any) {
-      setMsg({ text: err?.message || '操作失败', severity: 'error' });
+    } catch (err) {
+      setMsg({ text: errMessage(err) || '操作失败', severity: 'error' });
       return false;
     }
   };

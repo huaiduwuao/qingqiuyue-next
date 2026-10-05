@@ -482,8 +482,8 @@ function TriggerRefreshButton() {
       setMsg({ type: 'success', text: '✅ 爬取已触发，请关注源健康状态' });
       // 5秒后刷新数据
       setTimeout(() => qc.invalidateQueries({ queryKey: ['spider', 'hourly-stats'] }), 3000);
-    } catch (e: any) {
-      setMsg({ type: 'error', text: `❌ 触发失败: ${e?.message || e}` });
+    } catch (e) {
+      setMsg({ type: 'error', text: `❌ 触发失败: ${errMessage(e) || e}` });
     } finally {
       setLoading(false);
     }
@@ -524,3 +524,4 @@ function TriggerRefreshButton() {
 // 导入需要的 hooks 和组件
 import { useQueryClient } from '@tanstack/react-query';
 import Button from '@mui/material/Button';
+import { errMessage } from '@/lib/errMessage';

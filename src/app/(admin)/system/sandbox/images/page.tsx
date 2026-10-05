@@ -23,6 +23,7 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import type { FilterField } from '@/components/tables/FilterBar';
 import { listImages, createImage, pullImage } from '@/apis/sandbox';
 import { IMAGE_STATUS_LABELS, type SandboxImageResp } from '@/beans/sandbox';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['sandbox', 'images'];
 
@@ -58,7 +59,7 @@ export default function ImagesPage() {
       setWriteVisible(false);
       refresh();
     },
-    onError: (err: any) => showMsg(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '创建失败', 'error'),
   });
 
   const [pullingId, setPullingId] = useState<number | null>(null);
@@ -69,8 +70,8 @@ export default function ImagesPage() {
       await pullImage(id);
       showMsg('镜像拉取完成');
       setRefreshKey((k) => k + 1);
-    } catch (err: any) {
-      showMsg(err.message || '拉取失败', 'error');
+    } catch (err) {
+      showMsg(errMessage(err) || '拉取失败', 'error');
     } finally {
       setPullingId(null);
     }
@@ -145,8 +146,8 @@ export default function ImagesPage() {
               status: params.status || 'all',
             });
             return { records: res?.records || res?.list || [], totalRow: res?.total || res?.totalRow || 0 };
-          } catch (err: any) {
-            showMsg(err.message || '获取数据失败', 'error');
+          } catch (err) {
+            showMsg(errMessage(err) || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };
           }
         }}

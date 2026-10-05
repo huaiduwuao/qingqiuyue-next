@@ -42,6 +42,7 @@ import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import Link from 'next/link';
 import { listSites, getSiteStats, updateSite, crawlSiteNow } from '@/apis/spider';
 import type { SiteRow } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const POLL_MS = 5000;
 
@@ -91,12 +92,12 @@ export default function SpiderSitesPage() {
       else showMsg('已保存');
       invalidate();
     },
-    onError: (e: any) => showMsg(e?.message || '保存失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '保存失败', 'error'),
   });
   const crawlM = useMutation({
     mutationFn: ({ domain, max_pages, incremental }: { domain: string; max_pages: number; incremental: boolean }) => crawlSiteNow(domain, { max_pages, incremental }),
     onSuccess: () => { showMsg('已入队,空闲 Worker 会认领它'); setCrawlTarget(null); invalidate(); },
-    onError: (e: any) => showMsg(e?.message || '入队失败', 'error'),
+    onError: (e: unknown) => showMsg(errMessage(e) || '入队失败', 'error'),
   });
 
   // category 可能是逗号拼的多值(FILM,TELEPLAY),拆开做下拉选项

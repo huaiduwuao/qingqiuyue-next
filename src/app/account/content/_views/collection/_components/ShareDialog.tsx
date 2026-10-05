@@ -108,7 +108,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
       qc.invalidateQueries({ queryKey: ['creator-collections'] });
       onSnack('已开启私密分享链接');
     },
-    onError: (e: any) => onSnack(formatApiError(e) || '开启失败'),
+    onError: (e: unknown) => onSnack(formatApiError(e) || '开启失败'),
   });
 
   const resetM = useMutation({
@@ -118,7 +118,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
       qc.invalidateQueries({ queryKey: ['creator-collections'] });
       onSnack('链接已重置,旧链接立即失效');
     },
-    onError: (e: any) => onSnack(formatApiError(e) || '重置失败'),
+    onError: (e: unknown) => onSnack(formatApiError(e) || '重置失败'),
   });
 
   const disableM = useMutation({
@@ -129,7 +129,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
       onSnack('已关闭分享');
       setConfirmClose(false);
     },
-    onError: (e: any) => onSnack(formatApiError(e) || '关闭失败'),
+    onError: (e: unknown) => onSnack(formatApiError(e) || '关闭失败'),
   });
 
   const priceM = useMutation({
@@ -140,7 +140,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
       const shown = res?.price ?? price;
       onSnack(shown === 0 ? '价格已清空(免费)' : `价格已设为 ${shown} 钻`);
     },
-    onError: (e: any) => onSnack(formatApiError(e) || '设置失败'),
+    onError: (e: unknown) => onSnack(formatApiError(e) || '设置失败'),
   });
 
   const handleCopy = async (text: string, label: string) => {

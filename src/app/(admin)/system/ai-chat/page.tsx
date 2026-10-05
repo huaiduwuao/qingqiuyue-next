@@ -23,6 +23,7 @@ import Switch from '@mui/material/Switch'
 import SendIcon from '@mui/icons-material/Send'
 import ClearIcon from '@mui/icons-material/Clear'
 import { agentmAPI } from '@/lib/agentmanager/api'
+import { errMessage } from '@/lib/errMessage'
 
 interface Message {
   id: string
@@ -144,8 +145,8 @@ export default function AIChatPage() {
       if (!acc) {
         setMessages(prev => prev.filter(m => m.id !== assistantId))
       }
-    } catch (e: any) {
-      setError(e.message || '发送失败')
+    } catch (e) {
+      setError(errMessage(e) || '发送失败')
       setMessages(prev => prev.filter(m => m.id !== assistantId))
     } finally {
       setLoading(false)

@@ -26,6 +26,7 @@ import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
 import { API_PREFIX } from '@/lib/api/prefix';
 import { authHeaders } from '@/lib/api/auth';
+import { errMessage } from '@/lib/errMessage';
 
 const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
@@ -184,8 +185,8 @@ export default function RecordWakePage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       return stream
-    } catch (e: any) {
-      setError(`麦克风权限被拒: ${e.message}`)
+    } catch (e) {
+      setError(`麦克风权限被拒: ${errMessage(e)}`)
       throw e
     }
   }, [])
@@ -365,8 +366,8 @@ export default function RecordWakePage() {
         return
       }
       await pollTraining()
-    } catch (e: any) {
-      setError(`处理失败: ${e.message}`)
+    } catch (e) {
+      setError(`处理失败: ${errMessage(e)}`)
       setTrainStatus(null)
       setIsTraining(false)
     }
@@ -387,8 +388,8 @@ export default function RecordWakePage() {
         return
       }
       await pollTraining()
-    } catch (e: any) {
-      setError(`处理失败: ${e.message}`)
+    } catch (e) {
+      setError(`处理失败: ${errMessage(e)}`)
       setTrainStatus(null)
       setIsTraining(false)
     }

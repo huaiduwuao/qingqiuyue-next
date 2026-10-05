@@ -41,6 +41,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import ShareTaskDialog from './ShareTaskDialog';
 import ShareCardPreview, { type ShareCardData } from './ShareCardPreview';
 import type { EntityId } from '@/lib/id';
+import { errName } from '@/lib/errMessage';
 
 /** 简化版:Tauri 环境检测 */
 function isTauri(): boolean {
@@ -125,8 +126,8 @@ export default function ShareButtons(props: ShareButtonsProps) {
         await handleCopy();
         return;
       }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') showToast('分享失败', 'error');
+    } catch (e) {
+      if (errName(e) !== 'AbortError') showToast('分享失败', 'error');
     }
     onAfterShare?.('web');
   };

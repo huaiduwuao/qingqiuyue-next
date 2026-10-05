@@ -42,6 +42,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { coverBackground } from '@/lib/media';
 import { PlayTag } from '@/components/common/PlayTag';
+import { errMessage } from '@/lib/errMessage';
 
 function SharedListContent() {
   const router = useRouter();
@@ -81,7 +82,7 @@ function SharedListContent() {
       qc.invalidateQueries({ queryKey: ['shared-list-content', list?.id] });
       setSnack('解锁成功,正在打开合集…');
     },
-    onError: (e: any) => setSnack(e?.message || '解锁失败'),
+    onError: (e: unknown) => setSnack(errMessage(e) || '解锁失败'),
   });
 
   const handleUnlock = () => {

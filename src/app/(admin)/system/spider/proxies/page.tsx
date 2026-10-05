@@ -45,6 +45,7 @@ import {
 } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Proxy, ProxyProvider } from '@/beans/spider';
+import { errMessage } from '@/lib/errMessage';
 
 const LIST_KEY = ['spider', 'proxies'];
 
@@ -91,19 +92,19 @@ export default function SpiderProxiesPage() {
   const addMutation = useMutation({
     mutationFn: (vals: typeof form) => addProxy(vals),
     onSuccess: () => { showMsg('已新增'); setWriteVisible(false); setForm({ url: '', type: 'http' }); refresh(); },
-    onError: (err: any) => showMsg(err.message || '新增失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '新增失败', 'error'),
   });
 
   const toggleMutation = useMutation({
     mutationFn: (p: Proxy) => toggleProxy(p.id, !p.active),
     onSuccess: () => refresh(),
-    onError: (err: any) => showMsg(err.message || '切换失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '切换失败', 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteProxy(id),
     onSuccess: () => { showMsg('已删除'); refresh(); },
-    onError: (err: any) => showMsg(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '删除失败', 'error'),
   });
 
   const addProviderMutation = useMutation({
@@ -114,13 +115,13 @@ export default function SpiderProxiesPage() {
       setProviderForm({ name: '快代理', api_url: '', type: 'http', local_host: '0.0.0.0', local_port: 8888, cache_seconds: 30 });
       refresh();
     },
-    onError: (err: any) => showMsg(err.message || '新增失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '新增失败', 'error'),
   });
 
   const deleteProviderMutation = useMutation({
     mutationFn: (id: string) => deleteProxyProvider(id),
     onSuccess: () => { showMsg('供应商已删除'); refresh(); },
-    onError: (err: any) => showMsg(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '删除失败', 'error'),
   });
 
   const testProviderMutation = useMutation({
@@ -129,7 +130,7 @@ export default function SpiderProxiesPage() {
       if (data.ok) showMsg(`连接成功,IP=${data.ip},延迟=${data.latency_ms}ms`, 'success');
       else showMsg(`失败:${data.error || 'empty ip'}`, 'error');
     },
-    onError: (err: any) => showMsg(err.message || '测试失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '测试失败', 'error'),
   });
 
   const handleAdd = () => {

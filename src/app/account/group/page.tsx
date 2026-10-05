@@ -40,6 +40,7 @@ import {
   type GroupType,
 } from '@/apis/group';
 import { coverBackground } from '@/lib/media';
+import { errMessage } from '@/lib/errMessage';
 
 export default function MyGroupsPage() {
   const router = useRouter();
@@ -254,8 +255,8 @@ function CreateGroupDialog({
       });
       reset();
       onCreated(g);
-    } catch (e: any) {
-      onError(e?.message || '创建失败');
+    } catch (e) {
+      onError(errMessage(e) || '创建失败');
     } finally {
       setBusy(false);
     }

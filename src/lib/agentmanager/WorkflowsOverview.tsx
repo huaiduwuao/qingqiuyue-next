@@ -28,6 +28,7 @@ import type { FilterBarProps } from '@/components/tables/FilterBar'
 import { agentmAPI, type Agent } from './api'
 import { canvasAPI } from './canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from './canvas/types'
+import { errMessage } from '@/lib/errMessage'
 
 const TYPE_LABEL: Record<WorkflowType, string> = {
   sequential: '顺序',
@@ -108,8 +109,8 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
         }),
       )
       setAllRows(grouped.flat())
-    } catch (e: any) {
-      setError(e.message || '加载失败')
+    } catch (e) {
+      setError(errMessage(e) || '加载失败')
     }
   }, [])
 
@@ -126,8 +127,8 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
     if (!confirm(`删除工作流「${w.name}」?`)) return
     try {
       await canvasAPI.deleteWorkflow(w.agent_id, w.id)
-    } catch (e: any) {
-      alert(`删除失败: ${e.message}`)
+    } catch (e) {
+      alert(`删除失败: ${errMessage(e)}`)
       return
     }
     refresh()
@@ -142,8 +143,8 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
       } else {
         alert(`执行完成: ${res.run?.status ?? ''}${res.run?.error ? '\n' + res.run.error : ''}`)
       }
-    } catch (e: any) {
-      alert(`执行失败: ${e.message}`)
+    } catch (e) {
+      alert(`执行失败: ${errMessage(e)}`)
     }
   }
 
@@ -159,8 +160,8 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
       })
       setScheduleFor(null)
       alert('定时调度已创建,可在「📋 任务」tab 查看')
-    } catch (e: any) {
-      alert(`创建失败: ${e.message}`)
+    } catch (e) {
+      alert(`创建失败: ${errMessage(e)}`)
     }
   }
 

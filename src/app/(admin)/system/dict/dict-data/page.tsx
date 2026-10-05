@@ -27,6 +27,7 @@ import { tree, save, update, remove } from '@/apis/system-dict-data';
 import type { DictDataItem } from '@/beans/system';
 import { listDictTypes } from '@/apis/system-dict-type';
 import { DictDataFormDialog } from '@/components/dict/DictDataFormDialog';
+import { errMessage } from '@/lib/errMessage';
 
 interface TreeItem {
   id: string;
@@ -185,7 +186,7 @@ export default function SystemDictDataPage() {
       setDialogOpen(false);
       qc.invalidateQueries({ queryKey: ['dict-data-tree', selectedType] });
     },
-    onError: (err: any) => showMsg(err?.message || '操作失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '操作失败', 'error'),
   });
 
   const deleteMut = useMutation({
@@ -194,7 +195,7 @@ export default function SystemDictDataPage() {
       showMsg('删除成功');
       qc.invalidateQueries({ queryKey: ['dict-data-tree', selectedType] });
     },
-    onError: (err: any) => showMsg(err?.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMsg(errMessage(err) || '删除失败', 'error'),
   });
 
   const handleDelete = (item: DictDataItem) => {

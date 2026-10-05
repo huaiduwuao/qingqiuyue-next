@@ -26,6 +26,7 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import { quotaAPI, type QuotaPackage } from '@/lib/agentmanager/quotaApi'
+import { errMessage } from '@/lib/errMessage'
 
 const EMPTY: Partial<QuotaPackage> = {
   code: '',
@@ -88,8 +89,8 @@ export default function Page() {
       }
       setOpen(false)
       await load()
-    } catch (e: any) {
-      alert(`保存失败: ${e.message ?? e}`)
+    } catch (e) {
+      alert(`保存失败: ${errMessage(e) ?? e}`)
     }
   }
 

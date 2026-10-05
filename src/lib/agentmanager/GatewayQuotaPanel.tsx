@@ -34,6 +34,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import HistoryIcon from '@mui/icons-material/History'
 
 import { quotaAPI, type QuotaOverview, type QuotaPackage, type QuotaOrder, type QuotaTrendPoint, type QuotaBreakdownRow } from './quotaApi'
+import { errMessage } from '@/lib/errMessage'
 
 interface Props {
   embedded?: boolean
@@ -77,8 +78,8 @@ export default function GatewayQuotaPanel(_: Props) {
       await quotaAPI.buyPackage(pkg.id, 'diamond')
       setPurchaseOpen(false)
       await loadAll()
-    } catch (e: any) {
-      alert(`购买失败: ${e.message ?? e}`)
+    } catch (e) {
+      alert(`购买失败: ${errMessage(e) ?? e}`)
     }
   }
 
@@ -88,8 +89,8 @@ export default function GatewayQuotaPanel(_: Props) {
       const r = await quotaAPI.refundOrder(orderNo)
       alert(`已退订:退 ${r.refund_tokens.toLocaleString()} tokens,${r.refund_diamond} 钻`)
       await loadAll()
-    } catch (e: any) {
-      alert(`退订失败: ${e.message ?? e}`)
+    } catch (e) {
+      alert(`退订失败: ${errMessage(e) ?? e}`)
     }
   }
 

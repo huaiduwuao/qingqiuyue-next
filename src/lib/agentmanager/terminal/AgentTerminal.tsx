@@ -19,6 +19,7 @@ import { API_PREFIX } from '@/lib/api/prefix'
 import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
+import { errMessage } from '@/lib/errMessage'
 
 interface TerminalLine {
   type: 'stdout' | 'stderr' | 'system' | 'done' | 'error'
@@ -173,8 +174,8 @@ export default function AgentTerminal({ token }: AgentTerminalProps) {
       }
 
       addLine('done', '[连接关闭]')
-    } catch (err: any) {
-      addLine('error', `错误: ${err.message}`)
+    } catch (err) {
+      addLine('error', `错误: ${errMessage(err)}`)
     } finally {
       setRunning(false)
     }

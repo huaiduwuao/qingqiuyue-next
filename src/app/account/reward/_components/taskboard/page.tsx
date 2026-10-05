@@ -43,6 +43,7 @@ import { useApp } from '@/contexts/AppContext';
 import type { RewardTask, RewardTaskStatus, TaskPriority, DemandItem } from '@/beans/reward';
 import { useResponsive } from '@/hooks/useResponsive';
 import TaskboardMobile from './TaskboardMobile';
+import { errMessage } from '@/lib/errMessage';
 
 const STATUSES: RewardTaskStatus[] = ['OPEN', 'CLAIMED', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 
@@ -100,7 +101,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
         if (res) setDetailTask(mapRewardTaskFromBackend(res) as RewardTask);
         else showMessage('任务不存在或已删除', 'error');
       })
-      .catch((e: any) => showMessage(e?.message || '任务加载失败', 'error'));
+      .catch((e: unknown) => showMessage(errMessage(e) || '任务加载失败', 'error'));
   }, []);
 
   // 我所在的团队
@@ -175,8 +176,8 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
       showMessage('状态已更新', 'success');
       qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
     },
-    onError: (err: any) => {
-      showMessage(err?.message || '操作失败', 'error');
+    onError: (err: unknown) => {
+      showMessage(errMessage(err) || '操作失败', 'error');
     },
   });
 
