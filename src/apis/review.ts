@@ -17,7 +17,18 @@ export interface ReviewRequest {
   reviewNote?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * 机审预检结论(建单后后台异步写入):pass 机审通过 / review 需复核 / block 建议拦截。
+   * 只是参考,通过的也要人工审;为空 = 还没跑完。
+   */
+  machineSuggestion?: MachineSuggestion | null;
+  /** 机审命中标签,JSON 字符串数组 */
+  machineLabels?: string | null;
+  machineReason?: string | null;
+  machineCheckedAt?: string | null;
 }
+
+export type MachineSuggestion = 'pass' | 'review' | 'block';
 
 export interface ReviewStats {
   totalRequests: number;
@@ -46,6 +57,8 @@ export async function submitReview(params: {
 export async function getReviewQueue(params?: PageParams & {
   status?: string;
   contentType?: string;
+  /** 按机审结论筛;none = 还没出结论的 */
+  machine?: MachineSuggestion | 'none';
 }): Promise<PageResult<ReviewRequest>> {
   return adminClient<PageResult<ReviewRequest>>('/review/queue', { params });
 }

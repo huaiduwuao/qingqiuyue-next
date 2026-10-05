@@ -6,6 +6,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useHdReviewVideos } from './useHdReviewData';
+import { machineRank } from './hdReviewModel';
 import { getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
@@ -21,6 +22,7 @@ import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
 import LinearProgress from '@mui/material/LinearProgress';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import GppMaybeRoundedIcon from '@mui/icons-material/GppMaybeRounded';
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
@@ -40,6 +42,7 @@ import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
 import { useQuery } from '@tanstack/react-query';
 import {
   HdVideo,
+  MachineCheck,
   Reviewer,
   ReviewerDecision,
   REVIEWER_LEVEL_META,
@@ -48,6 +51,38 @@ import { RelativeTime } from '@/components/common/RelativeTime';
 import { formatCount } from '@/lib/utils/format';
 
 type ReviewTab = 'pending' | 'reviewed';
+
+/** 待审列表按机审结论筛:all 全部,none 机审还没出结论 */
+type MachineFilter = 'all' | MachineCheck['suggestion'] | 'none';
+
+const MACHINE_META: Record<MachineCheck['suggestion'], { label: string; color: string; bg: string }> = {
+  pass: { label: '机审:通过', color: 'var(--fg-green)', bg: 'rgba(93, 219, 150, 0.12)' },
+  review: { label: '机审:需复核', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)' },
+  block: { label: '机审:建议拦截', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
+};
+
+const MACHINE_FILTERS: { value: MachineFilter; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'block', label: '建议拦截' },
+  { value: 'review', label: '需复核' },
+  { value: 'pass', label: '机审通过' },
+  { value: 'none', label: '未出结论' },
+];
+
+function matchMachineFilter(v: HdVideo, f: MachineFilter): boolean {
+  if (f === 'all') return true;
+  const s = v.review?.machine?.suggestion;
+  return f === 'none' ? !s : s === f;
+}
+
+/** 机审标签的悬浮说明:命中标签 + 原因;通过且无标签时说明仍需人工确认。 */
+function machineTooltip(m: MachineCheck): string {
+  const parts: string[] = [];
+  if (m.labels.length > 0) parts.push(`命中:${m.labels.join('、')}`);
+  if (m.reason) parts.push(m.reason);
+  if (parts.length === 0) parts.push(m.suggestion === 'pass' ? '未命中规则,仍需人工确认' : '无详细说明');
+  return parts.join('\n');
+}
 
 /** 审核员就是登录用户;他不在审核团队列表里(例如只有系统超管标记)时,用登录信息兜底。 */
 function selfAsReviewer(id: string, user: any): Reviewer | undefined {
@@ -98,6 +133,7 @@ function formatSize(mb: number): string {
 type RiskLevel = 'low' | 'medium' | 'high';
 function computeRiskLevel(video: HdVideo): RiskLevel {
   if (!video.review) return 'low';
+  if (video.review.machine?.suggestion === 'block') return 'high';
   const failures = video.review.checks.filter((c) => c.status === 'failed');
   const copyrightFailed = failures.some((f) => f.id === 'copyright');
   if (copyrightFailed || failures.length >= 2) return 'high';
@@ -126,6 +162,7 @@ export default function HdReviewPage() {
   const { currentUser } = useApp();
   const currentReviewerId = currentUser?.id ? String(currentUser.id) : '';
   const [tab, setTab] = useState<ReviewTab>('pending');
+  const [machineFilter, setMachineFilter] = useState<MachineFilter>('all');
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(tabParams.video || null);
   const [verdictNote, setVerdictNote] = useState('');
   const [selectedRejectReasons, setSelectedRejectReasons] = useState<string[]>([]);
@@ -153,15 +190,29 @@ export default function HdReviewPage() {
   const queue = useMemo(() => {
     if (!currentReviewer) return { pending: [], reviewed: [] };
     const myVideos = videos.filter((v) => v.review?.assignedReviewerId === currentReviewerId);
+    // 机审建议拦截的排最前,其余保持原顺序
     const pending = myVideos
       .filter((v) => v.status === 'reviewing')
-      .sort((a, b) => (a.review?.queuePosition ?? 99) - (b.review?.queuePosition ?? 99));
+      .sort(
+        (a, b) =>
+          machineRank(a) - machineRank(b) || (a.review?.queuePosition ?? 99) - (b.review?.queuePosition ?? 99),
+      );
     const reviewed = myVideos
       .filter((v) => v.status === 'published' || v.status === 'review_failed')
       .filter((v) => v.review?.completedAt)
       .sort((a, b) => (b.review!.completedAt ?? 0) - (a.review!.completedAt ?? 0));
     return { pending, reviewed };
   }, [videos, currentReviewerId, currentReviewer]);
+
+  const machineCounts = useMemo(() => {
+    const counts: Record<MachineFilter, number> = { all: queue.pending.length, block: 0, review: 0, pass: 0, none: 0 };
+    for (const v of queue.pending) counts[v.review?.machine?.suggestion ?? 'none'] += 1;
+    return counts;
+  }, [queue.pending]);
+  const pendingShown = useMemo(
+    () => queue.pending.filter((v) => matchMachineFilter(v, machineFilter)),
+    [queue.pending, machineFilter],
+  );
 
   const stats = useMemo(() => {
     if (!currentReviewer) {
@@ -397,16 +448,31 @@ export default function HdReviewPage() {
             <Tab value="reviewed" label={`已审 (${queue.reviewed.length})`} />
           </Tabs>
           <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
+            {tab === 'pending' && queue.pending.length > 0 && (
+              <Stack direction="row" spacing={0.5} sx={{ mb: 1, flexWrap: 'wrap', rowGap: 0.5 }}>
+                {MACHINE_FILTERS.filter((f) => f.value === 'all' || machineCounts[f.value] > 0).map((f) => (
+                  <Chip
+                    key={f.value}
+                    size="small"
+                    label={`${f.label} ${machineCounts[f.value]}`}
+                    onClick={() => setMachineFilter(f.value)}
+                    color={machineFilter === f.value ? 'primary' : 'default'}
+                    variant={machineFilter === f.value ? 'filled' : 'outlined'}
+                    sx={{ height: 20, fontSize: 10, '& .MuiChip-label': { px: 0.75 } }}
+                  />
+                ))}
+              </Stack>
+            )}
             {tab === 'pending' && (
-              queue.pending.length === 0 ? (
+              pendingShown.length === 0 ? (
                 <EmptyQueueState
                   icon={<AssignmentTurnedInRoundedIcon sx={{ fontSize: 32, color: 'var(--fg-green)' }} />}
-                  title="队列已清空"
-                  desc="暂无待审视频,稍后再来看看"
+                  title={queue.pending.length === 0 ? '队列已清空' : '没有符合筛选的内容'}
+                  desc={queue.pending.length === 0 ? '暂无待审视频,稍后再来看看' : '换个机审筛选看看'}
                 />
               ) : (
                 <Stack spacing={1}>
-                  {queue.pending.map((v) => (
+                  {pendingShown.map((v) => (
                     <QueueItem
                       key={v.id}
                       video={v}
@@ -621,6 +687,26 @@ function QueueItem({
                 <BoltRoundedIcon sx={{ fontSize: 9 }} />
                 极速
               </Box>
+            )}
+            {isReviewing && video.review?.machine && (
+              <Tooltip
+                title={<Box sx={{ whiteSpace: 'pre-line' }}>{machineTooltip(video.review.machine)}</Box>}
+                arrow
+              >
+                <Box
+                  sx={{
+                    px: 0.4,
+                    py: 0.05,
+                    borderRadius: 0.4,
+                    bgcolor: MACHINE_META[video.review.machine.suggestion].bg,
+                    color: MACHINE_META[video.review.machine.suggestion].color,
+                    fontSize: 9,
+                    fontWeight: 700,
+                  }}
+                >
+                  {MACHINE_META[video.review.machine.suggestion].label}
+                </Box>
+              </Tooltip>
             )}
             {reviewed && result === 'pass' && (
               <Box

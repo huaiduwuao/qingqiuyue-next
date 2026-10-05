@@ -3,7 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReviewRequest } from '@/apis/review';
-import { applyVerdict, mergeReviewVideos, myReviewsToVideos, queueToVideos } from './hdReviewModel';
+import {
+  applyVerdict,
+  machineRank,
+  mergeReviewVideos,
+  myReviewsToVideos,
+  parseMachineCheck,
+  queueToVideos,
+} from './hdReviewModel';
 
 const api = vi.hoisted(() => ({
   pending: [] as any[],
@@ -97,6 +104,42 @@ describe('hdReviewModel', () => {
     expect(out[1].review?.reviewerVerdict).toMatchObject({ decision: 'reject', note: '侵权', appealable: true });
     expect(out[2].review?.reviewerVerdict?.decision).toBe('request_changes');
     expect(out[0].review?.completedAt).toBe(new Date('2026-10-05T09:00:00Z').getTime());
+  });
+
+  it('机审结论:解析标签、落到 AI 初审一项,建议拦截排最前', () => {
+    const [blocked, passed, unchecked] = queueToVideos(
+      [
+        req(1, '1', 'pending', {
+          machineSuggestion: 'block',
+          machineLabels: '["gamble","porn"]',
+          machineReason: '封面违规',
+          machineCheckedAt: '2026-10-05T08:00:05Z',
+        }),
+        req(2, '2', 'pending', { machineSuggestion: 'pass', machineLabels: '[]' }),
+        req(3, '3', 'pending'),
+      ],
+      '7',
+    );
+    expect(blocked.review?.machine).toEqual({
+      suggestion: 'block',
+      labels: ['gamble', 'porn'],
+      reason: '封面违规',
+      checkedAt: new Date('2026-10-05T08:00:05Z').getTime(),
+    });
+    expect(blocked.review?.checks.find((c) => c.id === 'ai_content')).toMatchObject({
+      status: 'failed',
+      message: 'gamble、porn;封面违规',
+    });
+    expect(passed.review?.checks.find((c) => c.id === 'ai_content')?.status).toBe('passed');
+    expect(unchecked.review?.machine).toBeUndefined();
+    expect(unchecked.review?.checks.find((c) => c.id === 'ai_content')?.status).toBe('pending');
+    expect([unchecked, passed, blocked].sort((a, b) => machineRank(a) - machineRank(b))[0].id).toBe('1');
+  });
+
+  it('机审列坏数据:不认识的结论当没有,标签不是 JSON 数组就当空', () => {
+    expect(parseMachineCheck(req(1, '1', 'pending', { machineSuggestion: 'weird' as never }))).toBeUndefined();
+    expect(parseMachineCheck(req(1, '1', 'pending', { machineSuggestion: 'review', machineLabels: 'oops' }))?.labels).toEqual([]);
+    expect(parseMachineCheck(req(1, '1', 'pending', { machineSuggestion: 'review', machineLabels: '{"a":1}' }))?.labels).toEqual([]);
   });
 
   it('合并时前面的来源优先(重新提交的以队列为准)', () => {

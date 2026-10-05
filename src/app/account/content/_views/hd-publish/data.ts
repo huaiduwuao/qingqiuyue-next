@@ -88,6 +88,16 @@ export interface ReviewInfo {
   queuePosition?: number;
   estimatedWaitMin?: number;
   reviewerVerdict?: ReviewerVerdict;
+  /** 机审预检结论(审核单上的 machine_*),只给审核员参考 */
+  machine?: MachineCheck;
+}
+
+/** 机审预检:pass 通过 / review 需复核 / block 建议拦截 */
+export interface MachineCheck {
+  suggestion: 'pass' | 'review' | 'block';
+  labels: string[];
+  reason?: string;
+  checkedAt?: number;
 }
 
 export interface HdVideo {

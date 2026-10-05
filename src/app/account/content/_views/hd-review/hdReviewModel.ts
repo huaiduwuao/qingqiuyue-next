@@ -1,7 +1,13 @@
 // 审核员工作台的纯函数:审核单 → 页面用的 HdVideo(无 React 依赖)。
 import type { ReviewRequest } from '@/apis/review';
 import { gradient2 } from '@/constants/gradients';
-import { REVIEW_CHECK_TEMPLATE, type HdVideo, type ReviewCheck, type ReviewerDecision } from '../hd-publish/data';
+import {
+  REVIEW_CHECK_TEMPLATE,
+  type HdVideo,
+  type MachineCheck,
+  type ReviewCheck,
+  type ReviewerDecision,
+} from '../hd-publish/data';
 
 const APPEAL_WINDOW_MS = 7 * 86400000;
 
@@ -34,17 +40,53 @@ function baseVideo(r: ReviewRequest): Omit<HdVideo, 'status'> {
   };
 }
 
+const MACHINE_SUGGESTIONS = new Set<MachineCheck['suggestion']>(['pass', 'review', 'block']);
+
+/** 审核单上的机审列 → MachineCheck;还没出结论(或值不认识)时为 undefined。标签列是 JSON 数组,坏了就当没有。 */
+export function parseMachineCheck(r: ReviewRequest): MachineCheck | undefined {
+  const s = r.machineSuggestion;
+  if (!s || !MACHINE_SUGGESTIONS.has(s)) return undefined;
+  let labels: string[] = [];
+  if (r.machineLabels) {
+    try {
+      const parsed: unknown = JSON.parse(r.machineLabels);
+      if (Array.isArray(parsed)) labels = parsed.filter((l): l is string => typeof l === 'string' && l !== '');
+    } catch {
+      labels = [];
+    }
+  }
+  return { suggestion: s, labels, reason: r.machineReason || undefined, checkedAt: toMs(r.machineCheckedAt ?? undefined) };
+}
+
+/** 机审结论落到「AI 内容初审」一项上:通过 = passed,需复核 / 建议拦截 = failed(带标签说明)。 */
+function withMachine(checks: ReviewCheck[], m: MachineCheck | undefined): ReviewCheck[] {
+  if (!m) return checks;
+  const message = [m.labels.join('、'), m.reason].filter(Boolean).join(';') || undefined;
+  return checks.map((c) =>
+    c.id === 'ai_content' ? { ...c, status: m.suggestion === 'pass' ? 'passed' : 'failed', message } : c,
+  );
+}
+
+/** 队列排序用:建议拦截的排最前(与服务端 /review/queue 的排序一致)。 */
+export function machineRank(v: HdVideo): number {
+  return v.review?.machine?.suggestion === 'block' ? 0 : 1;
+}
+
 /** 待审队列(pending + resubmit)→ 审核中的视频,都算分给当前审核员。开始时间取审核单创建时间。 */
 export function queueToVideos(queue: ReviewRequest[] | undefined, reviewerId: string): HdVideo[] {
-  return (queue ?? []).map((r) => ({
-    ...baseVideo(r),
-    status: 'reviewing',
-    review: {
-      checks: checksWith('pending'),
-      startedAt: toMs(r.createdAt),
-      assignedReviewerId: reviewerId,
-    },
-  }));
+  return (queue ?? []).map((r) => {
+    const machine = parseMachineCheck(r);
+    return {
+      ...baseVideo(r),
+      status: 'reviewing',
+      review: {
+        checks: withMachine(checksWith('pending'), machine),
+        startedAt: toMs(r.createdAt),
+        assignedReviewerId: reviewerId,
+        machine,
+      },
+    };
+  });
 }
 
 const DECISION_BY_STATUS: Partial<Record<ReviewRequest['status'], ReviewerDecision>> = {
