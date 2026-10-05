@@ -21,6 +21,16 @@ describe('PlayTag appOnly', () => {
     expect(screen.getByText('App 可看')).toBeTruthy();
   });
 
+  it('调用方给了「可播」也按接口改成「App 可看」', () => {
+    render(<PlayTag id="1" contentType="ANIMATION" status="resolvable" />);
+    expect(screen.getByText('App 可看')).toBeTruthy();
+  });
+
+  it('调用方给的不是可播状态时照用', () => {
+    render(<PlayTag id="1" contentType="ANIMATION" status="bandwidth_limited" />);
+    expect(screen.getByText('去原站看')).toBeTruthy();
+  });
+
   it('客户端里照常「站内可播」', () => {
     desktop.value = true;
     render(<PlayTag id="1" contentType="ANIMATION" />);

@@ -23,6 +23,9 @@ import type { SxProps, Theme } from '@mui/material/styles';
 /** 这些类型没有能不能播的问题,不必发请求。 */
 const INERT_TYPES = new Set(['WALLPAPER', 'PICTURE', 'PERSON', 'TOPIC', 'USER', 'PLAYLIST']);
 
+/** 「站内可播」的几种状态(见 AvailabilityBadge.specOf)。 */
+const WATCHABLE = new Set(['playable', 'resolvable', 'embeddable']);
+
 export interface PlayTagProps {
   id?: EntityId | null;
   /** 内容类型(大写 code);认得出是壁纸 / 人物时直接不画。 */
@@ -64,11 +67,15 @@ export function PlayTag({ id, contentType, status, readyItems, totalItems, varia
   const ct = (contentType || '').toUpperCase();
   const inert = INERT_TYPES.has(ct);
   const given = status && status !== 'unknown' ? status : undefined;
-  const item = usePlayAvailability(id, inert || !!given);
+  // 网页上调用方给的「可播」也要问一次接口:推荐 / 榜单 / 搜索的 playbackStatus 不分网页和 App,
+  // 只有接口的 appOnly 说得出「网页放不了」。客户端里不必问。
+  const native = isDesktopClient();
+  const askAppOnly = !!given && !native && WATCHABLE.has(given);
+  const item = usePlayAvailability(id, inert || (!!given && !askAppOnly));
   if (inert) return null;
 
   // 接口说只有 App 能放(取片要带源站 Referer)时,网页上标「App 可看」;客户端里照常「站内可播」。
-  const st = !given && item?.ok && item.appOnly && !isDesktopClient() ? 'app_only' : (given ?? item?.status);
+  const st = (!given || askAppOnly) && item?.ok && item.appOnly && !native ? 'app_only' : (given ?? item?.status);
   if (!st || item?.axis === 'none' || st === 'not_applicable') return null;
 
   const ready = readyItems ?? item?.readyItems;
