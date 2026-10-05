@@ -8,7 +8,7 @@ import { toEntityId, type EntityId } from '@/lib/id';
 
 export interface ShareTask {
   id: number;
-  platform: string;        // douyin/kuaishou/xiaohongshu
+  platform: string;        // douyin/kuaishou/xiaohongshu/youtube/tiktok
   contentType: string;     // topic/work/...
   contentId: EntityId;
   status: 'pending' | 'uploading' | 'publishing' | 'success' | 'failed';
@@ -20,6 +20,12 @@ export interface ShareTask {
   startedAt?: number;
   finishedAt?: number;
   createTime: string;
+  /** YouTube / TikTok:要的可见性、实际可见性、平台限制提示(应用未过审只能私享等) */
+  privacy?: string;
+  appliedPrivacy?: string;
+  notice?: string;
+  /** 短剧成片任务的语种 */
+  lang?: string;
 }
 
 export interface PlatformAccountBrief {

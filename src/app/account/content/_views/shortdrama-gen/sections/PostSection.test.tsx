@@ -19,6 +19,10 @@ vi.mock('@/apis/shortdrama', async (orig) => ({
   dramaAPI: api,
 }));
 
+// 发布到 YouTube / TikTok 面板读 core-api 的账号;这里一律当作没绑定
+vi.mock('@/apis/share', () => ({ listAccounts: vi.fn().mockResolvedValue([]) }));
+vi.mock('@/apis/share-account', () => ({ platforms: vi.fn().mockResolvedValue([]) }));
+
 import PostSection from './PostSection';
 
 const episode = {
