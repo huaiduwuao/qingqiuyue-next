@@ -47,7 +47,7 @@ export interface IntentPlan {
 
 export interface ToolCall {
   name: string
-  arguments?: Record<string, any>
+  arguments?: Record<string, unknown>
 }
 
 export interface AnalyzeResponse {
@@ -83,7 +83,7 @@ export interface UIHeader {
 
 export interface UIBody {
   type: UIBodyType
-  content: any
+  content: unknown
 }
 
 // 内容类型
@@ -125,7 +125,7 @@ export interface FormField {
   label: string
   placeholder?: string
   required?: boolean
-  default?: any
+  default?: unknown
   options?: SelectOption[]
 }
 
@@ -141,7 +141,7 @@ export interface UIAction {
   style: UIActionStyle
   handler: 'agent' | 'tool' | 'navigate' | 'intent' | 'ui'
   target?: string
-  params?: Record<string, any>
+  params?: Record<string, unknown>
   disabled?: boolean
 }
 
@@ -182,7 +182,7 @@ export interface ExecuteRequest {
   userId?: number
   plan?: ExecutionPlan
   branches?: IntentBranch[]
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 }
 
 export interface ExecuteResponse {
@@ -210,7 +210,7 @@ export interface AgentResult {
   agentId: string
   success: boolean
   response?: string
-  data?: any
+  data?: unknown
   toolCalls?: ToolCall[]
   suggestedUI?: DynamicUI
 }
@@ -218,7 +218,7 @@ export interface AgentResult {
 export interface ToolResult {
   tool: string
   success: boolean
-  result?: any
+  result?: unknown
   error?: string
 }
 
@@ -230,7 +230,7 @@ export interface UIResult {
 
 export interface AggregatedResult {
   text: string
-  data?: any
+  data?: unknown
   ui?: DynamicUI
   avatar?: UIAvatar
   nextActions?: UIAction[]
@@ -253,7 +253,7 @@ export interface AnalyzeRequest {
   availableAgents?: AgentInfo[]
   availableTools?: ToolInfo[]
   recentIntents?: string[]
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 }
 
 export interface AgentInfo {
@@ -266,5 +266,5 @@ export interface AgentInfo {
 export interface ToolInfo {
   name: string
   description: string
-  parameters?: Record<string, any>
+  parameters?: Record<string, unknown>
 }

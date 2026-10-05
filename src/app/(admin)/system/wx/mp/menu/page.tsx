@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getWxMenu, saveWxMenu } from '@/apis/wx-mp';
+import { getWxMenu, saveWxMenu, type WxMenuNode } from '@/apis/wx-mp';
 import { formatApiError } from '@/lib/api/client';
 import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 import AddIcon from '@mui/icons-material/Add';
@@ -28,8 +28,8 @@ const menuOptions = [
 
 export default function WxMpMenuPage() {
   const qc = useQueryClient();
-  const [checkedFirstMenu, setCheckedFirstMenu] = useState<any>(null);
-  const [checked, setChecked] = useState<any>('');
+  const [checkedFirstMenu, setCheckedFirstMenu] = useState<string | null>(null);
+  const [checked, setChecked] = useState<string>('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -41,11 +41,11 @@ export default function WxMpMenuPage() {
     staleTime: Infinity, // 编辑中的树就放在这个缓存里,不能被后台重新拉取冲掉
     placeholderData: [],
   });
-  const data: any[] = menuQuery.data || [];
+  const data: WxMenuNode[] = menuQuery.data || [];
 
   const publishMutation = useMutation({
     mutationFn: (publish: boolean) => saveWxMenu(data, publish),
-    onSuccess: (r: any) => {
+    onSuccess: (r) => {
       showMessage(r?.msg || r?.message || '已保存');
       qc.invalidateQueries({ queryKey: LIST_KEY }); // 拿回落库后的真实 id
     },
@@ -66,7 +66,7 @@ export default function WxMpMenuPage() {
     qc.setQueryData(LIST_KEY, newData);
   };
 
-  const addSubMenu = (firMenu: any) => {
+  const addSubMenu = (firMenu: WxMenuNode) => {
     const newData = data.map(ele => {
       if (ele.id === firMenu.id) {
         return { ...ele, sub_button: [...(ele.sub_button || []), { name: '子菜单', id: crypto.randomUUID(), type: '' }] };
@@ -90,7 +90,7 @@ export default function WxMpMenuPage() {
     } else {
       newData = data.map(ele => {
         if (ele.id === checkedFirstMenu) {
-          return { ...ele, sub_button: ele.sub_button?.filter((sub: any) => sub.id !== checked) || [] };
+          return { ...ele, sub_button: ele.sub_button?.filter((sub) => sub.id !== checked) || [] };
         }
         return ele;
       });
@@ -100,7 +100,7 @@ export default function WxMpMenuPage() {
     setCheckedFirstMenu(null);
   };
 
-  const handleTypeObjChange = (key: string, value: any) => {
+  const handleTypeObjChange = (key: string, value: unknown) => {
     const newData = data.map(ele => {
       if (checkedFirstMenu === checked && ele.id === checked) {
         return { ...ele, [key]: value };
@@ -108,7 +108,7 @@ export default function WxMpMenuPage() {
       if (ele.id === checkedFirstMenu) {
         return {
           ...ele,
-          sub_button: ele.sub_button?.map((sub: any) => {
+          sub_button: ele.sub_button?.map((sub) => {
             if (sub.id === checked) {
               return { ...sub, [key]: value };
             }
@@ -129,7 +129,7 @@ export default function WxMpMenuPage() {
       if (ele.id === checkedFirstMenu) {
         return {
           ...ele,
-          sub_button: ele.sub_button?.map((sub: any) => {
+          sub_button: ele.sub_button?.map((sub) => {
             if (sub.id === checked) {
               return { ...sub, name: e.target.value };
             }
@@ -148,7 +148,7 @@ export default function WxMpMenuPage() {
       return data.find(ele => ele.id === checked);
     } else {
       const firMenu = data.find(ele => ele.id === checkedFirstMenu);
-      return firMenu?.sub_button?.find((sub: any) => sub.id === checked);
+      return firMenu?.sub_button?.find((sub) => sub.id === checked);
     }
   };
 
@@ -165,7 +165,7 @@ export default function WxMpMenuPage() {
         <Card sx={{ width: 300, p: 2 }}>
           <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>公众号</Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center', mb: 2 }}>
-            {data.map((firMenu: any) => (
+            {data.map((firMenu) => (
               <Box key={firMenu.id} sx={{ position: 'relative' }}>
                 <Button
                   variant={checked === firMenu.id ? 'contained' : 'outlined'}
@@ -176,7 +176,7 @@ export default function WxMpMenuPage() {
                 </Button>
                 {checkedFirstMenu === firMenu.id && (
                   <Box sx={{ position: 'absolute', top: '100%', left: 0, mt: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1, minWidth: 100, zIndex: 1 }}>
-                    {firMenu.sub_button?.map((subMenu: any) => (
+                    {firMenu.sub_button?.map((subMenu) => (
                       <Box key={subMenu.id}>
                         <Button
                           fullWidth
@@ -188,7 +188,7 @@ export default function WxMpMenuPage() {
                         </Button>
                       </Box>
                     ))}
-                    {firMenu.sub_button?.length < 5 && (
+                    {(firMenu.sub_button?.length ?? Infinity) < 5 && (
                       <Button size="small" startIcon={<AddIcon />} onClick={() => addSubMenu(firMenu)} sx={{ justifyContent: 'flex-start' }}>
                         添加
                       </Button>
