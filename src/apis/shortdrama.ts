@@ -113,11 +113,39 @@ export interface FinalCut {
   at: string;
 }
 
+/** 发到 YouTube / TikTok 的一条记录(按账号) */
+export interface SocialPostRecord {
+  platform: string;
+  account_id: number;
+  account_name: string;
+  lang: string;
+  task_id: number;
+  status: 'pending' | 'uploading' | 'publishing' | 'success' | 'failed';
+  remote_id?: string;
+  remote_url?: string;
+  error?: string;
+  /** 平台限制提示:应用未过审只能私享 / 仅自己可见、超过 3 分钟不进 Shorts 等 */
+  notice?: string;
+  privacy?: string;
+  retry_count?: number;
+  at: string;
+}
+
 /** 某平台的发布文案 */
 export interface PlatformCopy {
   title: string;
   caption: string;
   hashtags: string[];
+  /** YouTube / TikTok 的发布记录,键是平台账号 id */
+  posts?: Record<string, SocialPostRecord>;
+}
+
+export interface SocialPostResult {
+  created: number;
+  reused: number;
+  skipped: string[] | null;
+  errors: string[] | null;
+  distribution: Episode['distribution'];
 }
 
 /** 某语种的配音 */
@@ -435,6 +463,14 @@ export const dramaAPI = {
   deleteShot: (id: number) => call<{ status: string }>(`/shots/${id}`, del),
 
   /** 字幕文本(按当前镜头与配音时长现算,和成片同一条时间线) */
+  /** 发布到 YouTube / TikTok:只由用户点按钮触发;上传在 core-api 里异步进行,进度用 socialRefresh 拉 */
+  socialPost: (
+    epId: number,
+    body: { lang: string; platforms?: string[]; account_ids?: number[]; privacy?: string; force?: boolean },
+  ) => call<SocialPostResult>(`/episodes/${epId}/social/post`, json(body)),
+  /** 把进行中的发布记录同步成最新状态,返回最新 distribution */
+  socialRefresh: (epId: number) =>
+    call<{ distribution: Episode['distribution'] }>(`/episodes/${epId}/social/refresh`, { method: 'POST' }),
   subtitles: async (epId: number, lang: string, format: 'srt' | 'vtt' = 'srt'): Promise<string> => {
     const res = await authFetch(`${BASE}/episodes/${epId}/subtitles?lang=${encodeURIComponent(lang)}&format=${format}`);
     if (!res.ok) {

@@ -8,7 +8,7 @@
  */
 
 import { formatDuration } from '@/lib/utils/format';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -35,6 +35,7 @@ import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { dramaAPI, type FinalCut, type Lang, type PlatformCopy, type Shot, type Step } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty } from '../common';
+import SocialPublishPanel from './SocialPublishPanel';
 import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
 
 const FALLBACK_LANGS: Lang[] = [{ code: 'zh', name: '中文', en: 'Simplified Chinese', cjk: true, dubbing: false }];
@@ -84,6 +85,9 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
     if (view !== src && !targets.includes(view)) setView(src);
   }, [view, src, targets]);
 
+  const curId = current?.id;
+  const onSocialChanged = useCallback(() => invalidate(curId), [invalidate, curId]);
+
   if (ov.isLoading || !ov.data) return <Skeleton variant="rounded" height={320} />;
   if (episodes.length === 0) {
     return <Empty title="还没有分集" hint="先在「剧本」里让编剧搭框架。" action={<Button variant="contained" onClick={() => setSection('script')}>去剧本</Button>} />;
@@ -99,7 +103,10 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
   const dubbed = spoken.filter((s) => s.audio?.[view]?.url);
   const rendered = shots.filter((s) => s.frame_url || s.video_url);
   const final: FinalCut | undefined = e.finals?.[view] ?? undefined;
-  const copies: Record<string, PlatformCopy> = e.distribution?.[view] ?? {};
+  // 只发过 YouTube / TikTok、还没写文案的平台只有发布记录的空壳,不算文案
+  const copies: Record<string, PlatformCopy> = Object.fromEntries(
+    Object.entries(e.distribution?.[view] ?? {}).filter(([, c]) => !!(c?.title || c?.caption)),
+  );
 
   const guard = async (fn: () => Promise<unknown>) => {
     setErr('');
@@ -370,7 +377,7 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
           分发文案 · {viewLang.name}
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          站内用顶部的「发布为作品」;其它平台目前需要你下载成片、复制这里的文案后到对应平台手动发布。
+          站内用顶部的「发布为作品」;YouTube / TikTok 可以用下面的「发布到 YouTube / TikTok」直接上传;其它平台需要你下载成片、复制这里的文案后手动发布。
         </Typography>
         {Object.keys(copies).length === 0 ? (
           <Typography variant="body2" color="text.secondary">
@@ -413,6 +420,8 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
           </Grid>
         )}
       </Paper>
+
+      <SocialPublishPanel episode={e} lang={view} langName={viewLang.name} onChanged={onSocialChanged} />
     </Stack>
   );
 }
