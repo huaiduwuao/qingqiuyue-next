@@ -25,6 +25,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { CoverImage } from '@/components/common/CoverImage';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { listItemDurationSec } from '@/lib/content/duration';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { fetchTopicContents } from '@/apis/community';
 import { moduleContentPage } from '@/apis/home';
@@ -113,15 +114,8 @@ function toFeedRecord(item: any) {
   if (!postedAgoMin && item.createTime) {
     postedAgoMin = Math.floor((Date.now() - new Date(item.createTime).getTime()) / 60000);
   }
-  // durationSec:从 content 字段提取(如 "01:23:45" → 5025秒)
-  let durationSec = item.durationSec || item.duration || 0;
-  if (!durationSec && typeof item.content === 'string') {
-    const match = item.content.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-    if (match) {
-      const [, h, m, s] = match;
-      durationSec = (parseInt(h) * 3600) + (parseInt(m) * 60) + (parseInt(s || '0'));
-    }
-  }
+  // durationSec:接口字段 → metadata.duration(秒)。不再从 content 正文里抓 "mm:ss"(见 listItemDurationSec)
+  const durationSec = listItemDurationSec(item);
   return {
     ...item,
     id: safeId(item.id),

@@ -21,7 +21,10 @@ export interface ModuleContentItem {
   categoryId?: number;
   title: string;
   subtitle?: string;
+  /** 列表接口里只有正文前 300 字(JSON 正文除外),完整正文走详情接口 */
   content?: string;
+  /** 列表里的 content 被截过 */
+  contentTruncated?: boolean;
   contentType: string;
   coverUrl?: string;
   cover?: string;
