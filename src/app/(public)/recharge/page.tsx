@@ -37,7 +37,7 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { isAuthError, formatApiError } from '@/lib/api/client';
 import { FEN_PER_DIAMOND, getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
-import { createOrder, getDiamondPackages, getPaymentChannels, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
+import { createOrder, getDiamondPackages, getPaymentChannels, orderQrCode, payWithWechatJSAPI, type OrderPayParams, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
 import {
   getDiamondBenefits,
   getDiamondActivity,
@@ -142,7 +142,7 @@ function RechargePageContent() {
     amount: number;
     diamonds: number;
     method: PayMethod;
-    payParams?: { code_url?: string; codeUrl?: string; [k: string]: unknown };
+    payParams?: OrderPayParams;
   } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
 
@@ -323,6 +323,15 @@ function RechargePageContent() {
         method: payMethod,
         payParams: res.payParams,
       });
+      // 微信内置浏览器 + 后端给了 JSAPI 参数:直接调起微信支付,不弹二维码
+      const jsapi = payWithWechatJSAPI(res.payParams);
+      if (jsapi) {
+        const ok = await jsapi;
+        await Promise.all([walletQ.refetch(), txQ.refetch()]).catch(() => undefined);
+        setOrder(null);
+        setToast({ open: true, msg: ok ? '支付完成,钻石到账后余额自动更新' : '支付未完成', severity: ok ? 'success' : 'info' });
+        return;
+      }
       setPayDialogOpen(true);
     } catch (err) {
       if (isAuthError(err)) {
@@ -1217,7 +1226,7 @@ function RechargePageContent() {
               {(() => {
                 // 只在支付网关真的给了 code_url 时才渲染二维码。
                 // 拿不到就如实说明未接通,不再自己画一张扫不出结果的图。
-                const codeUrl = (order.payParams?.code_url ?? order.payParams?.codeUrl) as string | undefined;
+                const codeUrl = orderQrCode(order.payParams);
                 const methodLabel = PAY_METHODS.find((m) => m.key === order.method)?.label;
                 if (!codeUrl) {
                   return (

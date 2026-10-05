@@ -1,6 +1,7 @@
 import { accountClient } from '@/lib/api/client';
 import type { LegacyPageResult, PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
+import { inWechatBrowser } from '@/lib/clientAuth';
 
 // 支付系统 API
 
@@ -75,12 +76,45 @@ export async function getPaymentChannels(): Promise<{ wechat: boolean; alipay: b
 }
 
 // 创建订单
+// 后端 payParams 形如 { channel, orderNo, qrCode, jsapi?, payParams }:
+// qrCode 是 Native / 支付宝当面付的扫码链接;jsapi=true 时内层 payParams 是 getBrandWCPayRequest 的参数。
+export interface OrderPayParams {
+  qrCode?: string;
+  code_url?: string;
+  codeUrl?: string;
+  jsapi?: boolean;
+  payParams?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
 export async function createOrder(params: {
   orderType: 'diamond' | 'membership';
   productId: number;
   channel: 'wechat' | 'alipay';
-}): Promise<{ orderNo: string; amount: number; payParams: { code_url?: string; codeUrl?: string; [k: string]: unknown } }> {
-  return await accountClient('/payment/orders', { method: 'POST', data: params });
+}): Promise<{ orderNo: string; amount: number; payParams: OrderPayParams }> {
+  // 微信内置浏览器里扫不了自己屏幕上的码:告诉后端走 JSAPI(没绑服务号时后端仍回二维码)
+  const data = params.channel === 'wechat' && inWechatBrowser() ? { ...params, scene: 'jsapi' } : params;
+  return await accountClient('/payment/orders', { method: 'POST', data });
+}
+
+/** 订单里的扫码链接(微信 Native / 支付宝当面付)。 */
+export function orderQrCode(p?: OrderPayParams): string | undefined {
+  const v = p?.qrCode || p?.code_url || p?.codeUrl;
+  return typeof v === 'string' && v ? v : undefined;
+}
+
+/**
+ * 有 JSAPI 参数就在微信里直接调起支付。返回 null 表示不适用(不在微信里 / 没有 JSAPI 参数),调用方照旧展示二维码;
+ * 否则返回 true = 用户支付完成(到账仍以后端回调为准),false = 取消或失败。
+ */
+export function payWithWechatJSAPI(p?: OrderPayParams): Promise<boolean> | null {
+  const bridge = typeof window === 'undefined' ? undefined : (window as unknown as {
+    WeixinJSBridge?: { invoke: (api: string, args: unknown, cb: (r: { err_msg?: string }) => void) => void };
+  }).WeixinJSBridge;
+  if (!p?.jsapi || !p.payParams || !bridge) return null;
+  return new Promise((resolve) => {
+    bridge.invoke('getBrandWCPayRequest', p.payParams, (r) => resolve(r?.err_msg === 'get_brand_wcpay_request:ok'));
+  });
 }
 
 // 获取订单列表

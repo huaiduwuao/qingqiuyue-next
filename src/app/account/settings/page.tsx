@@ -46,6 +46,7 @@ import { fileUpload } from '@/apis/global';
 import { sendSmsCode } from '@/apis/user';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { authPlatform, isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 
@@ -507,7 +508,10 @@ function WechatDialog({
   // 获取授权 URL
   const fetchAuthUrl = async () => {
     try {
-      const res = await accountClient.get<{ authUrl?: string } | null>('/oauth/bind/wechat');
+      // platform 同登录按钮:客户端里要用该平台的微信应用,授权完由后端回跳 qingqiuyue:// 深链
+      const res = await accountClient.get<{ authUrl?: string } | null>('/oauth/bind/wechat', {
+        params: { platform: authPlatform() },
+      });
       // 拦截器已把 body({code,msg,data:{authUrl}})剥到业务数据层,这里直接读 res.authUrl。
       const authUrl = res?.authUrl;
       if (authUrl) {
@@ -523,6 +527,17 @@ function WechatDialog({
   // 打开微信授权窗口
   const openAuthWindow = () => {
     if (!authUrl) return;
+    if (isDesktopClient()) {
+      // 客户端 WebView 里 window.open 不生效:交给系统浏览器,完成后后端回跳 qingqiuyue://social-login?action=bind
+      void openExternalUrl(authUrl).then((ok) => {
+        if (ok) setBindStatus('scanning');
+        else {
+          setBindStatus('error');
+          onSaved('无法打开系统浏览器,请重试', 'error');
+        }
+      });
+      return;
+    }
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;

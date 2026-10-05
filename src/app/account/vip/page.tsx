@@ -30,6 +30,8 @@ import {
   getMembershipStatus,
   getPaymentChannels,
   getOrderList,
+  orderQrCode,
+  payWithWechatJSAPI,
   type MembershipPlan,
   type PaymentOrder,
 } from '@/apis/payment';
@@ -107,8 +109,15 @@ export default function VipPage() {
         setSnack('下单失败:支付服务没有返回订单号');
         return;
       }
-      const params = res.payParams as { code_url?: string; codeUrl?: string } | undefined;
-      setPayment({ orderNo: res.orderNo, codeUrl: params?.code_url ?? params?.codeUrl });
+      // 微信内置浏览器 + 后端给了 JSAPI 参数:直接调起微信支付,不弹二维码
+      const jsapi = payWithWechatJSAPI(res.payParams);
+      if (jsapi) {
+        const ok = await jsapi;
+        await handlePaid();
+        if (!ok) setSnack('支付未完成');
+        return;
+      }
+      setPayment({ orderNo: res.orderNo, codeUrl: orderQrCode(res.payParams) });
       qc.invalidateQueries({ queryKey: ['payment-orders'] });
     } catch (err) {
       setSnack(isAuthError(err) ? '登录已过期,请重新登录' : formatApiError(err) || '下单失败');
