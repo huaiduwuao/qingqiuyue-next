@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { getNovelProgress, saveNovelProgress } from '@/apis/content-novel-chapter';
+import { visitorId } from '@/lib/track';
 
 /**
  * 小说阅读器的主题与偏好,版式对齐起点中文网的新版阅读页:
@@ -21,6 +23,8 @@ export interface ReaderTheme {
   /** 浅色块:章末导航条、按钮悬停 */
   fill: string;
   dark: boolean;
+  /** 强调色(进度条、选中态);不填用 READER_ACCENT */
+  accent?: string;
 }
 
 export const READER_THEMES: ReaderTheme[] = [
@@ -29,10 +33,15 @@ export const READER_THEMES: ReaderTheme[] = [
   { id: 'yellow', label: '米黄', paper: '#F4ECD1', page: '#E9DFBF', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
   { id: 'green', label: '护眼', paper: '#DAF2DA', page: '#CBE5CB', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
   { id: 'blue', label: '天青', paper: '#DCEAEE', page: '#CDDDE2', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
-  { id: 'night', label: '夜间', paper: '#191919', page: '#0E0E0E', text: 'rgba(255,255,255,.72)', sub: 'rgba(255,255,255,.4)', line: 'rgba(255,255,255,.08)', fill: 'rgba(255,255,255,.06)', dark: true },
+  // 夜间:暖色深底 + 暖灰字,对比度压到 6:1 左右(纯黑底配亮白字在暗处刺眼);强调色也调暗
+  { id: 'night', label: '夜间', paper: '#1C1B19', page: '#151412', text: '#9E998F', sub: '#6B675F', line: 'rgba(255,245,230,.07)', fill: 'rgba(255,245,230,.05)', dark: true, accent: '#B0564E' },
 ];
 
 export const READER_ACCENT = '#E5353E';
+
+export function accentOf(theme: ReaderTheme): string {
+  return theme.accent ?? READER_ACCENT;
+}
 
 export const READER_FONTS = [
   { id: 'hei', label: '黑体', css: 'SourceHanSansSC-Regular, "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif' },
@@ -80,7 +89,8 @@ export function fontOf(id: string): string {
 
 /** 纸张噪点纹理,叠在底色上 */
 export function noiseLayer(dark: boolean): string {
-  const alpha = dark ? 0.05 : 0.07;
+  // 深色底上的白噪点很显眼,夜间压淡
+  const alpha = dark ? 0.025 : 0.07;
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 ${dark ? 1 : 0} 0 0 0 0 ${dark ? 1 : 0} 0 0 0 0 ${dark ? 1 : 0} 0 0 0 ${alpha} 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>`;
   return `url("data:image/svg+xml;utf8,${svg}")`;
 }
@@ -134,10 +144,25 @@ export function useReaderPrefs() {
 
 const PROGRESS_KEY = 'qq-novel-progress:';
 
-/** 每本书最后读到的位置。老格式(纯 chapterId 字符串)兼容。 */
+/**
+ * 每本书最后读到的位置。老格式(纯 chapterId 字符串)兼容。
+ * page 是章内页号,换了屏幕尺寸 / 字号就不准;para + offset 是该页第一个字所在的段落和段内偏移,
+ * 恢复时优先按它找回同一段文字。updatedAt(毫秒)用来在本地和服务端两份里挑新的。
+ */
 export interface ProgressPayload {
   chapterId: string;
   page: number;
+  para?: number;
+  offset?: number;
+  updatedAt?: number;
+}
+
+function normalizeProgress(raw: unknown): ProgressPayload | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = raw as Record<string, unknown>;
+  if (typeof p.chapterId !== 'string' || !p.chapterId) return null;
+  const num = (v: unknown) => Math.max(0, Number(v) || 0);
+  return { chapterId: p.chapterId, page: num(p.page), para: num(p.para), offset: num(p.offset), updatedAt: num(p.updatedAt) };
 }
 
 export function loadProgress(bookId: string): ProgressPayload | null {
@@ -145,11 +170,7 @@ export function loadProgress(bookId: string): ProgressPayload | null {
     const raw = localStorage.getItem(PROGRESS_KEY + bookId);
     if (!raw) return null;
     try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed.chapterId === 'string') {
-        return { chapterId: parsed.chapterId, page: Number(parsed.page) || 0 };
-      }
-      return { chapterId: raw, page: 0 };
+      return normalizeProgress(JSON.parse(raw)) ?? { chapterId: raw, page: 0 };
     } catch {
       return { chapterId: raw, page: 0 };
     }
@@ -158,10 +179,58 @@ export function loadProgress(bookId: string): ProgressPayload | null {
   }
 }
 
+/** 本地和服务端两份进度里取较新的一份 */
+export function newerProgress(a: ProgressPayload | null, b: ProgressPayload | null): ProgressPayload | null {
+  if (!a) return b;
+  if (!b) return a;
+  return (b.updatedAt ?? 0) > (a.updatedAt ?? 0) ? b : a;
+}
+
+const SYNC_DELAY_MS = 1500;
+let pendingSync: { bookId: string; payload: ProgressPayload } | null = null;
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flushSync() {
+  clearTimeout(syncTimer);
+  syncTimer = undefined;
+  const job = pendingSync;
+  pendingSync = null;
+  if (!job) return;
+  void saveNovelProgress({ bookId: job.bookId, deviceId: visitorId(), ...job.payload }).catch(() => {
+    /* 网络不通就只留本地那份,下次翻页再同步 */
+  });
+}
+
+if (typeof window !== 'undefined') {
+  // 切后台 / 关页面时把还没发出去的进度立刻发掉(手机上切走 App 常常就不回来了)
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') flushSync();
+  };
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', flushSync);
+}
+
+/** 本地立即写;服务端按设备 id(登录后也挂到账号上)合并后延迟写,连续翻页只发最后一次 */
 export function saveProgress(bookId: string, payload: ProgressPayload) {
+  const stamped = { ...payload, updatedAt: Date.now() };
   try {
-    localStorage.setItem(PROGRESS_KEY + bookId, JSON.stringify(payload));
+    localStorage.setItem(PROGRESS_KEY + bookId, JSON.stringify(stamped));
   } catch {
     /* ignore */
+  }
+  // 换了一本书,上一本的先发掉
+  if (pendingSync && pendingSync.bookId !== bookId) flushSync();
+  pendingSync = { bookId, payload: stamped };
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flushSync, SYNC_DELAY_MS);
+}
+
+/** 服务端这台设备(登录时含本人其它设备)的进度;拿不到返回 null */
+export async function fetchRemoteProgress(bookId: string): Promise<ProgressPayload | null> {
+  const deviceId = visitorId();
+  try {
+    return normalizeProgress(await getNovelProgress({ bookId, deviceId }));
+  } catch {
+    return null;
   }
 }

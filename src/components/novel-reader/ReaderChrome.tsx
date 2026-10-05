@@ -25,7 +25,7 @@ import type { ContentItem } from '@/hooks/useContentItems';
 import {
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
-  READER_ACCENT,
+  accentOf,
   READER_FONTS,
   READER_THEMES,
   READER_WIDTHS,
@@ -82,7 +82,7 @@ export function ReaderChrome(props: ReaderChromeProps) {
     <>
       {/* 顶部细进度条 */}
       <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 1300, pointerEvents: 'none' }}>
-        <Box sx={{ height: '100%', width: `${progress}%`, bgcolor: READER_ACCENT, transition: 'width .15s linear' }} />
+        <Box sx={{ height: '100%', width: `${progress}%`, bgcolor: accentOf(theme), transition: 'width .15s linear' }} />
       </Box>
 
       {isMobile ? (
@@ -180,12 +180,12 @@ function RailButton({ theme, icon, label, onClick, active, disabled }: { theme: 
         lineHeight: '16px',
         backgroundColor: theme.paper,
         backgroundImage: noiseLayer(theme.dark),
-        color: active ? READER_ACCENT : theme.text,
+        color: active ? accentOf(theme) : theme.text,
         boxShadow: active ? (theme.dark ? '0 2px 12px rgba(0,0,0,.5)' : '0 2px 12px rgba(0,0,0,.08)') : 'none',
         opacity: disabled ? 0.4 : 1,
         transition: 'color .15s, box-shadow .15s',
         '& svg': { fontSize: 22 },
-        '&:hover': { color: READER_ACCENT, boxShadow: theme.dark ? '0 2px 12px rgba(0,0,0,.5)' : '0 2px 12px rgba(0,0,0,.08)' },
+        '&:hover': { color: accentOf(theme), boxShadow: theme.dark ? '0 2px 12px rgba(0,0,0,.5)' : '0 2px 12px rgba(0,0,0,.08)' },
       }}
     >
       {icon}
@@ -233,7 +233,7 @@ function TocPanel({ theme, chapters, current, onGo, onPanel }: ReaderChromeProps
                 py: 1.25,
                 fontSize: 14,
                 textAlign: 'left',
-                color: on ? READER_ACCENT : theme.text,
+                color: on ? accentOf(theme) : theme.text,
                 fontWeight: on ? 600 : 400,
                 '&:hover': { bgcolor: theme.fill },
               }}
@@ -261,8 +261,8 @@ function Pill({ theme, active, onClick, children, grow }: { theme: ReaderTheme; 
         px: 1.5,
         borderRadius: '18px',
         fontSize: 14,
-        border: `1px solid ${active ? READER_ACCENT : theme.line}`,
-        color: active ? READER_ACCENT : theme.text,
+        border: `1px solid ${active ? accentOf(theme) : theme.line}`,
+        color: active ? accentOf(theme) : theme.text,
         bgcolor: active ? 'transparent' : theme.fill,
       }}
     >
@@ -301,8 +301,8 @@ function SettingsPanel({ theme, prefs, onPrefs, onPanel, isMobile }: ReaderChrom
                   borderRadius: '50%',
                   backgroundColor: t.paper,
                   backgroundImage: noiseLayer(t.dark),
-                  border: `1px solid ${on ? READER_ACCENT : 'rgba(0,0,0,.08)'}`,
-                  color: on ? READER_ACCENT : 'rgba(255,255,255,.4)',
+                  border: `1px solid ${on ? accentOf(theme) : 'rgba(0,0,0,.08)'}`,
+                  color: on ? accentOf(theme) : 'rgba(255,255,255,.4)',
                 }}
               >
                 {on ? <CheckIcon sx={{ fontSize: 18 }} /> : t.dark ? <DarkModeOutlinedIcon sx={{ fontSize: 16 }} /> : null}
@@ -383,7 +383,7 @@ function MobileBars(props: ReaderChromeProps & { paperBg: object }) {
     boxShadow: theme.dark ? '0 0 16px rgba(0,0,0,.6)' : '0 0 16px rgba(0,0,0,.08)',
   } as const;
   const iconBtn = (icon: React.ReactNode, label: string, onClick: () => void, active?: boolean) => (
-    <ButtonBase onClick={onClick} sx={{ flex: 1, flexDirection: 'column', gap: '2px', py: 0.75, fontSize: 11, color: active ? READER_ACCENT : theme.text, '& svg': { fontSize: 22 } }}>
+    <ButtonBase onClick={onClick} sx={{ flex: 1, flexDirection: 'column', gap: '2px', py: 0.75, fontSize: 11, color: active ? accentOf(theme) : theme.text, '& svg': { fontSize: 22 } }}>
       {icon}
       {label}
     </ButtonBase>
@@ -407,7 +407,7 @@ function MobileBars(props: ReaderChromeProps & { paperBg: object }) {
           <ArrowBackIosNewIcon fontSize="small" />
         </IconButton>
         <Box sx={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{props.title}</Box>
-        <IconButton onClick={props.onShelf} aria-label="加书架" sx={{ color: props.shelved ? READER_ACCENT : theme.text }}>
+        <IconButton onClick={props.onShelf} aria-label="加书架" sx={{ color: props.shelved ? accentOf(theme) : theme.text }}>
           {props.shelved ? <LibraryAddCheckOutlinedIcon /> : <LibraryAddOutlinedIcon />}
         </IconButton>
       </Box>

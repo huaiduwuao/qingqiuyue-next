@@ -45,11 +45,14 @@ import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/Reader
 import { PaginatedReader } from '@/components/novel-reader/PaginatedReader';
 import { usePaginatedReader } from '@/hooks/usePaginatedReader';
 import {
-  READER_ACCENT,
+  accentOf,
+  fetchRemoteProgress,
   fontOf,
   loadProgress,
+  newerProgress,
   noiseLayer,
   saveProgress,
+  type ProgressPayload,
   themeOf,
   useReaderPrefs,
   type ReaderTheme,
@@ -109,7 +112,13 @@ function ReaderMuiScope({ theme, children }: { theme: ReaderTheme; children: Rea
   const scoped = useMemo(
     () =>
       createTheme(theme.dark ? darkTheme : lightTheme, {
-        palette: { primary: { main: primary }, background: { default: theme.page, paper: theme.paper }, divider: theme.line },
+        palette: {
+          primary: { main: primary },
+          background: { default: theme.page, paper: theme.paper },
+          divider: theme.line,
+          // MUI 暗色默认正文是纯白,夜间读评论 / 抽屉一样刺眼,跟正文同色
+          text: { primary: theme.text, secondary: theme.sub },
+        },
       }),
     [theme, primary],
   );
@@ -193,7 +202,7 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
         </Box>
       )}
       {onStart && !textMissing && (
-        <Button onClick={onStart} variant="contained" disableElevation sx={{ mt: 4, px: 5, borderRadius: '20px', bgcolor: READER_ACCENT, '&:hover': { bgcolor: '#C9262F' } }}>
+        <Button onClick={onStart} variant="contained" disableElevation sx={{ mt: 4, px: 5, borderRadius: '20px', bgcolor: accentOf(theme), '&:hover': { bgcolor: accentOf(theme), filter: 'brightness(.9)' } }}>
           开始阅读
         </Button>
       )}
@@ -224,6 +233,9 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
     </Box>
   );
 }
+
+/** 进入书时等服务端进度最多这么久,超时先按本地进度走 */
+const REMOTE_PROGRESS_WAIT_MS = 2000;
 
 function NovelDetailContent() {
   const router = useRouter();
@@ -286,13 +298,38 @@ function NovelDetailContent() {
   // queryKey:目录整份重拉、整页换成加载圈(分页模式下 PaginatedReader 被卸载重来),
   // loadFullToc 补全的全本目录也丢在旧 key 下。
   // SSR 期 localStorage 不存在,本地进度挂载后再读;读到之前先不发目录请求。
+  //
+  // 进度两份:本地 localStorage + 服务端(按设备 id 记,登录后含本人其它设备),取较新的。
+  // 手机上 App / 浏览器清了缓存、或换了设备,本地那份就没了,靠服务端那份续读。
+  // 服务端最多等 REMOTE_PROGRESS_WAIT_MS,网络慢就先按本地的走。
+  const [saved, setSaved] = useState<{ id: string | null; progress: ProgressPayload | null; ready: boolean }>(() => ({ id, progress: null, ready: false }));
+  if (saved.id !== id) setSaved({ id, progress: null, ready: false });
+  useEffect(() => {
+    if (!id) return;
+    let done = false;
+    const local = loadProgress(id);
+    const finish = (remote: ProgressPayload | null) => {
+      if (done) return;
+      done = true;
+      setSaved({ id, progress: newerProgress(local, remote), ready: true });
+    };
+    const timer = setTimeout(() => finish(null), REMOTE_PROGRESS_WAIT_MS);
+    void fetchRemoteProgress(id).then(finish);
+    return () => {
+      done = true;
+      clearTimeout(timer);
+    };
+  }, [id]);
+  const savedProgress = saved.id === id ? saved.progress : null;
+  const savedReady = saved.id === id && saved.ready;
+
   const [tocAnchor, setTocAnchor] = useState(() => ({ id, chapter: chapterParam || undefined, ready: !!chapterParam }));
   if (tocAnchor.id !== id) setTocAnchor({ id, chapter: chapterParam || undefined, ready: !!chapterParam });
   useEffect(() => {
-    if (!id || tocAnchor.ready) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(localStorage)到 React
-    setTocAnchor({ id, chapter: loadProgress(id)?.chapterId || undefined, ready: true });
-  }, [id, tocAnchor.ready]);
+    if (!id || tocAnchor.ready || !savedReady) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(本地 + 服务端进度)到 React
+    setTocAnchor({ id, chapter: savedProgress?.chapterId || undefined, ready: true });
+  }, [id, tocAnchor.ready, savedReady, savedProgress]);
 
   // 目录只要标题:lite 模式下后端不逐章从 MinIO 拉正文,几千章的目录也是一次轻请求。
   // untilChapterId 让循环翻页"拉到含目标章节的页就停",首次进入只取 1-2 页。
@@ -346,20 +383,28 @@ function NovelDetailContent() {
   // wanted 不在缓存目录里(长篇小说初次进入时还没翻到那一页)就保持 null,
   // 等抽屉打开时 loadFullToc 补全后再用 useEffect 依赖 chapters 重算 —— 不要
   // 偷偷 reset 到 0,那样用户带 ?chapter= 进入会被弹回首章。
+  // 续读的段落位置:换了屏幕 / 字号(比如上次在电脑上读)页号就对不上,按段落找回那一页
+  const [restoreAt, setRestoreAt] = useState<{ chapterId: string; para: number; offset: number } | null>(null);
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
+    if (!chapterParam && !savedReady) return;
     if (exitReading) return; // 用户刚退出到详情,不要立刻又按上次进度弹回阅读态
-    const saved = loadProgress(id);
-    const wanted = chapterParam || saved?.chapterId;
+    const wanted = chapterParam || savedProgress?.chapterId;
     const found = wanted ? chapters.findIndex((c) => c.id === wanted) : -1;
     if (found < 0) return;
     setRange({ start: found, end: found });
     setCurrent(found);
-    // 章内页:URL 优先;没带 chapter 参数时按本地进度续到上次那一页
-    const savedPage = !chapterParam || saved?.chapterId === chapterParam ? saved?.page : 0;
-    setPage(Math.max(0, Number(pageParam) || savedPage || 0));
-    if (!chapterParam && found > 0) setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
-  }, [range, tocLoading, chapters, chapterParam, pageParam, id, exitReading]);
+    // 章内页:URL 优先;没带 chapter 参数时按上次进度续到那一页
+    const resume = savedProgress && (!chapterParam || savedProgress.chapterId === chapterParam) ? savedProgress : null;
+    const urlPage = Number(pageParam) || 0;
+    setPage(Math.max(0, urlPage || resume?.page || 0));
+    if (resume && !urlPage && ((resume.para ?? 0) > 0 || (resume.offset ?? 0) > 0)) {
+      setRestoreAt({ chapterId: resume.chapterId, para: resume.para ?? 0, offset: resume.offset ?? 0 });
+    }
+    if (!chapterParam && (found > 0 || (resume?.page ?? 0) > 0)) {
+      setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
+    }
+  }, [range, tocLoading, chapters, chapterParam, pageParam, id, exitReading, savedReady, savedProgress]);
 
   // 目录抽屉打开时异步补全全本目录。已补到 total 时 loadFullToc 内部短路,
   // 反复打开不会重复请求。补完后 useEffect(range) 依赖 chapters 也会重新跑,
@@ -445,11 +490,6 @@ function NovelDetailContent() {
   }, []);
 
   const currentChapter = chapters[current];
-  useEffect(() => {
-    if (!range || !currentChapter || !id) return;
-    setUrlChapter(currentChapter.id, page);
-    saveProgress(id, { chapterId: currentChapter.id, page });
-  }, [range, currentChapter, id, page, setUrlChapter]);
 
   // 页面底色跟主题走,避免回弹/超出内容时露出站点底色
   useEffect(() => {
@@ -524,7 +564,19 @@ function NovelDetailContent() {
       if (id) saveProgress(id, { chapterId: target.id, page: p });
       window.scrollTo({ top: 0 });
     },
+    restoreAt,
   });
+
+  // 记进度:章 + 章内页 + 该页第一个字的段落位置(分页模式下排好版才有)
+  const posPara = paginated.position?.para;
+  const posOffset = paginated.position?.offset;
+  useEffect(() => {
+    if (!range || !currentChapter || !id) return;
+    setUrlChapter(currentChapter.id, page);
+    // 分页模式下这一章还没排好(续读时页号可能还会被段落位置纠正):先不写,免得把存着的段落位置冲掉
+    if (prefs.mode !== 'scroll' && posPara == null) return;
+    saveProgress(id, { chapterId: currentChapter.id, page, para: posPara, offset: posOffset });
+  }, [range, currentChapter, id, page, posPara, posOffset, setUrlChapter, prefs.mode]);
 
   if (!id) {
     return (
@@ -604,7 +656,7 @@ function NovelDetailContent() {
       <ButtonBase
         onClick={onClick}
         disabled={disabled}
-        sx={{ flex: 1, height: '100%', fontSize: 'inherit', color: strong ? READER_ACCENT : rt.text, '&.Mui-disabled': { color: rt.sub, opacity: 0.6 } }}
+        sx={{ flex: 1, height: '100%', fontSize: 'inherit', color: strong ? accentOf(rt) : rt.text, '&.Mui-disabled': { color: rt.sub, opacity: 0.6 } }}
       >
         {label}
       </ButtonBase>

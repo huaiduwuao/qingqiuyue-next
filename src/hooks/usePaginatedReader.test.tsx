@@ -54,6 +54,7 @@ interface Props {
   chapterIdx: number | null;
   pageIdx: number;
   fontSize?: number;
+  restoreAt?: { chapterId: string; para: number; offset: number } | null;
 }
 
 function setup(
@@ -69,7 +70,7 @@ function setup(
   const containerRef = container();
   // 和页面一样:onPageChange 纠正的页码回写成下一次的 pageIdx;rerender 传入新 pageIdx 时以传入的为准
   const hook = renderHook(
-    ({ chapterIdx, pageIdx, fontSize = 18 }: Props) => {
+    ({ chapterIdx, pageIdx, fontSize = 18, restoreAt }: Props) => {
       const [page, setPage] = React.useState(pageIdx);
       const [fromProps, setFromProps] = React.useState(pageIdx);
       if (fromProps !== pageIdx) {
@@ -90,6 +91,7 @@ function setup(
           setPage(p);
         },
         onChapterChange,
+        restoreAt,
         layoutEngine,
       });
     },
@@ -105,6 +107,17 @@ const withContent = (id: string, paras: number): ContentItem => ({
 });
 
 describe('usePaginatedReader', () => {
+  it('续读按段落位置定位,不信存下来的页号', async () => {
+    const chapters = [withContent('c0', 5)];
+    // 存的页号是 1(别的屏幕上排的),段落位置在第 3 段
+    const { result, onPageChange } = setup(chapters, vi.fn(), {
+      chapterIdx: 0, pageIdx: 1, restoreAt: { chapterId: 'c0', para: 3, offset: 0 },
+    });
+    await waitFor(() => expect(result.current.current.pageIdx).toBe(3));
+    expect(onPageChange).toHaveBeenCalledWith(3);
+    await waitFor(() => expect(result.current.position).toEqual({ para: 3, offset: 0 }));
+  });
+
   it('LAST_PAGE / 越界页码被夹到末页', async () => {
     const chapters = [withContent('c0', 3)];
     const { result, onPageChange } = setup(chapters, vi.fn(), { chapterIdx: 0, pageIdx: LAST_PAGE });

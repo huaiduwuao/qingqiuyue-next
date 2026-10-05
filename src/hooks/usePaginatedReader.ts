@@ -59,6 +59,8 @@ interface UsePaginatedReaderOpts {
   /** 章内页码被纠正(越界 / LAST_PAGE / 重排后找回原位置)时回调 */
   onPageChange: (page: number) => void;
   onChapterChange: (chapterIdx: number, page: number) => void;
+  /** 续读:这一章排好后按段落位置定位(比存下来的页号准 —— 换了屏幕 / 字号页号就对不上) */
+  restoreAt?: { chapterId: string; para: number; offset: number } | null;
   layoutEngine?: LayoutEngine;
 }
 
@@ -75,6 +77,8 @@ export interface UsePaginatedReaderResult {
   goToPage: (p: number) => void;
   /** 正文拉取失败的章节重新拉 */
   retry: (chapterIdx: number) => void;
+  /** 当前页第一个字的段落 / 段内偏移(存进度用);当前章还没排好时为 null */
+  position: { para: number; offset: number } | null;
 }
 
 /** 排版结果:只保留当前尺寸 / 字体(suffix)下的,换尺寸就整批作废 */
@@ -106,7 +110,7 @@ interface Anchor {
 export function usePaginatedReader(opts: UsePaginatedReaderOpts): UsePaginatedReaderResult {
   const {
     chapter, chapterIdx, pageIdx, chapters, fetchBody, fontSize, fontFamily, containerRef, bookTitle, author,
-    onPageChange, onChapterChange, layoutEngine = DEFAULT_ENGINE,
+    onPageChange, onChapterChange, restoreAt, layoutEngine = DEFAULT_ENGINE,
   } = opts;
   const active = chapterIdx != null && !!chapter;
   const queryClient = useQueryClient();
@@ -125,6 +129,16 @@ export function usePaginatedReader(opts: UsePaginatedReaderOpts): UsePaginatedRe
   // 正在排版的「章 id + suffix」,避免同一章被并发排两遍
   const inflight = useRef(new Set<string>());
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+
+  // 续读位置当作一个「旧排版下的锚点」塞进去:suffix 对不上任何真实排版,
+  // 当前章排好时下面的 relocateTo 就会按 (para, offset) 找页
+  const restoreKey = restoreAt ? `${restoreAt.chapterId}|${restoreAt.para}|${restoreAt.offset}` : '';
+  useEffect(() => {
+    if (!restoreAt) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 外部给的续读位置
+    setAnchor({ chapterId: restoreAt.chapterId, suffix: 'restore', page: -1, para: restoreAt.para, offset: restoreAt.offset });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只认位置本身
+  }, [restoreKey]);
 
   // ── 1. 容器尺寸 ────────────────────────────────────────────────
   useLayoutEffect(() => {
@@ -330,5 +344,8 @@ export function usePaginatedReader(opts: UsePaginatedReaderOpts): UsePaginatedRe
     goPrev,
     goToPage,
     retry,
+    position: anchor && chapter && anchor.chapterId === chapter.id && anchor.suffix === suffix
+      ? { para: anchor.para, offset: anchor.offset }
+      : null,
   };
 }
