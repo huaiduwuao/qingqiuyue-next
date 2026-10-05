@@ -70,8 +70,8 @@ function TaskMonitor() {
     setSnapshotFallback(null);
     const t = setTimeout(() => {
       const rawTask = ws.tasks.find((t) => t.id === taskId);
-      if (rawTask && (rawTask as any).progress) {
-        setSnapshotFallback((rawTask as any).progress as ProgressSnapshot);
+      if (rawTask && (rawTask as { progress?: ProgressSnapshot | null }).progress) {
+        setSnapshotFallback((rawTask as { progress?: ProgressSnapshot | null }).progress as ProgressSnapshot);
       }
     }, 500);
     return () => clearTimeout(t);
@@ -79,9 +79,9 @@ function TaskMonitor() {
 
   const liveTask = useMemo(() => ws.tasks.find((t) => t.id === taskId), [ws.tasks, taskId]);
 
-  const detail = taskQuery.data as any;
+  const detail = taskQuery.data as { progress?: ProgressSnapshot | null; status?: string } | null | undefined;
   // 实时 snapshot 来源优先级:WS → 详情里的 progress → null
-  const snapshot: ProgressSnapshot | null = (liveTask as any)?.progress ?? detail?.progress ?? snapshotFallback;
+  const snapshot: ProgressSnapshot | null = (liveTask as { progress?: ProgressSnapshot | null } | undefined)?.progress ?? detail?.progress ?? snapshotFallback;
 
   const progress: ProgressSnapshot | null = snapshot;
 

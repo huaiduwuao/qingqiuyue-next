@@ -175,7 +175,7 @@ export default function TopicAdminPage() {
         pageSize: 20,
         title: searchKeyword,
         status: 'PUBLISH',
-      }) as any;
+      }) as { list?: ContentItem[]; records?: ContentItem[] } | null;
 
       const list = res?.list || res?.records || [];
       setSearchResults(list);
@@ -226,7 +226,7 @@ export default function TopicAdminPage() {
 
   // 检查内容是否已在专题中
   const isContentInTopic = (contentId: number | string) => {
-    return currentTopic?.contents?.some((c: any) => String(c.id) === String(contentId)) || false;
+    return currentTopic?.contents?.some((c) => String(c.id) === String(contentId)) || false;
   };
 
   const columns: GridColDef<Topic>[] = [

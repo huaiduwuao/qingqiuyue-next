@@ -78,7 +78,7 @@ export function TopicInsightsEditorDialog({ open, topicId, topicTitle, onClose, 
     setLoading(true);
     fetchTopicMetadata(topicId)
       .then((res) => {
-        const p: TopicInsightsPayload = (res as any)?.payload ?? {};
+        const p: TopicInsightsPayload = (res as { payload?: TopicInsightsPayload } | null)?.payload ?? {};
         if (p.lineups) {
           setLineupTitle(p.lineups.title || '当前版本热门阵容');
           setLineupHint(p.lineups.hint || '');
