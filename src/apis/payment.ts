@@ -1,5 +1,5 @@
 import { accountClient } from '@/lib/api/client';
-import type { PageParams, PageResult } from '@/beans/pagination';
+import type { LegacyPageResult, PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
 
 // 支付系统 API
@@ -73,14 +73,14 @@ export async function createOrder(params: {
   orderType: 'diamond' | 'membership';
   productId: number;
   channel: 'wechat' | 'alipay';
-}): Promise<{ orderNo: string; amount: number; payParams: any }> {
+}): Promise<{ orderNo: string; amount: number; payParams: { code_url?: string; codeUrl?: string; [k: string]: unknown } }> {
   return await accountClient('/payment/orders', { method: 'POST', data: params });
 }
 
 // 获取订单列表
 export async function getOrderList(params?: PageParams): Promise<PageResult<PaymentOrder>> {
   const data = await accountClient('/payment/orders', { params });
-  if (!data) return normalizePageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  if (!data) return normalizePageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as unknown as LegacyPageResult<PaymentOrder>);
   return normalizePageResponse(data);
 }
 
@@ -109,7 +109,7 @@ export async function adminListRefunds(
       order_no: params.orderNo || undefined,
     },
   });
-  return normalizePageResponse(data ?? ({ list: [], total: 0, page: 1, pageSize: 20 } as any));
+  return normalizePageResponse(data ?? ({ list: [], total: 0, page: 1, pageSize: 20 } as unknown as LegacyPageResult<PaymentOrder>));
 }
 
 export async function adminApproveRefund(orderNo: string, note?: string): Promise<void> {

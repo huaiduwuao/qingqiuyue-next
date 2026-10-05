@@ -28,7 +28,7 @@ export async function clientTree(params: { moduleId: number }) {
 }
 
 // 删除
-export async function remove(ids: any) {
+export async function remove(ids: unknown) {
   return contentClient("/module/menu/removeByIds", {
     method: "DELETE",
     data: ids

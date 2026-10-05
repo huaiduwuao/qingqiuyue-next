@@ -96,7 +96,7 @@ export async function cancelTask(taskId: string): Promise<{ msg?: string }> {
 
 /** 预览沙盒脚本产物(读 /workspace/result.json)。返回 total / with_body / preview。 */
 export async function getTaskResult(taskId: string): Promise<{
-  total: number; with_body: number; preview: any[];
+  total: number; with_body: number; preview: Record<string, unknown>[];
 }> {
   return adminClient(`/sandbox/tasks/${taskId}/result`, { method: 'GET' });
 }

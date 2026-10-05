@@ -103,7 +103,7 @@ export async function adjustUserPoint(data: { userId: number; point: number; inf
 }
 
 // 获取用户活动列表
-export async function listUserActivities(params?: any) {
+export async function listUserActivities(params?: Record<string, unknown>) {
   return adminClient<UserActivityListResp>('/user-activity/list', {
     method: 'GET',
     params,

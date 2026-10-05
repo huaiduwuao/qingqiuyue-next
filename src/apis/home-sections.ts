@@ -12,7 +12,7 @@ export interface HomeSectionsResp {
 
 // GET /api/content/home/sections
 export async function fetchMySections(): Promise<HomeSectionsResp> {
-  const resp: any = await contentClient('/home/sections');
+  const resp = await contentClient<{ list?: HomeSection[]; needLogin?: boolean } | null>('/home/sections');
   return {
     list: (resp?.list ?? []) as HomeSection[],
     needLogin: !!resp?.needLogin,
@@ -21,7 +21,7 @@ export async function fetchMySections(): Promise<HomeSectionsResp> {
 
 // PUT /api/content/home/sections —— 整批替换(顺序就是数组顺序)
 export async function saveMySections(sections: HomeSection[]): Promise<HomeSection[]> {
-  const resp: any = await contentClient('/home/sections', {
+  const resp = await contentClient<{ list?: HomeSection[] } | null>('/home/sections', {
     method: 'PUT',
     data: { sections },
   });

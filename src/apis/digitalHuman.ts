@@ -76,12 +76,12 @@ export const digitalHumanApi = {
     await unwrap<{ deleted: string }>(r, `delete ${agentId}`);
   },
 
-  async listTools(): Promise<{ tools: ToolSummary[]; fullSchema: any[] }> {
+  async listTools(): Promise<{ tools: ToolSummary[]; fullSchema: unknown[] }> {
     const r = await authFetch(API_PREFIX + '/api/digital-human/tools');
     // 后端 ToolSummary.params 是 "template, intensity" 这样的文本,UI 按数组渲染,这里拆开。
     const d = await unwrap<{
       tools?: Array<Omit<ToolSummary, 'params'> & { params?: string | string[] }>;
-      fullSchema?: any[];
+      fullSchema?: unknown[];
     }>(r, 'tools');
     const tools: ToolSummary[] = (d?.tools || []).map((t) => ({
       ...t,

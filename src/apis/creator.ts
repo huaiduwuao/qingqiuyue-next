@@ -1,9 +1,9 @@
 import { accountClient } from '@/lib/api/client';
-import type { PageParams, PageResult } from '@/beans/pagination';
+import type { LegacyPageResult, PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
 
 /** 解开 axios 拦截器的包装层(返回真正的 body) */
-function unwrap<T = any>(resp: any): T {
+function unwrap<T = unknown>(resp: unknown): T {
   // 拦截器已剥壳,resp 就是业务数据;保留 unwrap 仅作占位以兼容旧调用方
   return resp as T;
 }
@@ -55,8 +55,8 @@ export interface ActivityItem {
 }
 
 export async function getCreatorWorks(params?: WorksPageParams): Promise<PageResult<WorksItem>> {
-  const res = await unwrap(await accountClient('/account/works', { params }));
-  return normalizePageResponse(res as any);
+  const res = await unwrap<LegacyPageResult<WorksItem>>(await accountClient('/account/works', { params }));
+  return normalizePageResponse(res);
 }
 
 export async function getCreatorMonetizeSummary(): Promise<MonetizeSummary> {
@@ -64,11 +64,11 @@ export async function getCreatorMonetizeSummary(): Promise<MonetizeSummary> {
 }
 
 export async function getCreatorInteractions(params?: PageParams): Promise<PageResult<InteractionItem>> {
-  const res = await unwrap(await accountClient('/account/interaction/comments', { params }));
-  return normalizePageResponse(res as any);
+  const res = await unwrap<LegacyPageResult<InteractionItem>>(await accountClient('/account/interaction/comments', { params }));
+  return normalizePageResponse(res);
 }
 
 export async function getCreatorActivities(params?: PageParams): Promise<PageResult<ActivityItem>> {
-  const res = await unwrap(await accountClient('/account/activity/list', { params }));
-  return normalizePageResponse(res as any);
+  const res = await unwrap<LegacyPageResult<ActivityItem>>(await accountClient('/account/activity/list', { params }));
+  return normalizePageResponse(res);
 }

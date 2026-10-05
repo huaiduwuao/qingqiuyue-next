@@ -104,7 +104,7 @@ export interface TopicContent {
 
 // 专题详情(含手工收录的内容)
 export interface TopicWithContents extends Topic {
-  contents: any[];
+  contents: Record<string, unknown>[];
 }
 
 // 创建专题请求

@@ -114,7 +114,7 @@ export const remove = (ids: number | number[]) => {
 // Wrapper for update that accepts an object with id
 export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateDataPermission(data.id, data as any);
+    return updateDataPermission(data.id, data as UpdateDataPermissionReq);
   }
-  return updateDataPermission(data._id!, data as any);
+  return updateDataPermission(data._id!, data as UpdateDataPermissionReq);
 };

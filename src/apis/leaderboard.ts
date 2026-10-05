@@ -107,7 +107,7 @@ export interface LeaderboardQuery {
 
 // GET /api/content/home/leaderboard/catalog
 export async function fetchLeaderboardCatalog(): Promise<LeaderboardCatalog | null> {
-  const r: any = await contentClient('/home/leaderboard/catalog');
+  const r = await contentClient<LeaderboardCatalog | null>('/home/leaderboard/catalog');
   return (r ?? null) as LeaderboardCatalog | null;
 }
 
@@ -117,6 +117,6 @@ export async function fetchLeaderboard(q: LeaderboardQuery): Promise<Leaderboard
   for (const [k, v] of Object.entries(q)) {
     if (v !== undefined && v !== '') params[k] = v as string | number;
   }
-  const r: any = await contentClient('/home/leaderboard', { params });
+  const r = await contentClient<LeaderboardBoard | null>('/home/leaderboard', { params });
   return (r ?? null) as LeaderboardBoard | null;
 }

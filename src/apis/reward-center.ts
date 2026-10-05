@@ -46,7 +46,7 @@ export interface RewardRecordList {
 
 /** 获取奖励流水 */
 export async function getRewardRecords(params?: { page?: number; size?: number }): Promise<RewardRecordList> {
-  const d: any = await accountClient('/wallet/rewards', { params });
+  const d = await accountClient<Partial<RewardRecordList> | null>('/wallet/rewards', { params });
   return { list: d?.list ?? [], total: d?.total ?? 0, page: d?.page ?? 1 };
 }
 
@@ -79,7 +79,7 @@ export interface DailyTaskStats {
 
 /** 获取今日任务列表。后端返回 { tasks: [...] },此前把整个对象当数组返回,任务中心页 tasks.filter 直接崩溃。 */
 export async function getDailyTaskList(): Promise<DailyTask[]> {
-  const d: any = await accountClient('/daily-task/list');
+  const d = await accountClient<DailyTask[] | { tasks?: DailyTask[] } | null>('/daily-task/list');
   const list = Array.isArray(d) ? d : d?.tasks;
   return Array.isArray(list) ? list : [];
 }
@@ -145,7 +145,7 @@ export async function bindInviteCode(code: string): Promise<{ msg: string }> {
 
 /** 获取邀请记录 */
 export async function getInviteRecords(params?: { page?: number; size?: number }): Promise<InviteRecordList> {
-  const d: any = await accountClient('/invite/records', { params });
+  const d = await accountClient<Partial<InviteRecordList> | null>('/invite/records', { params });
   return { list: d?.list ?? [], total: d?.total ?? 0, page: d?.page ?? 1 };
 }
 

@@ -29,20 +29,20 @@ export interface NoticeItem extends NoticeIconData {
 }
 
 export interface GlobalModelState {
-  global: any;
-  wsMessage: any;
+  global: unknown;
+  wsMessage: unknown;
   collapsed: boolean;
   searchShow: boolean;
   notices: NoticeItem[];
-  moduleTypeShowList: any;
+  moduleTypeShowList: unknown;
   dict: DictTypeItem[];
   musicDetail: MusicItem;
-  musicParams: any;
+  musicParams: unknown;
   contactTalkShow: boolean;
   audioList: [];
-  banner: any,
-  currentUser: any,
-  videoChat: any,
+  banner: unknown,
+  currentUser: unknown,
+  videoChat: unknown,
 }
 
 export type ConnectState = {

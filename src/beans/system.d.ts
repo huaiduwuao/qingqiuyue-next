@@ -13,8 +13,8 @@ export interface TableListParams {
   desc?: string;
   key?: number;
   currentPage?: number;
-  filter?: Record<string, any[]>;
-  sorter?: Record<string, any>;
+  filter?: Record<string, unknown[]>;
+  sorter?: Record<string, unknown>;
   size?: number;
   current?: number;
 }
@@ -138,7 +138,7 @@ export interface AppItem extends TableListItem {
 export interface AppConfigItem extends TableListItem {
   name?: string;
   code?: string;
-  content?: any;
+  content?: unknown;
   type?: string;
 }
 
@@ -165,11 +165,11 @@ export interface UserItem extends TableListItem {
   info?: string;
   pswd?: string;
   mobile?: string;
-  address?: any;
+  address?: unknown;
   avatar?: string;
   country?: string;
   email?: string;
-  geographic?: any;
+  geographic?: unknown;
   team?: string;
   notifyCount?: string;
   phone?: string;
@@ -283,10 +283,10 @@ export interface ModuleTemplateItem extends TableListItem {
   type?: string;
   category?: string;
   remark?: string;
-  content?: any;
-  sourceId?: any;
-  parentId?: any;
-  attrs?: any;
+  content?: unknown;
+  sourceId?: unknown;
+  parentId?: unknown;
+  attrs?: unknown;
 }
 
 export interface ModuleItem extends TableListItem {
@@ -298,8 +298,8 @@ export interface ModuleItem extends TableListItem {
   cover?: string;
   shareType?: string;
   needPay?: string;
-  shareContent?: any;
-  search?: any;
+  shareContent?: unknown;
+  search?: unknown;
   templateCode?: string;
   tags?: ModuleTagItem[];
   moduleBanners?: BannerItem[];
@@ -312,7 +312,7 @@ export interface ModuleContentToplist extends TableListItem {
   subtitle?: string;
   type?: string;
   sort?: string;
-  content?: any;
+  content?: unknown;
 }
 
 export interface ModuleContentToplistItem extends TableListItem {
@@ -347,7 +347,7 @@ export interface ModuleContentItem extends TableListItem {
   subtitle?: string;
   shareType?: string;
   needPay?: string;
-  shareContent?: any;
+  shareContent?: unknown;
   sort?: string;
   avatar?: string;
   username?: string;
@@ -356,7 +356,7 @@ export interface ModuleContentItem extends TableListItem {
   userId?: string;
   contentType?: string;
   contentId?: string;
-  content?: any;
+  content?: unknown;
 }
 
 export interface ModuleContentTopItem extends TableListItem {

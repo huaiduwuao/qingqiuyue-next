@@ -41,7 +41,7 @@ export interface WhitelistEntry {
   name: string;
 }
 
-const list = <T>(res: any): T[] => res?.list ?? res?.records ?? [];
+const list = <T>(res: { list?: T[]; records?: T[] } | null | undefined): T[] => res?.list ?? res?.records ?? [];
 
 export async function listCerts(): Promise<OriginalCert[]> {
   return list<OriginalCert>(await accountClient('/creator/original/protected'));

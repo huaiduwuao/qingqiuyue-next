@@ -10,7 +10,7 @@ export interface MenuListParams {
 }
 
 // 获取当前用户菜单 - GET /api/core/menu/me
-export async function getMenuData(params?: any) {
+export async function getMenuData(params?: Record<string, unknown>) {
   return adminClient('/menu/me', { params });
 }
 

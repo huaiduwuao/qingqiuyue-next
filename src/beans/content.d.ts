@@ -2,7 +2,7 @@ import {TableListItem} from '@/beans/system';
 
 export interface ArticleItem extends TableListItem {
   title?: string;
-  ids?: any[];
+  ids?: unknown[];
   subtitle?: string;
   info?: string;
   content?: string;
@@ -17,7 +17,7 @@ export interface ArticleItem extends TableListItem {
 
 export interface LiveItem extends TableListItem {
   title?: string;
-  ids?: any[];
+  ids?: unknown[];
   subtitle?: string;
   info?: string;
   content?: string;
@@ -40,7 +40,7 @@ export interface PictureItem extends TableListItem {
   url?: string;
   info?: string;
   name?: string;
-  createTime?: any;
+  createTime?: unknown;
   members?: MemberItem[];
   cover?: string;
   permission?: string;
@@ -74,7 +74,7 @@ export interface MusicSingerItem extends TableListItem {
 }
 
 export interface VideoItem extends TableListItem {
-  ids?: any;
+  ids?: unknown;
   name?: string;
   moduleContentStatus?: string;
   info?: string;
@@ -89,7 +89,7 @@ export interface VideoItem extends TableListItem {
 
 
 export interface FilmItem extends TableListItem {
-  ids?: any;
+  ids?: unknown;
   title?: string;
   subtitle?: string;
   score?: string;
@@ -134,7 +134,7 @@ export interface NovelItem extends TableListItem {
   lastReadChapter?: number;
   permission?: string;
   serialnumber?: string;
-  content?: any;
+  content?: unknown;
 }
 
 

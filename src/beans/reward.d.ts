@@ -30,9 +30,9 @@ export interface DemandItem extends TableListItem {
   /** 发布在哪个意境(topic)里,0 = 不属于任何意境 */
   topicId?: number;
   title?: string;
-  tags?: any;
+  tags?: string | string[];
   subtitle?: string;
-  content?: any;
+  content?: string;
   cover?: string;
   /** 赏金(钻) */
   payDiamonds?: number;
@@ -40,8 +40,8 @@ export interface DemandItem extends TableListItem {
   pay?: number;
   category?: string;
   status?: DemandStatus | string;
-  realizations?: any;
-  myRealizations?: any;
+  realizations?: unknown;
+  myRealizations?: unknown;
   publishTime?: string;
   endTime?: string;
   username?: string;
@@ -86,21 +86,21 @@ export interface ProjectItem extends TableListItem {
   username?: string;
   avatar?: string;
   info?: string;
-  tags?: any;
+  tags?: unknown;
   category?: string;
 }
 
 export interface RealizationItem extends TableListItem {
   title?: string;
   subtitle?: string;
-  content?: any;
+  content?: unknown;
   cover?: string;
   status?: string;
   publishTime?: string;
   endTime?: string;
   username?: string;
   avatar?: string;
-  demands?: any;
+  demands?: unknown;
   demandId?: number;
   taskId?: number;
   userId?: number;

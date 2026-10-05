@@ -34,7 +34,7 @@ async function flush() {
     const chunk = ids.slice(i, i + BATCH);
     let items: Record<string, AvailabilityItem> = {};
     try {
-      const r: any = await contentClient('availability', { params: { ids: chunk.join(',') } });
+      const r = await contentClient<{ items?: Record<string, AvailabilityItem> } | null>('availability', { params: { ids: chunk.join(',') } });
       items = (r && r.items) || {};
     } catch {
       // 拿不到就不挂标签;不缓存失败,下一次渲染再问。

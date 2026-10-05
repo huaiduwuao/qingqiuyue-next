@@ -56,7 +56,7 @@ export interface NovelItem {
   chapterName: string;
   novelName: string;
   type: string;
-  createTime: any;
+  createTime: unknown;
   createUser: string;
 }
 
@@ -65,7 +65,7 @@ export interface PictureItem {
   url: string;
   info: string;
   name: string;
-  createTime: any;
+  createTime: unknown;
   members: MemberItem[]
 }
 
@@ -74,7 +74,7 @@ export interface MusicItem {
   url: string;
   info: string;
   name: string;
-  createTime: any;
+  createTime: unknown;
   members: MemberItem[]
 }
 
@@ -83,7 +83,7 @@ export interface VideoItem {
   url: string;
   info: string;
   name: string;
-  createTime: any;
+  createTime: unknown;
   members: MemberItem[]
 }
 

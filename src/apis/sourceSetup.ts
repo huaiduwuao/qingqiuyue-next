@@ -94,12 +94,13 @@ export function discardSourceDraft(id: string): Promise<SourceDraft> {
 
 /** 试跑报告的一行摘要(卡片与测试共用)。 */
 export function summarizeDraftReport(d: Pick<SourceDraft, 'kind' | 'report'>): string[] {
-  const r = (d.report ?? {}) as Record<string, any>;
+  const r = (d.report ?? {}) as Record<string, unknown>;
   const lines: string[] = [];
   const search = r.search as { count?: number; error?: string } | undefined;
   if (search) lines.push(search.error ? `搜索出错:${search.error}` : `搜索到 ${search.count ?? 0} 条`);
   if (r.resolve_error) lines.push(String(r.resolve_error));
-  if (r.resolved?.title) lines.push(`定位到「${r.resolved.title}」${r.resolved.year ? `(${r.resolved.year})` : ''}`);
+  const resolved = r.resolved as { title?: string; year?: string | number } | null | undefined;
+  if (resolved?.title) lines.push(`定位到「${resolved.title}」${resolved.year ? `(${resolved.year})` : ''}`);
   if (d.kind === 'book') {
     const cat = r.catalog as { count?: number; error?: string; first?: { title?: string }; last?: { title?: string } } | undefined;
     if (cat) lines.push(cat.error ? `目录出错:${cat.error}` : `目录 ${cat.count ?? 0} 章:${cat.first?.title ?? ''} … ${cat.last?.title ?? ''}`);

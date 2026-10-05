@@ -39,7 +39,7 @@ export async function getWxMpConfig(): Promise<Record<WxAppKind, WxAppConfig>> {
 }
 
 /** 密钥类字段留空 = 不修改 */
-export async function saveWxMpConfig(body: { type: WxAppKind; appId: string; appSecret?: string; token?: string; aesKey?: string }): Promise<any> {
+export async function saveWxMpConfig(body: { type: WxAppKind; appId: string; appSecret?: string; token?: string; aesKey?: string }): Promise<unknown> {
   return adminClient.post('/admin/wx/mp/config', body);
 }
 
@@ -61,7 +61,7 @@ export async function getWxMenu(): Promise<{ buttons: WxMenuNode[]; message?: st
 }
 
 /** 保存整棵菜单树;publish 为 true 时随后推到微信 */
-export async function saveWxMenu(buttons: WxMenuNode[], publish: boolean): Promise<any> {
+export async function saveWxMenu(buttons: WxMenuNode[], publish: boolean): Promise<{ msg?: string; message?: string } | null> {
   return adminClient.post('/admin/wx/mp/menu/save', { buttons, publish });
 }
 
@@ -71,6 +71,6 @@ export async function syncWxFollowers(): Promise<{ synced: number }> {
 }
 
 /** 客服消息:只能发给 48 小时内和公众号互动过的人 */
-export async function replyWxMsg(openId: string, content: string): Promise<any> {
+export async function replyWxMsg(openId: string, content: string): Promise<unknown> {
   return adminClient.post('/admin/wx/mp/msg/reply', { openId, content });
 }

@@ -89,7 +89,7 @@ export const save = createPermission;
 // Wrapper for update that accepts an object with id
 export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updatePermission(data.id, data as any);
+    return updatePermission(data.id, data as UpdatePermissionReq);
   }
-  return updatePermission(data._id!, data as any);
+  return updatePermission(data._id!, data as UpdatePermissionReq);
 };

@@ -11,7 +11,7 @@
  */
 
 import { contentClient } from '@/lib/api/client';
-import type { PageParams, PageResult } from '@/beans/pagination';
+import type { LegacyPageResult, PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
 
 export interface ModuleContentItem {
@@ -93,8 +93,8 @@ function toBackendParams(q: ModuleContentQuery) {
 }
 
 export async function myPage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
-  const res = await contentClient('/module/content/list', { params: toBackendParams(params) });
-  return normalizePageResponse(res as any);
+  const res = await contentClient<LegacyPageResult<ModuleContentItem>>('/module/content/list', { params: toBackendParams(params) });
+  return normalizePageResponse(res);
 }
 
 /**
@@ -103,12 +103,12 @@ export async function myPage(params: ModuleContentQuery = {}): Promise<PageResul
  * 公开浏览(首页、分类、已爬取)用 myPage,不受数据权限影响。
  */
 export async function managePage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
-  const res = await contentClient('/module/content/manage/page', { params: toBackendParams(params) });
-  return normalizePageResponse(res as any);
+  const res = await contentClient<LegacyPageResult<ModuleContentItem>>('/module/content/manage/page', { params: toBackendParams(params) });
+  return normalizePageResponse(res);
 }
 
 export async function getById(id: number): Promise<{ code: number; data: ModuleContentItem }> {
-  return contentClient(`/module/content/${id}`, { method: 'GET' }) as any;
+  return contentClient<{ code: number; data: ModuleContentItem }>(`/module/content/${id}`, { method: 'GET' });
 }
 
 export async function updateShare(params: ModuleContentItem) {

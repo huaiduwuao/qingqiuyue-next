@@ -9,12 +9,12 @@ export async function fileUpload(params: Record<string, unknown>) {
 }
 
 // Module list - GET /api/content/module/list
-export async function moduleList(params?: any) {
+export async function moduleList(params?: Record<string, unknown>) {
   return contentClient("/module/list", { params });
 }
 
 // 模块内容分页 - GET /api/content/module/content/list
-export async function moduleContentPage(params?: any) {
+export async function moduleContentPage(params?: Record<string, unknown>) {
   return contentClient("/module/content/list", { params });
 }
 
@@ -28,7 +28,7 @@ export async function moduleContentAction(params: Record<string, unknown>) {
 
 // 获取评论 - GET /api/content/module/content/comment/{contentId}
 // contentId 传字符串:内容 id 超过 JS 安全整数,转 Number 会查成另一条(不存在的)内容。
-export async function getComments(contentId: string | number, params?: any) {
+export async function getComments(contentId: string | number, params?: Record<string, unknown>) {
   return contentClient(`/module/content/comment/${contentId}`, { params });
 }
 
@@ -58,7 +58,7 @@ export async function getUserCommentActions(commentIds: (string | number)[]) {
 // ========== Reward APIs (use rewardClient) ==========
 
 // 项目列表 - GET /api/core/project/list
-export async function listProjects(params?: any) {
+export async function listProjects(params?: Record<string, unknown>) {
   return rewardClient("/project/list", { params });
 }
 
@@ -68,7 +68,7 @@ export async function queryDoingProject() {
 }
 
 // 用户活动列表 - GET /api/core/user-activity/list
-export async function listUserActivities(params?: any) {
+export async function listUserActivities(params?: Record<string, unknown>) {
   return rewardClient("/user-activity/list", { params });
 }
 
@@ -78,7 +78,7 @@ export async function queryActivities() {
 
 // 搜索页「热门搜索」:core-api 从没挂过 /chart/day-search/list(404),改用站内热榜
 // GET /api/content/analytics/hot,返回 { list: [{ title, ... }] },搜索页取 title 作热词。
-export async function topKeywordInThirdMonth(params?: any) {
+export async function topKeywordInThirdMonth(params?: Record<string, unknown>) {
   return contentClient("/analytics/hot", { params: { limit: 10, ...params } });
 }
 

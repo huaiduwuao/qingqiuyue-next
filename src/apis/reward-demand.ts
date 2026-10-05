@@ -95,9 +95,9 @@ export const save = (data: unknown) => createDemand(data);
 // Wrapper for update that accepts an object with id
 export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateDemand(data.id, data as any);
+    return updateDemand(data.id, data);
   }
-  return updateDemand(data._id!, data as any);
+  return updateDemand(data._id!, data);
 };
 
 // 结账:把托管赏金付给验收通过任务的认领人,剩余退回发布者(→ SETTLED,不可撤销)

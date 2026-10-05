@@ -59,7 +59,7 @@ export const LEVEL_CONFIG = [
 
 // 获取创作者等级信息
 export async function getCreatorLevelInfo(): Promise<CreatorLevelInfo> {
-  const res = await adminClient('/creator-level/info');
+  const res = await adminClient<RawLevelInfo>('/creator-level/info');
   return normalizeLevelInfo(res);
 }
 
@@ -67,13 +67,28 @@ export async function getCreatorLevelInfo(): Promise<CreatorLevelInfo> {
  * 后端 creatorlevel.LevelConfig 没写 json tag,nextLevel 出来是 Level/Name/Privileges… 大写键;
  * 没配特权的等级 privileges 是 null。这里统一成前端类型,页面不用到处判空。
  */
-function normalizeLevelInfo(raw: any): CreatorLevelInfo {
+type NextLevel = NonNullable<CreatorLevelInfo['nextLevel']>;
+type RawNextLevel = Partial<NextLevel> & {
+  Level?: number;
+  Name?: string;
+  MinScore?: number;
+  MaxScore?: number;
+  Icon?: string;
+  Color?: string;
+  Privileges?: string[] | null;
+};
+type RawLevelInfo = Omit<CreatorLevelInfo, 'privileges' | 'nextLevel'> & {
+  privileges?: string[] | null;
+  nextLevel?: RawNextLevel | null;
+};
+
+function normalizeLevelInfo(raw: RawLevelInfo): CreatorLevelInfo {
   const n = raw?.nextLevel;
   return {
     ...raw,
     privileges: raw?.privileges ?? [],
     nextLevel: n
-      ? {
+      ? ({
           level: n.level ?? n.Level,
           name: n.name ?? n.Name ?? '',
           minScore: n.minScore ?? n.MinScore,
@@ -81,7 +96,7 @@ function normalizeLevelInfo(raw: any): CreatorLevelInfo {
           icon: n.icon ?? n.Icon,
           color: n.color ?? n.Color,
           privileges: n.privileges ?? n.Privileges ?? [],
-        }
+        } as NextLevel)
       : undefined,
   };
 }

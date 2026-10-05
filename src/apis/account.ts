@@ -49,8 +49,8 @@ export async function verifyPayPassword(password: string): Promise<boolean> {
 }
 
 export async function hasPayPassword(): Promise<boolean> {
-  const res = await adminClient('/user/has-pay-password');
-  return (res as any)?.hasPayPassword ?? false;
+  const res = await adminClient<{ hasPayPassword?: boolean } | null>('/user/has-pay-password');
+  return res?.hasPayPassword ?? false;
 }
 
 export async function novelBookshelf(params: Record<string, unknown>) {

@@ -16,7 +16,7 @@ export interface Interaction {
 }
 
 export async function getInteraction(contentId: EntityId): Promise<Interaction> {
-  const res: any = await contentClient('/interaction', { params: { contentId } });
+  const res = await contentClient<Partial<Record<keyof Interaction, unknown>> | null>('/interaction', { params: { contentId } });
   const d = res;
   return {
     contentId: String(d?.contentId ?? contentId),

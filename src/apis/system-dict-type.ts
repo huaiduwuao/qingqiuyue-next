@@ -127,7 +127,7 @@ export const save = createDictType;
 // Wrapper for update that accepts an object with id
 export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateDictType(data.id, data as any);
+    return updateDictType(data.id, data);
   }
-  return updateDictType(data._id!, data as any);
+  return updateDictType(data._id!, data);
 };

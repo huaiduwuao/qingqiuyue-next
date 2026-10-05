@@ -54,7 +54,7 @@ export interface NoticeIconItem {
   info?: string;
   title?: string;
   status?: string;
-  content?: any;
+  content?: unknown;
   createTime: string;
   updateTime: string;
   type?: string;
@@ -74,7 +74,7 @@ export interface ContactItem extends TableListItem {
   info?: string;
   userId?: number;
   userById?: number;
-  typeId?: any;
+  typeId?: unknown;
   type?: string;
   status?: string;
 }
@@ -83,8 +83,8 @@ export interface ContactGroupItem extends TableListItem {
   name?: string;
   info?: string;
   userId?: number;
-  typeId?: any;
-  groupId?: any;
+  typeId?: unknown;
+  groupId?: unknown;
   type?: string;
   status?: string;
 }

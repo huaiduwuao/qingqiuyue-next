@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import type { PageParams, PageResult } from '@/beans/pagination';
+import type { LegacyPageResult, PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
 
 export interface BotListParams extends PageParams {
@@ -8,8 +8,8 @@ export interface BotListParams extends PageParams {
   status?: string;
 }
 
-export async function page(params: BotListParams): Promise<PageResult<any>> {
-  const res = await adminClient('/bot/list', { params });
+export async function page(params: BotListParams): Promise<PageResult<Record<string, unknown>>> {
+  const res = await adminClient<LegacyPageResult<Record<string, unknown>>>('/bot/list', { params });
   return normalizePageResponse(res);
 }
 
@@ -97,12 +97,12 @@ export interface BotConfigResponse {
 }
 
 export async function getConfig(): Promise<BotConfigResponse> {
-  const res: any = await adminClient('/bot/config');
+  const res = await adminClient<BotConfigResponse>('/bot/config');
   return res;
 }
 
 export async function saveConfig(cfg: BotConfig): Promise<BotConfig> {
-  const res: any = await adminClient('/bot/config', { method: 'PUT', data: cfg });
+  const res = await adminClient<BotConfig>('/bot/config', { method: 'PUT', data: cfg });
   return res;
 }
 
@@ -124,23 +124,23 @@ export interface BotLLMInput {
 }
 
 export async function getLLM(): Promise<BotLLMView> {
-  const res: any = await adminClient('/bot/llm');
+  const res = await adminClient<BotLLMView>('/bot/llm');
   return res;
 }
 
 export async function saveLLM(input: BotLLMInput): Promise<BotLLMView> {
-  const res: any = await adminClient('/bot/llm', { method: 'PUT', data: input });
+  const res = await adminClient<BotLLMView>('/bot/llm', { method: 'PUT', data: input });
   return res;
 }
 
 /** 用表单里的配置试调一次,不保存 */
 export async function testLLM(input: BotLLMInput): Promise<{ reply: string; latencyMs: number }> {
-  const res: any = await adminClient('/bot/llm/test', { method: 'POST', data: input });
+  const res = await adminClient<{ reply: string; latencyMs: number }>('/bot/llm/test', { method: 'POST', data: input });
   return res;
 }
 
 export async function refreshPersonas(): Promise<{ updated: number }> {
-  const res: any = await adminClient('/bot/personas/refresh', { method: 'POST' });
+  const res = await adminClient<{ updated: number }>('/bot/personas/refresh', { method: 'POST' });
   return res;
 }
 

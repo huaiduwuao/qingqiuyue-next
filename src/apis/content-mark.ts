@@ -11,7 +11,7 @@ export type MarkKind = 'watchlater' | 'reserve';
 export type MarkStatus = Record<MarkKind, boolean>;
 
 export async function getMarkStatus(contentId: EntityId): Promise<MarkStatus> {
-  const res: any = await contentClient('/mark/status', { params: { contentId } });
+  const res = await contentClient<Partial<MarkStatus> | null>('/mark/status', { params: { contentId } });
   const d = res;
   return { watchlater: !!d?.watchlater, reserve: !!d?.reserve };
 }

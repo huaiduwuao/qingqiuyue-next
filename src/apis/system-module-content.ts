@@ -177,7 +177,7 @@ export const remove = (ids: number[]) => deleteModuleContent(ids);
 export const save = createModuleContent;
 export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateModuleContent(data.id, data as any);
+    return updateModuleContent(data.id, data);
   }
-  return updateModuleContent(data._id!, data as any);
+  return updateModuleContent(data._id!, data);
 };

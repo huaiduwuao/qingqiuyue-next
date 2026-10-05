@@ -18,7 +18,7 @@ export async function accountLogin(params: { name: string; password: string }) {
 }
 
 // 获取当前用户
-export async function queryCurrent(): Promise<any> {
+export async function queryCurrent(): Promise<UserInfo> {
   return getCurrentUser();
 }
 
@@ -38,7 +38,7 @@ export const updateUserProfile = async (data: unknown) => {
 };
 
 // 获取用户列表 - GET /api/core/user/list
-export async function listUsers(params?: any) {
+export async function listUsers(params?: Record<string, unknown>) {
   return adminClient('/user/list', { method: 'GET', params });
 }
 

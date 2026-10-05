@@ -93,6 +93,6 @@ export interface SuggestTopic {
 export async function suggestTopics(keyword: string): Promise<SuggestTopic[]> {
   if (!keyword.trim()) return [];
   // moduleContentHandler.List 走 Doris;拦截器剥壳后拿到的就是 { records/list: [...], totalRow/total: N }
-  const data: any = await contentClient('/module/content/suggest', { params: { keyword } });
+  const data = await contentClient<{ records?: SuggestTopic[]; list?: SuggestTopic[] } | null>('/module/content/suggest', { params: { keyword } });
   return (data?.records ?? data?.list ?? []) as SuggestTopic[];
 }

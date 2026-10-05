@@ -2,14 +2,14 @@ import {TableListItem} from "@/beans/system";
 
 export interface WxUserItem extends TableListItem {
   title?: string;
-  tags?: any;
+  tags?: unknown;
   subtitle?: string;
   content?: string;
   cover?: string;
   pay?: number;
   status?: string;
-  realizations?: any;
-  myRealizations?: any;
+  realizations?: unknown;
+  myRealizations?: unknown;
   publishTime?: string;
   endTime?: string;
   username?: string;
@@ -18,14 +18,14 @@ export interface WxUserItem extends TableListItem {
 
 export interface WxMsgItem extends TableListItem {
   title?: string;
-  tags?: any;
+  tags?: unknown;
   subtitle?: string;
   content?: string;
   cover?: string;
   pay?: number;
   status?: string;
-  realizations?: any;
-  myRealizations?: any;
+  realizations?: unknown;
+  myRealizations?: unknown;
   publishTime?: string;
   endTime?: string;
   username?: string;
@@ -34,14 +34,14 @@ export interface WxMsgItem extends TableListItem {
 
 export interface WxAutoReplyItem extends TableListItem {
   title?: string;
-  tags?: any;
+  tags?: unknown;
   subtitle?: string;
   content?: string;
   cover?: string;
   pay?: number;
   status?: string;
-  realizations?: any;
-  myRealizations?: any;
+  realizations?: unknown;
+  myRealizations?: unknown;
   publishTime?: string;
   endTime?: string;
   username?: string;
