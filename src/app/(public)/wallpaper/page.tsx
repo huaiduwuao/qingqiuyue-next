@@ -36,7 +36,7 @@ import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { formatCount } from '@/lib/utils/format';
 
-// 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
+// 壁纸数据来自 GET /api/core/wallpaper/list(见下方 fetchAllWallpapers);这里只是前端类型与展示元数据。
 type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber' | 'other';
 type WallpaperSize = 'desktop' | 'tablet' | 'mobile' | 'all';
 interface Wallpaper {

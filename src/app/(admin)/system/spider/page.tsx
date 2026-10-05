@@ -18,7 +18,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { useSpiderWebSocket } from '@/hooks/useSpiderWebSocket';
-import DashboardPage from './dashboard/page';
+import DashboardPage from './_components/SpiderDashboard';
 
 export default function SpiderAdminPage() {
   return <SpiderPageInner />;

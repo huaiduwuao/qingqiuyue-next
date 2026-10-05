@@ -47,21 +47,6 @@ export interface PointRecordListResp {
   totalRow?: number;
 }
 
-// 用户活动信息
-export interface UserActivityInfo {
-  id: number;
-  userId: number;
-  type: string;
-  content?: string;
-  status?: string;
-  createTime?: string;
-}
-
-export interface UserActivityListResp {
-  list: UserActivityInfo[];
-  total: number;
-}
-
 /** 积分余额;没有积分账户时后端返回 null */
 export async function getUserPoint(userId?: number) {
   return adminClient<UserPointResp | null>('/point/user', {
@@ -97,22 +82,6 @@ export async function grantAchievement(userId: number, achievementId: number) {
 /** 管理员调整积分:正数发放、负数扣减,记一条 admin_adjust 流水 */
 export async function adjustUserPoint(data: { userId: number; point: number; info?: string }) {
   return adminClient<UserPointResp>('/point/adjust', {
-    method: 'POST',
-    data,
-  });
-}
-
-// 获取用户活动列表
-export async function listUserActivities(params?: Record<string, unknown>) {
-  return adminClient<UserActivityListResp>('/user-activity/list', {
-    method: 'GET',
-    params,
-  });
-}
-
-// 创建用户活动
-export async function createUserActivity(data: unknown) {
-  return adminClient<UserActivityInfo>('/user-activity', {
     method: 'POST',
     data,
   });

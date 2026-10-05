@@ -5,11 +5,10 @@
  *
  * 输入:source_domain (必填或从下拉里选)、max_pages、max_items、notes
  * 动作:POST /api/spider/sites/full-site,创建 batch_job + batch_source 并启动 RuleEngine。
- * 结果:返回 batch_id,回调 onSuccess 让调用方跳转 /batch/[id]/stats 看实时进度。
+ * 结果:返回 batch_id,回调 onSuccess 交给调用方决定去哪看进度(运行爬虫页跳批量任务列表)。
  *
  * 反复使用点:
  *   - spider/run/page.tsx:完整页面(列表 + dialog)
- *   - spider-dashboard/page.tsx:顶栏 quick action
  *   - sources/[id]/page.tsx:某个源详情页的"运行"按钮
  */
 

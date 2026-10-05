@@ -1,7 +1,7 @@
 /**
  * Reward task API — 悬赏项目下的协作任务。
  *
- * 端点(对齐 mock-bridge-api/internal/handler/reward_task.go,本轮仅 mock):
+ * 端点(core-api internal/handler/reward_task.go,状态机与权限在 service/reward_task_flow.go,PG 持久化):
  *   GET    /api/core/task/page?projectId=&status=&assigneeId=&priority=
  *   GET    /api/core/task/{id}
  *   POST   /api/core/task

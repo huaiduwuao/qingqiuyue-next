@@ -7,34 +7,6 @@ export async function page(params: Record<string, unknown>) {
   });
 }
 
-export async function remove(ids: number[]) {
-  return contentClient("client-content/novel-chapter/removeByIds", {
-    method: "DELETE",
-    data: ids
-  });
-}
-
-export async function sync(params: NovelChapterItem) {
-  return contentClient("client-content/novel-chapter/sync", {
-    method: "POST",
-    data: params
-  });
-}
-
-export async function save(params: NovelChapterItem) {
-  return contentClient("client-content/novel-chapter/save", {
-    method: "POST",
-    data: params
-  });
-}
-
-export async function update(params: NovelChapterItem) {
-  return contentClient("client-content/novel-chapter/update", {
-    method: "POST",
-    data: params
-  });
-}
-
 export async function correctLastRead(params: Record<string, unknown>) {
   return contentClient("client-content/novel-bookshelf/correctLastRead", {
     method: "POST",

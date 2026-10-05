@@ -51,9 +51,10 @@ export default function SpiderRunPage() {
     setDialogOpen(true);
   };
 
-  const onSuccess = (batchId: number) => {
-    // 跳到批量任务实时进度页(由该页订阅 WebSocket)
-    router.push(`/system/spider/batch/${batchId}/stats`);
+  // 跳到批量任务列表看进度。以前跳 /system/spider/batch/<id>/stats —— 静态导出下没有这条动态路由,
+  // 启动成功后落到空白页;新任务排在列表最前,进度在列表里实时刷新。
+  const onSuccess = () => {
+    router.push('/system/spider/batch');
   };
 
   const sources = (sourcesQuery.data?.list ?? []) as unknown as Array<{

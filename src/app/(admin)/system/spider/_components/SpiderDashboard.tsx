@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * 爬虫 Dashboard
- * 从 account/content/_views/spider/dashboard/ 迁移
+ * 爬虫总览的看板主体(Worker 池、站点调度、批量任务、趋势)。
+ * 只被 /system/spider(../page.tsx)引用;放在 _components 下不单独成路由 ——
+ * 以前它同时是 /system/spider/dashboard 路由,和总览重复。
  */
 
 import React, { useState, useEffect, useMemo } from 'react';

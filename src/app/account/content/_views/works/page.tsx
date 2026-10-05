@@ -39,9 +39,6 @@ const PARAM_TYPE_MAP: Record<string, string> = {
   animation: 'ANIMATION', comics: 'COMICS',
 };
 
-// 数据源选项:后端 `/api/core/module-content/sources` 就绪后接入,目前为空占位
-const SOURCE_OPTIONS_LIST: { value: string; label: string }[] = [];
-
 const TYPE_OPTIONS = [
   { value: '', label: '全部类型' },
   { value: 'NOVEL', label: '小说' },
@@ -62,11 +59,6 @@ const STATUS_OPTIONS = [
   { value: 'UN_PUBLISH', label: '已下架' },
 ];
 
-
-const SOURCE_OPTIONS = [
-  { value: '', label: '全部来源' },
-  ...SOURCE_OPTIONS_LIST,
-];
 
 const COLUMNS: GridColDef[] = [
   {
@@ -159,7 +151,6 @@ function TitleCell({ row }: { row: WorksTableRow }) {
 export default function WorksPage() {
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
-  const [source, setSource] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
   // 接收 setActiveTab('works', { type }) 透传的过滤条件(不读 URL query)
@@ -175,9 +166,8 @@ export default function WorksPage() {
     const parts: string[] = [];
     if (type) parts.push(TYPE_OPTIONS.find((o) => o.value === type)?.label || type);
     if (status) parts.push(STATUS_OPTIONS.find((o) => o.value === status)?.label || status);
-    if (source) parts.push(SOURCE_OPTIONS.find((o) => o.value === source)?.label || source);
     return parts.length ? parts.join(' · ') : '全部';
-  }, [type, status, source]);
+  }, [type, status]);
 
   const { isMobile } = useResponsive();
 
@@ -185,7 +175,6 @@ export default function WorksPage() {
     const res = await getCreatorWorks({
       contentType: type || undefined,
       status: status || undefined,
-      source: source || undefined,
       page: params.pageNumber,
       pageSize: params.pageSize,
     });
@@ -256,19 +245,6 @@ export default function WorksPage() {
             </Select>
           </FormControl>
 
-          {/* 来源过滤:后端 /api/core/module-content/sources 未就绪,先不渲染。
-              SOURCE_OPTIONS_LIST 非空后再放开(SOURCE_OPTIONS 已用 ... 拼接好)。 */}
-          {SOURCE_OPTIONS_LIST.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel shrink>来源</InputLabel>
-              <Select displayEmpty notched value={source} label="来源" onChange={(e) => setSource(e.target.value)}>
-                {SOURCE_OPTIONS.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
           <Button
             size="small"
             variant="outlined"
@@ -290,7 +266,7 @@ export default function WorksPage() {
           key={refreshKey}
           columns={COLUMNS}
           fetchData={fetchWorks}
-          extraParams={{ type, status, source, refreshKey }}
+          extraParams={{ type, status, refreshKey }}
         />
       </Box>
     </Box>

@@ -64,6 +64,8 @@ export const MENU_ICON_MAP: Record<string, SvgIconComponent> = {
   Insights: Icons.InsightsRounded,
   Park: Icons.ParkRounded,
   ViewInAr: Icons.ViewInArRounded,
+  VideoLibrary: Icons.VideoLibraryRounded,
+  PlayCircle: Icons.PlayCircleRounded,
 };
 
 /**

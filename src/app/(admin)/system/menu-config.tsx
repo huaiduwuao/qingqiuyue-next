@@ -60,6 +60,8 @@ import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
 import ViewInArRoundedIcon from '@mui/icons-material/ViewInArRounded';
+import VideoLibraryRoundedIcon from '@mui/icons-material/VideoLibraryRounded';
+import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -125,6 +127,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'topic', label: '专题管理', path: '/system/topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'feed', label: '动态管理', path: '/system/feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'content-works', label: '作品管理', path: '/system/content/works', icon: <VideoLibraryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
     ],
   },
   {
@@ -233,6 +236,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'deployment', label: '部署管理', path: '/system/deployment', icon: <CloudSyncIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'cluster', label: '集群监控', path: '/system/dashboard/cluster', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'ops-task', label: '数据迁移任务', path: '/system/ops/tasks', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55', permission: PERMISSIONS.SYSTEM_OPS_TASK.VIEW },
     ],
   },
@@ -246,6 +250,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'spider-templates', label: '模板管理', path: '/system/spider/templates', icon: <ListAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-tasks', label: '抓取任务', path: '/system/spider/tasks', icon: <AssignmentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-batch', label: '批量任务', path: '/system/spider/batch', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-run', label: '运行爬虫', path: '/system/spider/run', icon: <PlayCircleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-workers', label: 'Worker 池', path: '/system/spider/workers', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-sites', label: '站点调度', path: '/system/spider/sites', icon: <ScheduleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-proxies', label: '代理池', path: '/system/spider/proxies', icon: <VpnLockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },

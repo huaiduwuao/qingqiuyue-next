@@ -7,19 +7,6 @@ export async function getNotices(params: Record<string, unknown>) {
   });
 }
 
-export async function updateNotices(params: Record<string, unknown>) {
-  return adminClient('/notice/update', {
-    method: 'PUT',
-    data: params
-  });
-}
-
-export async function getNoticeSize(params: Record<string, unknown>) {
-  return adminClient('/notice/size', {
-    params
-  });
-}
-
 export async function listDictData(params: Record<string, unknown>) {
   return adminClient("/dict/data/list", {
     params

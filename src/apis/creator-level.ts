@@ -119,16 +119,6 @@ export async function getLevelRankings(params: {
   return res;
 }
 
-// 增加积分（供内部调用）
-export async function addCreatorScore(params: {
-  delta: number;
-  scoreType: string;
-  reason?: string;
-  contentId?: number;
-}): Promise<void> {
-  await adminClient('/creator-level/add-score', { method: 'POST', data: params });
-}
-
 // 计算积分（前端辅助）
 export const SCORE_VALUES = {
   publish: 10,    // 发布内容

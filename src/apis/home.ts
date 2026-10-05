@@ -1,4 +1,4 @@
-import { contentClient, rewardClient } from '@/lib/api/client';
+import { contentClient } from '@/lib/api/client';
 
 // File upload - POST /api/content/file/upload
 export async function fileUpload(params: Record<string, unknown>) {
@@ -53,27 +53,6 @@ export async function getUserCommentActions(commentIds: (string | number)[]) {
   return contentClient("/module/content/comment/actions", {
     params: { commentIds: commentIds.join(',') }
   });
-}
-
-// ========== Reward APIs (use rewardClient) ==========
-
-// 项目列表 - GET /api/core/project/list
-export async function listProjects(params?: Record<string, unknown>) {
-  return rewardClient("/project/list", { params });
-}
-
-// 进行中的项目
-export async function queryDoingProject() {
-  return rewardClient("/project/list", { params: { status: 'DOING' } });
-}
-
-// 用户活动列表 - GET /api/core/user-activity/list
-export async function listUserActivities(params?: Record<string, unknown>) {
-  return rewardClient("/user-activity/list", { params });
-}
-
-export async function queryActivities() {
-  return rewardClient("/user-activity/list", {});
 }
 
 // 搜索页「热门搜索」:core-api 从没挂过 /chart/day-search/list(404),改用站内热榜

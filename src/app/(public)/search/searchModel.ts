@@ -1,7 +1,7 @@
 // 搜索页的类型、常量与纯函数(从 page.tsx 拆出,无 React 依赖)。
 import type { SuggestCreator, SuggestTopic } from '@/apis/search';
 
-// 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
+// 搜索结果来自 GET /api/content/search(@/apis/search);以下是前端类型与纯函数。
 export type SearchContentItemContentType =
   | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
   | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW'

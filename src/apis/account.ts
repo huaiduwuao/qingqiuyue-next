@@ -17,13 +17,6 @@ export async function updateUser(params: Record<string, unknown>) {
   });
 }
 
-export async function systemUpdate(params: Record<string, unknown>) {
-  return adminClient("/user/systemUpdate", {
-    method: 'PUT',
-    data: params
-  });
-}
-
 export async function upload(params: FormData | Record<string, unknown>) {
   return adminClient("/user/upload", {
     method: "POST",
