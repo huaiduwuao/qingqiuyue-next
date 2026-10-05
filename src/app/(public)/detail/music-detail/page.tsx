@@ -43,6 +43,7 @@ import { backfillPending, backfillRefetchInterval } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 
+const NO_LYRICS: LyricLine[] = [];
 
 function MusicDetailContent() {
   const searchParams = useSearchParams();
@@ -82,9 +83,12 @@ function MusicDetailContent() {
     severity: 'success',
   });
   const lyricRef = useRef<HTMLDivElement>(null);
-  // 实时获取的音频URL和歌词
-  const [realAudioUrl, setRealAudioUrl] = useState<string>('');
-  const [realLyrics, setRealLyrics] = useState<LyricLine[]>([]);
+  // 实时获取的音频URL和歌词。按歌曲 id 记:从相关推荐点到另一首歌时页面不重挂,
+  // 以前这两个状态会留着上一首的 —— 新歌还在解析时点播放放的是上一首,
+  // 新歌没取到歌词时显示的是上一首的歌词。
+  const [resolved, setResolved] = useState<{ id: string; src: string; lyrics: LyricLine[] } | null>(null);
+  const realAudioUrl = resolved && resolved.id === id ? resolved.src : '';
+  const realLyrics = resolved && resolved.id === id ? resolved.lyrics : NO_LYRICS;
   const [audioLoading, setAudioLoading] = useState(false);
   // <audio> 加载失败(实时签名地址过期、源站拒绝)—— 和"压根没有音源"一样要让用户看见。
   const audioFailed = !!playerError;
@@ -149,8 +153,8 @@ function MusicDetailContent() {
     resolveMusic(query.data)
       .then(({ src, lyrics: lrc }) => {
         if (cancelled) return;
-        setRealAudioUrl(src);
-        if (lrc.length > 0) setRealLyrics(lrc);
+        // 同一首歌重新解析(补全轮询)没拿到歌词时,沿用这首歌上次的歌词
+        setResolved((prev) => ({ id, src, lyrics: lrc.length > 0 ? lrc : prev && prev.id === id ? prev.lyrics : NO_LYRICS }));
       })
       .finally(() => {
         if (!cancelled) setAudioLoading(false);
