@@ -115,7 +115,7 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
 
   const { data: types = [], isLoading } = useQuery({
     queryKey: TYPE_KEY,
-    queryFn: () => listContentTypes().then((r: any) => (r?.list ?? []) as ContentTypeRow[]),
+    queryFn: () => listContentTypes().then((r) => (r?.list ?? []) as ContentTypeRow[]),
   });
   // 类型表很小,名称/代码关键字与状态都在前端过滤
   const shownTypes = React.useMemo(() => {
@@ -220,7 +220,7 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
 function SubcatRows({ parentCode, open }: { parentCode: string; open: boolean }) {
   const { data: subs = [], isLoading } = useQuery({
     queryKey: [...SUBCAT_KEY, 'by-parent', parentCode],
-    queryFn: () => listSubcategoriesByParent(parentCode).then((r: any) => (r?.list ?? []) as SubcategoryRow[]),
+    queryFn: () => listSubcategoriesByParent(parentCode).then((r) => (r?.list ?? []) as SubcategoryRow[]),
     enabled: open,
   });
 
@@ -265,7 +265,7 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
   // 大类下拉候选(全集)
   const { data: types = [] } = useQuery({
     queryKey: TYPE_KEY,
-    queryFn: () => listContentTypes().then((r: any) => (r?.list ?? []) as ContentTypeRow[]),
+    queryFn: () => listContentTypes().then((r) => (r?.list ?? []) as ContentTypeRow[]),
   });
 
   const saveMutation = useMutation({

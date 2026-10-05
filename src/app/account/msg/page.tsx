@@ -195,6 +195,33 @@ export default function MsgPage() {
   );
 }
 
+/** /notice/interaction/list 的一条(互动通知) */
+interface InteractionNotice {
+  id: number | string;
+  type?: string;
+  typeName?: string;
+  title?: string;
+  content?: string;
+  time: string;
+  unread?: boolean;
+  fromUserId?: number | string;
+  nickname?: string;
+  avatar?: string;
+  isFollowed?: boolean;
+  targetId?: number | string;
+  targetType?: string;
+  targetCover?: string;
+}
+
+/** /notice/system/list 的一条(系统通知) */
+interface SystemNotice {
+  id: number | string;
+  title?: string;
+  content?: string;
+  status?: string;
+  unread?: boolean;
+}
+
 // ─── 互动消息面板 ───
 function InteractionPanel() {
   const subType = useMsgUi((s) => s.subType);
@@ -204,8 +231,8 @@ function InteractionPanel() {
     queryKey: ['notice-interaction-page', subType],
     queryFn: async () => await adminClient('/notice/interaction/list', { params: { subType } }),
   });
-  const records: any[] = data?.list || [];
-  const unreadCount = records.filter((r: any) => r.unread).length;
+  const records: InteractionNotice[] = data?.list || [];
+  const unreadCount = records.filter((r) => r.unread).length;
 
   const readAllMutation = useMutation({
     mutationFn: async () => await adminClient.post('/notice/interaction/readAll'),
@@ -277,7 +304,7 @@ function InteractionPanel() {
   );
 }
 
-function FullNoticeItem({ item }: { item: any }) {
+function FullNoticeItem({ item }: { item: InteractionNotice }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
@@ -456,9 +483,9 @@ function SystemPanel() {
     queryKey: ['notice-system-page'],
     queryFn: async () => await adminClient('/notice/system/list'),
   });
-  const records: any[] = data?.list || [];
+  const records: SystemNotice[] = data?.list || [];
   // 系统消息无 unread 派生字段，用 status 推导未读数
-  const unreadCount = records.filter((r: any) => r.unread ?? (r.status !== 'READ' && r.status !== 'read')).length;
+  const unreadCount = records.filter((r) => r.unread ?? (r.status !== 'READ' && r.status !== 'read')).length;
 
   const readAllMutation = useMutation({
     mutationFn: async () => await adminClient.post('/notice/system/readAll'),
@@ -505,7 +532,7 @@ function SystemPanel() {
   );
 }
 
-function SystemNoticeItem({ item }: { item: any }) {
+function SystemNoticeItem({ item }: { item: SystemNotice }) {
   const qc = useQueryClient();
   const router = useRouter();
   const view = systemNoticeView(item);
@@ -687,7 +714,7 @@ function DmPanel() {
   // 会话 id 跟着 variables 走:回包时用户可能已经切到别的会话,用闭包里最新的 selectedId
   // 会把这条消息塞进另一个会话的列表里(还清掉那边的草稿)。
   const appendOptimistic = (sessionId: number, type: Message['type'], content: string) => {
-    qc.setQueryData(['dm-messages-page', sessionId], (old: any) => {
+    qc.setQueryData(['dm-messages-page', sessionId], (old: { list?: Message[] } | undefined) => {
       const list = old?.list || [];
       const optimistic: Message = {
         id: Date.now(),
@@ -863,7 +890,7 @@ function DmPanel() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = (await fileUpload(formData as any)) as { url?: string };
+      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { url?: string };
       const url = res?.url;
       if (url) {
         sendImageMutation.mutate({ sessionId, url });

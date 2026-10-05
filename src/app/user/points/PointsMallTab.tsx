@@ -130,7 +130,7 @@ export function PointsMallTab({ initialPoints }: Props) {
   // 积分余额(后端按登录用户返回 user_point,没有积分账户时为 null)
   const pointQuery = useQuery({
     queryKey: ['user-point', userId],
-    queryFn: () => getUserPoint().then((r: any) => r ?? null),
+    queryFn: () => getUserPoint().then((r) => r ?? null),
     enabled: !!userId,
   });
   const currentPoints: number = pointQuery.data?.point ?? initialPoints;

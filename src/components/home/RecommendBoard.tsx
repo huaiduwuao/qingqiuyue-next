@@ -32,7 +32,7 @@ export default function RecommendBoard({
   const { data, isLoading } = useQuery({
     queryKey: ['recommend-board', types.join(','), size],
     queryFn: () =>
-      fetchRecommend({ types: types.join(','), size, shuffle: BOARD_SHUFFLE, watchable: 1 }).then((r: any) => (r?.list ?? []) as HotItem[]),
+      fetchRecommend({ types: types.join(','), size, shuffle: BOARD_SHUFFLE, watchable: 1 }).then((r) => (r?.list ?? []) as HotItem[]),
     staleTime: 90_000,
   });
 

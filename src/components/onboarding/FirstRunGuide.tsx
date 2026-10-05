@@ -97,7 +97,7 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
     queryKey: ['first-run', 'types'],
     queryFn: () =>
       fetchContentTypes()
-        .then((r: any) => (r?.list ?? []) as { code: string; name: string }[])
+        .then((r) => (r?.list ?? []) as { code: string; name: string }[])
         .catch(() => []),
     enabled: open,
     staleTime: 10 * 60_000,

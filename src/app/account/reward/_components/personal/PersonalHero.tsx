@@ -110,7 +110,7 @@ export default function PersonalHero(_props: Props) {
   // 我的需求(不传 groupId -> 后端按当前用户过滤)
   const demandsCountQuery = useQuery({
     queryKey: ['personal', 'demands', 'count', currentUserId],
-    queryFn: () => listDemands({ pageSize: 1 }).then((r: any) => r?.totalRow || 0),
+    queryFn: () => listDemands({ pageSize: 1 }).then((r) => r?.totalRow || 0),
     enabled: !!currentUserId,
     placeholderData: 0,
   });

@@ -103,14 +103,14 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
   // 内容分类:字典表 /dict/types 是后台可维护的全集,拉不到时退回代码里的预置清单。
   const typesQuery = useQuery({
     queryKey: ['section-catalog', 'types'],
-    queryFn: () => fetchContentTypes().then((r: any) => (r?.list ?? []) as { code: string; name: string }[]),
+    queryFn: () => fetchContentTypes().then((r) => (r?.list ?? []) as { code: string; name: string }[]),
     enabled: open,
     staleTime: 10 * 60_000,
   });
   const subcatQuery = useQuery({
     queryKey: ['section-catalog', 'subcategory'],
     queryFn: () =>
-      fetchSubcategories('all').then((r: any) => (r?.groups ?? {}) as Record<string, SubcategoryItem[]>),
+      fetchSubcategories('all').then((r) => (r?.groups ?? {}) as Record<string, SubcategoryItem[]>),
     enabled: open && group === 'genre',
     staleTime: 10 * 60_000,
   });
@@ -118,7 +118,7 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
   const tagsQuery = useQuery({
     queryKey: ['section-catalog', 'tags'],
     queryFn: () =>
-      fetchContentTags({ limit: 80 }).then((r: any) => ({
+      fetchContentTags({ limit: 80 }).then((r) => ({
         tags: (r?.list ?? []) as { name: string; count: number }[],
         sources: (r?.sources ?? []) as { name: string; count: number }[],
       })),

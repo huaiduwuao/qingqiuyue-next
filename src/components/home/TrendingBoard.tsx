@@ -62,7 +62,7 @@ export default function TrendingBoard({
   const { data: platforms } = useQuery({
     queryKey: ['trending-platforms', period],
     queryFn: () =>
-      getTrendingPlatforms({ period }).then((r: any) => (r?.list ?? []) as TrendingPlatform[]),
+      getTrendingPlatforms({ period }).then((r) => (r?.list ?? []) as TrendingPlatform[]),
     staleTime: 5 * 60_000,
   });
 
@@ -74,7 +74,7 @@ export default function TrendingBoard({
         platform: platform || undefined,
         limit: maxItems,
         ...(playableOnly ? { playableOnly: 1 as const } : {}),
-      }).then((r: any) => (r?.list ?? []) as TrendingItem[]),
+      }).then((r) => (r?.list ?? []) as TrendingItem[]),
     staleTime: 60_000,
   });
 
