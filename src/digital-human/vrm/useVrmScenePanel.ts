@@ -88,6 +88,23 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
   const tmpDirRef = useRef<THREE.Vector3 | null>(null);
   const tmpEdgeRef = useRef<THREE.Vector3 | null>(null);
 
+  // 面板和显示器都没有的时候把整层挪出交互:避免看不见的元素还在吃点击。
+  // canvas 走 ref:VrmStage 首帧传的 canvas 是 null,以前 setVisible / setDisplaysVisible
+  // 的空依赖闭包一直读首帧的 null,收起显示器时画布的 pointer-events:none 就恢复不回来。
+  const canvasRef = useRef<HTMLCanvasElement | null>(canvas);
+  useEffect(() => {
+    canvasRef.current = canvas;
+  }, [canvas]);
+  const syncLayerVisibility = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    renderer.domElement.style.visibility = visibleRef.current ? 'visible' : 'hidden';
+    const under = underRendererRef.current;
+    if (under) under.domElement.style.visibility = displaysVisibleRef.current ? 'visible' : 'hidden';
+    const cv = canvasRef.current;
+    if (!displaysVisibleRef.current && cv) cv.style.pointerEvents = 'auto';
+  }, []);
+
   useEffect(() => {
     if (!container || !camera || !THREE_NS) return;
     let cancelled = false;
@@ -266,17 +283,7 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
       cancelled = true;
       cleanup?.();
     };
-  }, [container, camera, THREE_NS, glScene, canvas]);
-
-  // 面板和显示器都没有的时候把整层挪出交互:避免看不见的元素还在吃点击
-  function syncLayerVisibility() {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.domElement.style.visibility = visibleRef.current ? 'visible' : 'hidden';
-    const under = underRendererRef.current;
-    if (under) under.domElement.style.visibility = displaysVisibleRef.current ? 'visible' : 'hidden';
-    if (!displaysVisibleRef.current && canvas) canvas.style.pointerEvents = 'auto';
-  }
+  }, [container, camera, THREE_NS, glScene, canvas, syncLayerVisibility]);
 
   const tick = useCallback((avatar: { x: number; y: number; z: number }) => {
     const renderer = rendererRef.current;
@@ -332,14 +339,14 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
     const object = objectRef.current;
     if (object) object.visible = on;
     syncLayerVisibility();
-  }, []);
+  }, [syncLayerVisibility]);
 
   const setDisplaysVisible = useCallback((on: boolean) => {
     displaysVisibleRef.current = on;
     for (const obj of displayObjectsRef.current) obj.visible = on;
     for (const prop of displayPropsRef.current) prop.visible = on;
     syncLayerVisibility();
-  }, []);
+  }, [syncLayerVisibility]);
 
   const resize = useCallback(() => {
     const renderer = rendererRef.current;

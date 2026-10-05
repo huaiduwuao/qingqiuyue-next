@@ -37,7 +37,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import { myPage, process, save, update, settleDemand } from '@/apis/reward-demand';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import { myPage, process, remove, save, update, settleDemand } from '@/apis/reward-demand';
 import RealmSelect from '@/components/reward/RealmSelect';
 // 封面上传复用创作者中心的现成实现(accountClient POST /file/upload → 返回 url)
 import { uploadOneFile } from '@/app/account/content/_components/useContentForm';
@@ -280,6 +281,21 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     }
   };
 
+  // 后端只允许删除没有资金在途的需求(待发布 / 已关闭),其余状态不给入口
+  const canDelete = (record?: DemandItem | null) => record?.status === 'PENDING' || record?.status === 'CLOSED';
+
+  const handleDelete = async (record: DemandItem) => {
+    if (!record.id || !confirm('删除后需求及其下任务都会一并删除,不能恢复。确定删除?')) return;
+    try {
+      await remove(record.id as number);
+      showMessage('已删除');
+      if (selectedRecord?.id === record.id) setDetailVisible(false);
+      query.refetch();
+    } catch (err) {
+      showMessage(errMessage(err) || '删除失败', 'error');
+    }
+  };
+
   const handleStatusChange = async (record: DemandItem, status: DemandStatus) => {
     const pay = demandPayDiamonds(record);
     const tip =
@@ -327,6 +343,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
           onDetail={handleDetail}
           onEdit={handleEdit}
           onSettle={handleSettle}
+          onDelete={handleDelete}
           onOpenTaskboard={onOpenTaskboard}
           keyword={keywordDraft}
           onKeyword={setKeywordDraft}
@@ -475,6 +492,13 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                   <Tooltip title="编辑">
                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(item); }}>
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {canDelete(item) && (
+                  <Tooltip title="删除">
+                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); handleDelete(item); }}>
+                      <DeleteOutlineRoundedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -801,6 +825,11 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
           </Box>
         </DialogContent>
         <DialogActions sx={{ gap: 1 }}>
+          {canDelete(selectedRecord) && (
+            <Button color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => handleDelete(selectedRecord!)} sx={{ mr: 'auto' }}>
+              删除
+            </Button>
+          )}
           {isPending && (
             <Button variant="contained" onClick={() => handleStatusChange(selectedRecord!, 'PUBLISHED')}>
               发布

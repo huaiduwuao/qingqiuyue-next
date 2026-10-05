@@ -6,7 +6,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import { GridColDef, GridPaginationModel, GridSortModel, GridRowId } from '@mui/x-data-grid';
+import { GridColDef, GridPaginationModel, GridSortModel, GridRowSelectionModel } from '@mui/x-data-grid';
 import { FilterBar, FilterBarProps } from './FilterBar';
 
 const DataGrid = lazy(() => import('@mui/x-data-grid').then(mod => ({ default: mod.DataGrid })));
@@ -80,7 +80,7 @@ export function DataGridTable({
     pageSize: 20,
   });
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  const [selectedIds, setSelectedIds] = useState<GridRowId[]>([]);
+  const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({ type: 'include', ids: new Set() });
 
   const fetchDataRef = useRef(fetchData);
   fetchDataRef.current = fetchData;
@@ -164,10 +164,15 @@ export function DataGridTable({
     setSortModel(newModel);
   }, []);
 
-  const handleRowSelectionChange = useCallback((newSelection: GridRowId[]) => {
-    setSelectedIds(newSelection);
+  // 传了 onSelectionChange 才出勾选列。v8+ 的选择模型是 {type, ids}:表头「全选」给的是
+  // exclude(除 ids 外全选),rows 只有当前页,所以两种都按当前页行展开。翻页 / 删除后
+  // 不在 rows 里的 id 由 DataGrid 自己剔除并再回调一次,父组件的选中列表跟着清掉。
+  const handleRowSelectionChange = useCallback((model: GridRowSelectionModel) => {
+    setRowSelectionModel(model);
     if (onSelectionChange) {
-      const selectedRows = rows.filter((row) => newSelection.includes(row.id));
+      const selectedRows = rows.filter((row) =>
+        model.type === 'include' ? model.ids.has(row.id) : !model.ids.has(row.id),
+      );
       onSelectionChange(selectedRows);
     }
   }, [rows, onSelectionChange]);
@@ -277,6 +282,9 @@ export function DataGridTable({
             sortModel={sortModel}
             onSortModelChange={handleSortModelChange}
             disableRowSelectionOnClick
+            checkboxSelection={!!onSelectionChange}
+            rowSelectionModel={onSelectionChange ? rowSelectionModel : undefined}
+            onRowSelectionModelChange={onSelectionChange ? handleRowSelectionChange : undefined}
             sx={{
               width: '100%',
               '& [data-field="actions"]': {

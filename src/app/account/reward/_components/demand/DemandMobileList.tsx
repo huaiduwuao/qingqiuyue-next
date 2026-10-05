@@ -2,7 +2,7 @@
 
 /**
  * 手机版「我的需求」:没有「需求管理」标题卡和布局切换;状态 tab 收成一行横滑胶囊,
- * 需求是单列行(缩略图 + 标题 + 状态/赏金/任务进度/截止),行尾「⋯」放编辑 / 看任务 / 结账;
+ * 需求是单列行(缩略图 + 标题 + 状态/赏金/任务进度/截止),行尾「⋯」放编辑 / 看任务 / 结账 / 删除;
  * 点行打开和电脑版同一个详情弹窗;「新建需求」在右下角 Fab。弹窗仍由 page.tsx 挂。
  */
 
@@ -20,6 +20,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { MobileSection } from '@/components/mobile/MobileSection';
 import { coverBackgroundImage } from '@/lib/media';
 import type { DemandItem, DemandStatus } from '@/beans/reward';
@@ -40,6 +41,8 @@ interface Props {
   onDetail: (d: DemandItem) => void;
   onEdit: (d: DemandItem) => void;
   onSettle: (d: DemandItem) => void;
+  /** 只对待发布 / 已关闭的需求出现(后端只允许删这两种) */
+  onDelete?: (d: DemandItem) => void;
   onOpenTaskboard?: (demandId: number) => void;
   keyword?: string;
   onKeyword?: (v: string) => void;
@@ -59,6 +62,7 @@ export default function DemandMobileList({
   onDetail,
   onEdit,
   onSettle,
+  onDelete,
   onOpenTaskboard,
   keyword = '',
   onKeyword,
@@ -216,6 +220,20 @@ export default function DemandMobileList({
               <ReceiptLongIcon fontSize="small" sx={{ color: 'success.main' }} />
             </ListItemIcon>
             结算单
+          </MenuItem>
+        )}
+        {item && onDelete && (item.status === 'PENDING' || item.status === 'CLOSED') && (
+          <MenuItem
+            onClick={() => {
+              close();
+              onDelete(item);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteOutlineRoundedIcon fontSize="small" sx={{ color: 'error.main' }} />
+            </ListItemIcon>
+            删除
           </MenuItem>
         )}
       </Menu>

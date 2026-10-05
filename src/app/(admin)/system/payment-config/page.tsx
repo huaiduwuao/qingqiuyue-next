@@ -79,12 +79,54 @@ const DEFAULT_CONFIG: PaymentConfig = {
   alipayIsProd: false,
 };
 
+const MULTILINE_SECRETS: ReadonlyArray<keyof PaymentConfig> = ['wechatPrivateKey', 'alipayPrivateKey', 'alipayPublicCert'];
+
+// 密钥输入框 + 显示/隐藏开关。必须定义在页面组件外面:以前它是页面里的内联组件,
+// 每次输入都换成一个新的组件类型,整块 TextField 重新挂载,敲一个字就丢一次焦点。
+// 私钥/证书是多行 textarea,type=password 对它不起作用,隐藏时改用 text-security 打码。
+function SecretField({ label, field, value, onChange, placeholder, helper }: {
+  label: string;
+  field: keyof PaymentConfig;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  helper?: string;
+}) {
+  const [shown, setShown] = useState(false);
+  const multiline = MULTILINE_SECRETS.includes(field);
+  return (
+    <TextField
+      label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      fullWidth
+      multiline={multiline}
+      rows={multiline ? 6 : undefined}
+      type={multiline || shown ? 'text' : 'password'}
+      placeholder={placeholder}
+      helperText={helper}
+      autoComplete="off"
+      slotProps={{
+        htmlInput: multiline && !shown ? { style: { WebkitTextSecurity: 'disc' } as React.CSSProperties } : undefined,
+        input: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton onClick={() => setShown((v) => !v)} edge="end" size="small" aria-label={shown ? '隐藏' : '显示'}>
+                {shown ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  );
+}
+
 export default function PaymentConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState(0);
   const [config, setConfig] = useState<PaymentConfig>(DEFAULT_CONFIG);
-  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => {
@@ -131,38 +173,6 @@ export default function PaymentConfigPage() {
 
   const isWechatPayValid = () => config.wechatAppId && config.wechatMchId && config.wechatApiV3Key && config.wechatPrivateKey;
   const isAlipayValid = () => config.alipayAppId && config.alipayPrivateKey && config.alipayPublicCert;
-
-  const InputPassword = ({ label, field, value, onChange, placeholder, helper }: {
-    label: string;
-    field: keyof PaymentConfig;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    helper?: string;
-  }) => (
-    <TextField
-      label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      fullWidth
-      multiline={field === 'wechatPrivateKey' || field === 'alipayPrivateKey' || field === 'alipayPublicCert'}
-      rows={field === 'wechatPrivateKey' || field === 'alipayPrivateKey' || field === 'alipayPublicCert' ? 6 : 1}
-      type={showSecrets[field] ? 'text' : 'password'}
-      placeholder={placeholder}
-      helperText={helper}
-      slotProps={{
-        input: {
-          endAdornment: (
-            <InputAdornment position="end">
-              <IconButton onClick={() => setShowSecrets((p) => ({ ...p, [field]: !p[field] }))} edge="end" size="small">
-                {showSecrets[field] ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-              </IconButton>
-            </InputAdornment>
-          ),
-        },
-      }}
-    />
-  );
 
   if (loading) {
     return (
@@ -214,7 +224,7 @@ export default function PaymentConfigPage() {
                 helperText="关联到商户号的公众号 AppID"
               />
 
-              <InputPassword
+              <SecretField
                 label="公众号 AppSecret"
                 field="wechatAppSecret"
                 value={config.wechatAppSecret}
@@ -232,7 +242,7 @@ export default function PaymentConfigPage() {
                 placeholder="在商户平台获取"
               />
 
-              <InputPassword
+              <SecretField
                 label="API v3 密钥"
                 field="wechatApiV3Key"
                 value={config.wechatApiV3Key}
@@ -249,7 +259,7 @@ export default function PaymentConfigPage() {
                 placeholder="在商户平台获取证书后查看"
               />
 
-              <InputPassword
+              <SecretField
                 label="商户私钥 (PKCS8 PEM)"
                 field="wechatPrivateKey"
                 value={config.wechatPrivateKey}
@@ -313,7 +323,7 @@ export default function PaymentConfigPage() {
                 placeholder="在开放平台应用详情页获取"
               />
 
-              <InputPassword
+              <SecretField
                 label="应用私钥 (PKCS8 PEM)"
                 field="alipayPrivateKey"
                 value={config.alipayPrivateKey}
@@ -324,7 +334,7 @@ export default function PaymentConfigPage() {
 
               <Divider sx={{ my: 1 }} />
 
-              <InputPassword
+              <SecretField
                 label="支付宝公钥证书内容 (PEM)"
                 field="alipayPublicCert"
                 value={config.alipayPublicCert}

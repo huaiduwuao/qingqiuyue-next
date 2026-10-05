@@ -155,7 +155,8 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
     [setNodes, setEdges, dark, theme],
   )
 
-  useImperativeHandle(ref, () => ({ setData, getData: toDraft }), [])
+  // toDraft 随 nodes/edges 重建,句柄必须跟着换,否则 getData() 永远拿到首帧的空图
+  useImperativeHandle(ref, () => ({ setData, getData: toDraft }), [setData, toDraft])
 
   // 草稿变化通知父组件
   useEffect(() => {
