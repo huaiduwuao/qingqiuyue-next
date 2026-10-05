@@ -1,37 +1,41 @@
 'use client';
 
-import { formatDuration } from '@/lib/utils/format';
-import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { reportPlay } from '@/lib/playReport';
 import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import Slider from '@mui/material/Slider';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import VolumeOffIcon from '@mui/icons-material/VolumeOff';
-import FullscreenIcon from '@mui/icons-material/Fullscreen';
-import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
-import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
-import Replay10Icon from '@mui/icons-material/Replay10';
-import Forward10Icon from '@mui/icons-material/Forward10';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
-import CloudOffIcon from '@mui/icons-material/CloudOffRounded';
-import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
-import { authPlatform, isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 import { createPortal } from 'react-dom';
-import { useBackClose } from '@/lib/backStack';
-import { canResolveLocally, resolveStream, webCannotFetchMedia } from '@/lib/localStream/engine';
-import { loadRules, matchProvider } from '@/lib/localStream/rules';
+import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
+import { loadRules } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
 import { reportDiag, reportPlayFailure } from '@/lib/clientDiag';
-import { isHijackingBrowser, hijackBrowserName, appOpenUrl } from '@/lib/hijackBrowser';
+import { isHijackingBrowser } from '@/lib/hijackBrowser';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
+import {
+  MAX_RECOVER_ATTEMPTS,
+  NETWORK_BLOCKED_NOTICE,
+  OVERSEAS_ONLY_NOTICE,
+  REGION_HINT,
+  RECOVER_RESET_MS,
+  PREEMPT_EXPIRY_MS,
+  VIDEO_EVENTS,
+  readVolume,
+  saveVolume,
+  createTimeStore,
+  isMp4Stream,
+  hlsFatalMessage,
+  type ScrubHandler,
+  type ScrubEndHandler,
+} from './videoPlayerUtils';
+import { ControlBar, FillControls, PseudoFullscreen } from './VideoPlayerControls';
+import { CenterPlayButton, DockPlaceholder, PosterPanel, QualitySelector, RefreshingBadge, RegionHint, StreamErrorCard, UnmuteHint } from './VideoPlayerOverlays';
+import { AppOnlyPlayer, LocalPlayError } from './VideoPlayerFallbacks';
+import { hotkeyOwner, useVideoHotkeys, type VideoHotkeyActions } from './useVideoHotkeys';
+import { usePlayerFullscreen } from './usePlayerFullscreen';
 
 interface Props {
   /** 直接的视频文件 URL（优先级最高） */
@@ -98,195 +102,6 @@ export interface VideoPlayerHandle {
   seek: (deltaSeconds: number) => void;
   isPlaying: () => boolean;
 }
-
-/** 同一段播放里,直链失效后最多自动重新解析几次(防止解析出来的地址本身就坏,来回打转) */
-const MAX_RECOVER_ATTEMPTS = 2;
-/**
- * 片源本身是好的(后端从机房能直连),只是看的人这边到不了。采集站 CDN(非凡 / 暴风等)
- * 对海外 IP、走海外代理的访问一律 403/404 —— 这不是内容故障,不进举报队列。
- */
-const NETWORK_BLOCKED_NOTICE = '这个片源只对中国大陆网络开放：当前是海外网络或开着 VPN / 代理，关掉后再试';
-/**
- * 反过来:片源 CDN 拒绝中国大陆 IP(欧乐影院等海外资源站),后端从国内机房测也是 403。
- * 国内用户要开 VPN(海外节点)才能看;后端体检会把这类内容换到国内能放的片源,换不到才会看到这句。
- */
-const OVERSEAS_ONLY_NOTICE = '这个片源只对海外网络开放：它拒绝中国大陆 IP，需要开 VPN（海外节点）才能观看，国内片源正在补';
-/** 开播前挂在画面上的地区提示(StreamInfo.region),播放失败时再给上面两句完整原因 */
-const REGION_HINT: Record<string, string> = {
-  mainland: '仅限国内网络观看 · 开着 VPN / 代理会放不了',
-  overseas: '海外片源 · 国内需开 VPN 才能观看',
-};
-/** 看的人这边的网络问题,不是片源坏了:原样显示,不说「已记录」 */
-const isNetworkNotice = (msg: string | null) => msg === NETWORK_BLOCKED_NOTICE || msg === OVERSEAS_ONLY_NOTICE;
-/** 恢复后正常播放超过这么久,重置重试计数(长视频两小时后签名再次过期时还能再救) */
-const RECOVER_RESET_MS = 30_000;
-/** 签名到期前多久主动换一条新直链 */
-const PREEMPT_EXPIRY_MS = 60_000;
-
-/** 生命周期 effect 里挂到 <video> 上的事件 */
-const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'resize', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
-
-/**
- * 键盘快捷键归哪个播放器:最近点过 / 最近开播的那个。一页可能有多个播放器(详情页 + 推荐卡片),
- * 按键只给一个,不然按一下 ← 所有视频一起退。
- */
-let hotkeyOwner: object | null = null;
-
-/**
- * 焦点在输入框 / 可编辑区 / 下拉框里时按键归它们(评论框里打空格不能暂停视频)。
- * 滑块(进度条、音量条的 range input)不算:方向键它们自己处理(MUI 会 preventDefault,
- * 下面据此跳过),空格 / M / F 照样归播放器。
- */
-function typingTarget(t: EventTarget | null) {
-  const el = t as HTMLElement | null;
-  if (!el?.tagName) return false;
-  if (el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'range') return false;
-  return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
-}
-
-
-/** 推荐流右上角的圆形玻璃按钮 */
-/** 音量(0–100)记在本机:推荐流每条视频都是新的播放器,不记的话每划一条都回到满音量 */
-const VOLUME_KEY = 'qq-video-volume';
-function readVolume(): number {
-  try {
-    const n = Number(localStorage.getItem(VOLUME_KEY));
-    if (localStorage.getItem(VOLUME_KEY) !== null && Number.isFinite(n)) return Math.max(0, Math.min(100, n));
-  } catch {
-    /* 隐私模式 */
-  }
-  return 100;
-}
-function saveVolume(n: number) {
-  try {
-    localStorage.setItem(VOLUME_KEY, String(Math.round(n)));
-  } catch {
-    /* 隐私模式 */
-  }
-}
-
-/** 页内全屏(安卓客户端 / 不支持元素全屏的浏览器)时,原生壳横屏 + 藏系统栏(MainActivity 的 QQScreen) */
-function nativeScreen(): { setFullscreen?: (on: boolean, landscape: boolean) => void } | undefined {
-  return (window as unknown as { QQScreen?: { setFullscreen?: (on: boolean, landscape: boolean) => void } }).QQScreen;
-}
-
-const FILL_BTN_SX = {
-  color: '#fff',
-  bgcolor: 'rgba(0,0,0,0.35)',
-  backdropFilter: 'blur(6px)',
-  '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
-} as const;
-
-/**
- * 进度条:看得见的轨道 3–4px,可点/可拖的区域上下各多出 10–16px(手指不用瞄准一根细线);
- * 悬停或拖动时轨道加粗、滑块放大。thick = 推荐流那条贴底的。
- */
-function seekBarSx(thick: boolean) {
-  return {
-    display: 'block',
-    color: '#FE2C55',
-    height: thick ? 4 : 3,
-    borderRadius: 2,
-    py: thick ? '14px' : '10px',
-    '@media (pointer: coarse)': { py: thick ? '16px' : '12px' },
-    transition: 'height 0.15s',
-    '&:hover, &:has(.Mui-active)': { height: thick ? 8 : 6 },
-    '& .MuiSlider-rail': { bgcolor: '#fff', opacity: 0.3 },
-    '& .MuiSlider-track': { border: 'none' },
-    '& .MuiSlider-thumb': {
-      width: thick ? 12 : 14,
-      height: thick ? 12 : 14,
-      transition: 'box-shadow 0.15s, width 0.15s, height 0.15s',
-      '&::before': { boxShadow: 'none' },
-      '&:hover, &.Mui-focusVisible': { boxShadow: '0 0 0 6px rgba(254,44,85,0.22)' },
-      '&.Mui-active': { width: 20, height: 20, boxShadow: '0 0 0 8px rgba(254,44,85,0.22)' },
-    },
-    '& .MuiSlider-valueLabel': { bgcolor: 'rgba(0,0,0,0.75)', fontSize: 12, fontVariantNumeric: 'tabular-nums' },
-  } as const;
-}
-
-/** 推荐流贴底进度条:桌面上再粗一点(模块级常量,memo 的进度条不因 sx 新对象重渲染) */
-const FILL_SEEK_SX = {
-  ...seekBarSx(true),
-  '@media (min-width: 900px)': {
-    height: 6,
-    '&:hover, &:has(.Mui-active)': { height: 10 },
-    '& .MuiSlider-thumb': { width: 14, height: 14 },
-  },
-};
-const BAR_SEEK_SX = seekBarSx(false);
-
-/**
- * 播放进度的小订阅源。timeupdate 每秒 ~4 次,以前每次 setCurrentTime 都让整个播放器(连同
- * 几百行控制条 JSX)重渲染;现在只有订阅它的进度条 / 时间文字两个小组件跟着刷新。
- * 播放器本身的逻辑(断点续播、快进快退、小窗交接)都直接读 <video>.currentTime,不依赖这里。
- */
-type TimeStore = { get: () => number; set: (t: number) => void; subscribe: (fn: () => void) => () => void };
-function createTimeStore(): TimeStore {
-  let t = 0;
-  const subs = new Set<() => void>();
-  return {
-    get: () => t,
-    set: (n) => {
-      if (n === t) return;
-      t = n;
-      subs.forEach((f) => f());
-    },
-    subscribe: (fn) => {
-      subs.add(fn);
-      return () => {
-        subs.delete(fn);
-      };
-    },
-  };
-}
-
-type ScrubHandler = (e: Event, v: number | number[]) => void;
-type ScrubEndHandler = (e: unknown, v: number | number[]) => void;
-
-/** 进度条:自己订阅播放进度;拖动中(scrub 非 null)显示拖动位置,松手才 seek */
-const SeekSlider = memo(function SeekSlider({
-  time,
-  scrub,
-  duration,
-  onScrub,
-  onScrubEnd,
-  sx,
-  valueLabel = false,
-}: {
-  time: TimeStore;
-  scrub: number | null;
-  duration: number;
-  onScrub: ScrubHandler;
-  onScrubEnd: ScrubEndHandler;
-  sx: object;
-  valueLabel?: boolean;
-}) {
-  const t = useSyncExternalStore(time.subscribe, time.get, time.get);
-  return (
-    <Slider
-      aria-label="播放进度"
-      value={scrub ?? t}
-      max={duration || 100}
-      onChange={onScrub}
-      onChangeCommitted={onScrubEnd}
-      valueLabelDisplay={valueLabel ? 'auto' : undefined}
-      valueLabelFormat={valueLabel ? formatDuration : undefined}
-      sx={sx}
-    />
-  );
-});
-
-/** 「当前 / 总时长」文字:只订阅到整秒,一秒最多刷新一次 */
-const PlayTime = memo(function PlayTime({ time, scrub, duration }: { time: TimeStore; scrub: number | null; duration: number }) {
-  const getSec = useCallback(() => Math.floor(time.get()), [time]);
-  const sec = useSyncExternalStore(time.subscribe, getSec, getSec);
-  return (
-    <>
-      {formatDuration(scrub ?? sec)} / {formatDuration(duration)}
-    </>
-  );
-});
 
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
   { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh, onFirstFrame },
@@ -547,14 +362,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       hlsRef.current = null;
     }
 
-    // mp4 直链走原生播放(抖音等),m3u8 走 hls.js。
-    // ⚠️ 必须用原始 url 判断,不能用 playUrl——B 站等防盗链域名会被 toPlayableUrl()
-    // 包成 /api/proxy?url=encodeURIComponent(原始url),encodeURIComponent 会把
-    // ".mp4?e=..." 里的 "?" 转义成 "%3F",导致 /\.mp4(\?|$)/ 永远匹配不上 playUrl。
-    // 结果是所有经代理的 B 站 mp4 直链都被误判成"不是 mp4",走进 hls.js 分支——
-    // 拿一个真正的 mp4 二进制文件当 m3u8 清单解析,播放器卡在 readyState=0 不动,
-    // 界面上却显示"正在播放"(进度条是独立于视频本身的模拟状态)。
-    const isMp4 = format === 'mp4' || /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
+    // mp4 直链走原生播放(抖音等),m3u8 走 hls.js(判断见 isMp4Stream:必须用原始 url)
+    const isMp4 = isMp4Stream(url, format);
     if (isMp4) {
       videoRef.current.src = playUrl;
       if (shouldPlay) autoStart(videoRef.current);
@@ -592,15 +401,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               err: data.error?.message || data.error,
               url: data.context?.url,
             });
-            const msg = data.details === 'manifestLoadError'
-              ? '片源清单拉取失败'
-              : data.details === 'manifestParsingError'
-              ? '清单解析失败'
-              : data.details === 'levelLoadError'
-              ? '清晰度加载失败'
-              : data.details === 'fragmentLoadError'
-              ? `分片加载失败: ${data.context?.url || ''}`
-              : '播放失败，请尝试切换清晰度';
+            const msg = hlsFatalMessage(data);
             // 清单 / 分片拉不下来多半是签名过期:先重新解析换链,救不回来才报错
             recoverRef.current(msg);
           }
@@ -721,7 +522,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, src]);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) {
       setPlaying((p) => !p);
@@ -738,7 +539,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       v.pause();
       setPlaying(false);
     }
-  };
+  }, []);
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -774,101 +575,41 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     [timeStore],
   );
 
-  const handleVolume = (_: unknown, v: number | number[]) => {
+  const handleVolume = useCallback((_: unknown, v: number | number[]) => {
     const n = v as number;
     setVolume(n);
     saveVolume(n);
     if (videoRef.current) videoRef.current.volume = n / 100;
     setMuted(n === 0);
-  };
+  }, []);
   // 从静音拉回来时音量是 0 就给个能听见的值
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     if (muted && volume === 0) handleVolume(null, 60);
     else setMuted((m) => !m);
-  };
+  }, [muted, volume, handleVolume]);
 
-  const seek = (delta: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    // duration 状态在元数据到之前是 initialDuration 猜的值,以元素自己的为准
-    const end = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration;
-    v.currentTime = Math.max(0, Math.min(end, v.currentTime + delta));
-    timeStore.set(v.currentTime);
-  };
+  const seek = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      // duration 状态在元数据到之前是 initialDuration 猜的值,以元素自己的为准
+      const end = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration;
+      v.currentTime = Math.max(0, Math.min(end, v.currentTime + delta));
+      timeStore.set(v.currentTime);
+    },
+    [duration, timeStore],
+  );
+  const onTogglePip = useCallback(() => togglePip(videoRef.current), []);
+  const onUnmute = useCallback(() => setMuted(false), []);
 
-  /**
-   * 全屏,按能用的顺序:
-   *   1. 元素全屏(桌面、安卓 Chrome);横屏视频顺手把屏幕锁成横向
-   *   2. iPhone Safari 只能让 <video> 自己全屏(系统播放器)
-   *   3. 都不行 → 页内全屏:把 <video> 挪进 body 下的铺满浮层。安卓客户端一律走这条 ——
-   *      WebView 的元素全屏要壳实现 onShowCustomView,wry 没有,按了没反应;这时还让原生壳横屏、藏系统栏
-   */
-  const [nativeFs, setNativeFs] = useState(false);
-  const [pseudoFs, setPseudoFs] = useState(false);
-  const fsHostRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const on = () => setNativeFs(!!document.fullscreenElement && document.fullscreenElement === containerRef.current);
-    document.addEventListener('fullscreenchange', on);
-    return () => document.removeEventListener('fullscreenchange', on);
-  }, []);
-  const isLandscapeVideo = () => {
-    const v = videoRef.current;
-    return !v || !v.videoWidth || v.videoWidth >= v.videoHeight;
-  };
-  const exitPseudoFs = () => {
-    // 先把 <video> 放回页面里的占位,再卸浮层:同一个任务里挪动不会打断播放
-    const v = videoRef.current;
-    if (v && hostRef.current && v.parentNode !== hostRef.current) hostRef.current.appendChild(v);
-    nativeScreen()?.setFullscreen?.(false, false);
-    setPseudoFs(false);
-  };
-  const fsHostCallback = useCallback((node: HTMLDivElement | null) => {
-    fsHostRef.current = node;
-    const v = videoRef.current;
-    if (node && v && v.parentNode !== node) node.appendChild(v);
-  }, []);
-  useBackClose(pseudoFs, exitPseudoFs);
-  const goFullscreen = async () => {
-    if (pseudoFs) {
-      exitPseudoFs();
-      return;
-    }
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
-    const el = containerRef.current;
-    const androidApp = authPlatform() === 'android';
-    if (!androidApp && el?.requestFullscreen && document.fullscreenEnabled) {
-      try {
-        await el.requestFullscreen({ navigationUI: 'hide' });
-        if (isLandscapeVideo()) {
-          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('landscape')?.catch(() => {});
-        }
-        return;
-      } catch {
-        /* 走下面的退路 */
-      }
-    }
-    const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-    if (!androidApp && !document.fullscreenEnabled && v?.webkitEnterFullscreen) {
-      try {
-        v.webkitEnterFullscreen();
-        return;
-      } catch {
-        /* 走页内全屏 */
-      }
-    }
-    nativeScreen()?.setFullscreen?.(true, isLandscapeVideo());
-    setPseudoFs(true);
-  };
-  const isFs = nativeFs || pseudoFs;
+  // 全屏(元素全屏 / iPhone 系统播放器 / 页内全屏),见 usePlayerFullscreen
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const { pseudoFs, isFs, fsHostRef, fsHostCallback, exitPseudoFs, goFullscreen } = usePlayerFullscreen(videoRef, containerRef, hostRef);
 
   // ---------------------------------------------------------------------------
   // <video> 元素生命周期 + 小窗 / 画中画
   // ---------------------------------------------------------------------------
   const [owner] = useState(() => ({}));
-  const hostRef = useRef<HTMLDivElement | null>(null);
   const pageHref = useRef('');
   const [pip, setPip] = useState(false);
   const [pipOk, setPipOk] = useState(false);
@@ -876,51 +617,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   /** 用户在页面内小窗上点了关闭:回到视口之前不再自动浮出 */
   const dismissed = useRef(false);
 
-  // 键盘:← / → 退进 5 秒,空格 / K 播放暂停,M 静音,F 全屏。
-  // fill(推荐流)不接:RecommendVideoFeed 自己在 window 上管按键(含 ↑↓ 切条),两边都接会退两次。
-  // 挂在 window 上而不是容器上:点过播放器之后焦点多半落在控制条按钮或 body 上,
-  // 只认容器焦点的话"点一下再按 →"经常没反应。归属见 hotkeyOwner。
-  const hotkeys = useRef({ seek, togglePlay, goFullscreen, toggleMute });
+  // 键盘:← / → 退进 5 秒,空格 / K 播放暂停,M 静音,F 全屏(见 useVideoHotkeys)。
+  const hotkeys = useRef<VideoHotkeyActions>({ seek, togglePlay, goFullscreen, toggleMute });
   hotkeys.current = { seek, togglePlay, goFullscreen, toggleMute };
-  useEffect(() => {
-    if (fill) return;
-    if (!hotkeyOwner) hotkeyOwner = owner;
-    const onKey = (e: KeyboardEvent) => {
-      if (hotkeyOwner !== owner || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (!videoRef.current || typingTarget(e.target)) return;
-      const k = hotkeys.current;
-      switch (e.key) {
-        case 'ArrowLeft':
-          k.seek(-5);
-          break;
-        case 'ArrowRight':
-          k.seek(5);
-          break;
-        case ' ':
-        case 'k':
-        case 'K':
-          k.togglePlay();
-          break;
-        case 'm':
-        case 'M':
-          k.toggleMute();
-          break;
-        case 'f':
-        case 'F':
-          void k.goFullscreen();
-          break;
-        default:
-          return;
-      }
-      // 空格默认会滚页面,还会再"点"一次聚焦着的控制条按钮(刚暂停又被按钮切回播放)
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      if (hotkeyOwner === owner) hotkeyOwner = null;
-    };
-  }, [fill, owner]);
+  useVideoHotkeys(fill, owner, videoRef, hotkeys);
 
   // 卸载时要交给小窗的最新状态 + 元素事件的最新回调
   const live = useRef({ dockKey, dockTitle, posterUrl, streams, currentStream, platformName, expiresAt, streamError });
@@ -948,7 +648,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       },
       play: () => {
         setPlaying(true);
-        hotkeyOwner = owner;
+        hotkeyOwner.current = owner;
         if (dockTitle && videoRef.current) claimMediaSession(videoRef.current, dockTitle, posterUrl);
       },
       pause: () => {
@@ -991,7 +691,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const v = videoRef.current;
     const host = hostRef.current;
     if (v && host && v.parentNode !== host && !videoDock.isFloating(owner) && !fsHostRef.current) host.appendChild(v);
-  }, [owner]);
+  }, [owner, fsHostRef]);
 
   const hostCallback = useCallback(
     (node: HTMLDivElement | null) => {
@@ -1103,11 +803,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     if (videoRef.current) videoRef.current.muted = muted;
   }, [muted]);
 
-  const returnToPage = () => {
+  const returnToPage = useCallback(() => {
     videoDock.unfloat(owner);
     attach();
     setFloating(false);
-  };
+  }, [owner, attach]);
+  const onPlayHere = useCallback(() => (pip ? togglePip(videoRef.current) : returnToPage()), [pip, returnToPage]);
 
   // 播放中滚出视口 → 浮到小窗;滚回来 → 放回原位
   useEffect(() => {
@@ -1167,36 +868,13 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
   const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
   const originPlatform = originOnlyPlatform(originLink);
-  const originButton = originLink ? (
-    <Box
-      component="a"
-      href={originLink}
-      target="_blank"
-      rel="noopener noreferrer"
-      data-no-drag
-      sx={{
-        mt: 1,
-        display: 'inline-block',
-        px: 2,
-        py: 0.5,
-        borderRadius: 1,
-        fontSize: 12,
-        color: '#fff',
-        textDecoration: 'none',
-        border: '1px solid rgba(255,255,255,0.35)',
-        bgcolor: 'rgba(255,255,255,0.08)',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
-      }}
-    >
-      {originPlatform ? `去${originPlatform}观看` : '去原站观看'}
-    </Box>
-  ) : null;
+  const region = streams[currentStream]?.region || '';
 
   return (
     <Box
       ref={containerRef}
       onMouseMove={() => setControlsVisible(true)}
-      onPointerDown={() => { hotkeyOwner = owner; }}
+      onPointerDown={() => { hotkeyOwner.current = owner; }}
       sx={fill ? {
         position: 'absolute',
         inset: 0,
@@ -1220,357 +898,63 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       {hasVideo ? (
         <>
           <Box ref={hostCallback} sx={{ width: '100%', height: '100%' }} />
-          {(floating || pip) && (
-            <Box
-              data-no-drag
-              sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'rgba(255,255,255,0.7)', fontSize: 13, bgcolor: '#0b0b0f', zIndex: 4 }}
-            >
-              <PictureInPictureAltIcon sx={{ fontSize: 36, opacity: 0.6 }} />
-              {pip ? '正在画中画中播放' : '正在小窗中播放'}
-              <Box
-                component="button"
-                onClick={() => (pip ? togglePip(videoRef.current) : returnToPage())}
-                sx={{ mt: 0.5, px: 2, py: 0.5, borderRadius: 1, fontSize: 12, color: '#fff', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.35)', bgcolor: 'rgba(255,255,255,0.08)', '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' } }}
-              >
-                在这里播放
-              </Box>
-            </Box>
-          )}
+          {(floating || pip) && <DockPlaceholder pip={pip} onPlayHere={onPlayHere} />}
 
           {/* 清晰度选择器 */}
-          {streams.length > 1 && (
-            <Box
-              className="quality-selector"
-              sx={{
-                position: 'absolute',
-                // 推荐流的右上角是声音/全屏按钮,清晰度放它们下面
-                top: fill ? 56 : 10,
-                right: 10,
-                zIndex: 10,
-              }}
-            >
-              <Box
-                component="select"
-                value={currentStream}
-                onChange={(e: any) => switchStream(parseInt(e.target.value))}
-                sx={{
-                  bgcolor: 'rgba(0,0,0,0.7)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: 1,
-                  px: 1,
-                  py: 0.5,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  outline: 'none',
-                  '& option': { bgcolor: '#333' },
-                }}
-              >
-                {streams.map((s, i) => (
-                  <option key={i} value={i}>
-                    {s.quality} {s.needPay ? '🔒' : ''}
-                  </option>
-                ))}
-              </Box>
-            </Box>
-          )}
+          {streams.length > 1 && <QualitySelector streams={streams} currentStream={currentStream} fill={fill} onSwitch={switchStream} />}
         </>
       ) : (
-        <Box
-          sx={{
-            width: '100%',
-            height: '100%',
-            backgroundImage: posterUrl ? `url(${posterUrl})` : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          {loading ? (
-            <CircularProgress sx={{ color: '#fff' }} />
-          ) : bandwidthLimited ? (
-            // 不是故障:内容没坏,本站只是不替源站付视频带宽。中性图标、说清原因、给去原站的路。
-            // 卡片自带深色磨砂底:它压在封面上,亮色封面上的白字否则看不清。
-            <Box data-no-drag sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
-              <CloudOffIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)', mb: 0.5 }} />
-              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>{originPlatform ? `请前往${originPlatform}观看` : '暂不支持站内播放'}</Box>
-              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{bandwidthLimited}</Box>
-              {originButton}
-            </Box>
-          ) : streamError ? (
-            <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
-              <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
-              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
-              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{isNetworkNotice(streamError) ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
-              {originButton}
-              {streams.length > 0 && (
-                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {streams.map((s, i) => (
-                    <Box
-                      key={i}
-                      component="button"
-                      onClick={() => switchStream(i)}
-                      sx={{
-                        bgcolor: 'rgba(255,255,255,0.1)',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        borderRadius: 1,
-                        color: '#fff',
-                        px: 2,
-                        py: 0.5,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                      }}
-                    >
-                      {s.quality}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Box>
-          ) : platformName ? (
-            <Box sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-              正在解析 {platformName} 视频流...
-            </Box>
-          ) : (
-            !playing && (
-              <IconButton
-                data-no-drag
-                onClick={togglePlay}
-                sx={{
-                  bgcolor: 'rgba(254, 44, 85, 0.9)',
-                  color: '#fff',
-                  '&:hover': { bgcolor: 'primary.main' },
-                  width: 80,
-                  height: 80,
-                }}
-              >
-                <PlayArrowIcon sx={{ fontSize: 48 }} />
-              </IconButton>
-            )
-          )}
-        </Box>
+        <PosterPanel
+          posterUrl={posterUrl}
+          loading={loading}
+          bandwidthLimited={bandwidthLimited}
+          streamError={streamError}
+          platformName={platformName}
+          playing={playing}
+          streams={streams}
+          originLink={originLink}
+          originPlatform={originPlatform}
+          onSwitch={switchStream}
+          onTogglePlay={togglePlay}
+        />
       )}
 
       {/* 片源地区限制:开播前 / 暂停时显示,播起来就收起 */}
-      {hasVideo && !playing && !streamError && REGION_HINT[streams[currentStream]?.region || ''] && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: fill ? 'calc(env(safe-area-inset-top, 0px) + 64px)' : 10,
-            right: 10,
-            zIndex: 3,
-            maxWidth: 'calc(100% - 20px)',
-            px: 1.25,
-            py: 0.5,
-            borderRadius: 999,
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: '#fff',
-            bgcolor: streams[currentStream]?.region === 'overseas' ? 'rgba(217,119,6,0.85)' : 'rgba(0,0,0,0.6)',
-            pointerEvents: 'none',
-          }}
-        >
-          {REGION_HINT[streams[currentStream]?.region || '']}
-        </Box>
-      )}
+      {hasVideo && !playing && !streamError && REGION_HINT[region] && <RegionHint region={region} fill={fill} />}
 
       {/* AIGC 合规角标 */}
       {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
 
       {/* 直链失效,正在重新解析 */}
-      {hasVideo && refreshing && !streamError && (
-        <Box
-          data-no-drag
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            px: 2,
-            py: 1,
-            borderRadius: 2,
-            bgcolor: 'rgba(0, 0, 0, 0.6)',
-            color: '#fff',
-            fontSize: 13,
-            zIndex: 5,
-          }}
-        >
-          <CircularProgress size={16} sx={{ color: '#fff' }} />
-          正在刷新播放地址…
-        </Box>
-      )}
+      {hasVideo && refreshing && !streamError && <RefreshingBadge />}
 
-      {/* hasVideo 为 true 时播放失败(重新解析也救不回来)——
-          之前 streamError 的文字提示只在 !hasVideo 分支里渲染,这种情况下
-          <video> 元素明明已经挂载、彻底放不出来,却没有任何反馈,用户看到的
-          就是一块卡死的黑屏,分不清是加载慢还是这条内容根本坏了。 */}
-      {hasVideo && streamError && (
-        <Box
-          data-no-drag
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 0.5,
-            px: 3,
-            py: 2,
-            borderRadius: 2,
-            bgcolor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            textAlign: 'center',
-            maxWidth: 280,
-            zIndex: 5,
-          }}
-        >
-          <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main' }} />
-          <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
-          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{isNetworkNotice(streamError) ? streamError : `${streamError} · 已记录,尽快修复`}</Box>
-          {originButton}
-        </Box>
-      )}
+      {/* hasVideo 为 true 时播放失败(重新解析也救不回来),见 StreamErrorCard */}
+      {hasVideo && streamError && <StreamErrorCard streamError={streamError} originLink={originLink} originPlatform={originPlatform} />}
 
       {/* 有声自动播放被拦、已静音开播:轻触这里(用户手势)把声音打开 */}
-      {hasVideo && autoMuted && muted && playing && (
-        <Box
-          data-no-drag
-          role="button"
-          onClick={() => setMuted(false)}
-          sx={{
-            position: 'absolute',
-            top: 12,
-            left: 12,
-            zIndex: 3,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.5,
-            px: 1.25,
-            py: 0.5,
-            borderRadius: 999,
-            fontSize: 12,
-            color: '#fff',
-            bgcolor: 'rgba(0,0,0,0.55)',
-            cursor: 'pointer',
-          }}
-        >
-          <VolumeOffIcon sx={{ fontSize: 16 }} />
-          轻触开启声音
-        </Box>
-      )}
+      {hasVideo && autoMuted && muted && playing && <UnmuteHint onUnmute={onUnmute} />}
 
       {/* 中心播放按钮 */}
-      {hasVideo && !playing && !streamError && !refreshing && (
-        <Box
-          data-no-drag
-          onClick={togglePlay}
-          sx={{
-            position: 'absolute',
-            // 手机上播放器只有 ~200px 高,底部控制条占掉 ~60px:按钮往上让半个控制条,不被压住
-            top: compact && !fill ? 'calc(50% - 28px)' : '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2,
-          }}
-        >
-          <Box
-            sx={{
-              width: compact ? 56 : 72,
-              height: compact ? 56 : 72,
-              borderRadius: '50%',
-              bgcolor: 'rgba(254, 44, 85, 0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-            }}
-          >
-            <PlayArrowIcon sx={{ fontSize: compact ? 36 : 44, color: '#fff' }} />
-          </Box>
-        </Box>
-      )}
+      {hasVideo && !playing && !streamError && !refreshing && <CenterPlayButton compact={compact} fill={fill} onTogglePlay={togglePlay} />}
 
-      {/* 推荐流(fill):抖音式 —— 底边一整条粗进度条(拖动时加粗 + 大号时间),声音/全屏收到右上角,
-          不再在底部叠一整排按钮(会压住作者和标题)。单击画面暂停由 RecommendVideoFeed 处理。 */}
+      {/* 推荐流(fill):右上角声音/画中画/全屏 + 贴底粗进度条 */}
       {hasVideo && fill && (
-        <>
-          <Box
-            data-no-drag
-            className="controls"
-            sx={{ position: 'absolute', top: 10, right: 10, zIndex: 6, display: 'flex', gap: 0.75 }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                borderRadius: 99,
-                ...FILL_BTN_SX,
-                '& .qq-vol': { width: 0, opacity: 0, transition: 'width 0.2s, opacity 0.2s, margin 0.2s' },
-                '@media (hover: hover)': {
-                  '&:hover .qq-vol, &:focus-within .qq-vol': { width: 84, opacity: 1, ml: 0.5, mr: 1.5 },
-                },
-              }}
-            >
-              <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
-                {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
-              </IconButton>
-              <Box className="qq-vol" sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                <Slider
-                  size="small"
-                  aria-label="音量"
-                  value={muted ? 0 : volume}
-                  onChange={handleVolume}
-                  sx={{ color: '#fff', width: 76, mx: 0.5, flexShrink: 0 }}
-                />
-              </Box>
-            </Box>
-            {pipOk && (
-              <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ ...FILL_BTN_SX, color: pip ? '#FE2C55' : '#fff' }}>
-                <PictureInPictureAltIcon fontSize="small" />
-              </IconButton>
-            )}
-            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={FILL_BTN_SX}>
-              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-            </IconButton>
-          </Box>
-          {/* 拖动时的大号时间,放在作者/标题浮层(底部 ~30–120px)上面 */}
-          {scrub !== null && (
-            <Box
-              aria-hidden
-              sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) + 132px)', zIndex: 6, textAlign: 'center', pointerEvents: 'none', color: '#fff', fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}
-            >
-              {formatDuration(scrub)} <Box component="span" sx={{ opacity: 0.6 }}>/ {formatDuration(duration)}</Box>
-            </Box>
-          )}
-          <Box
-            data-no-drag
-            sx={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              // 手机:贴着底栏;桌面:圆角画布里、离底边一点,不被圆角和视口底边切掉
-              bottom: { xs: 'calc(var(--player-inset, 0px) - 10px)', md: 'calc(var(--player-inset, 0px) - 2px)' },
-              zIndex: 6,
-              px: { xs: 1.5, md: 2 },
-            }}
-          >
-            <SeekSlider time={timeStore} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={FILL_SEEK_SX} />
-          </Box>
-        </>
+        <FillControls
+          time={timeStore}
+          scrub={scrub}
+          duration={duration}
+          muted={muted}
+          volume={volume}
+          pip={pip}
+          pipOk={pipOk}
+          isFs={isFs}
+          onToggleMute={toggleMute}
+          onVolume={handleVolume}
+          onTogglePip={onTogglePip}
+          onFullscreen={goFullscreen}
+          onScrub={onScrub}
+          onScrubEnd={onScrubEnd}
+        />
       )}
 
       {pseudoFs &&
@@ -1593,254 +977,31 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
       {/* 控制条 */}
       {hasVideo && !fill && (
-        <Box
-          data-no-drag
-          className="controls"
-          sx={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)',
-            px: compact ? 1 : 1.5,
-            pb: compact ? 0.5 : 1,
-            pt: 2,
-            opacity: controlsVisible ? 1 : 0,
-            transition: 'opacity 0.2s',
-          }}
-        >
-          <SeekSlider time={timeStore} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={BAR_SEEK_SX} valueLabel />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: compact ? 0.25 : 1, color: '#fff' }}>
-            <IconButton onClick={togglePlay} size="small" aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
-              {playing ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
-            {!compact && (
-              <>
-                <IconButton onClick={() => seek(-10)} size="small" aria-label="后退 10 秒" sx={{ color: '#fff' }}>
-                  <Replay10Icon fontSize="small" />
-                </IconButton>
-                <IconButton onClick={() => seek(10)} size="small" aria-label="快进 10 秒" sx={{ color: '#fff' }}>
-                  <Forward10Icon fontSize="small" />
-                </IconButton>
-              </>
-            )}
-            <Box sx={{ fontSize: compact ? 11 : 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-              <PlayTime time={timeStore} scrub={scrub} duration={duration} />
-            </Box>
-            <Box sx={{ flex: 1 }} />
-            <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
-              {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
-            </IconButton>
-            {/* 手机上音量走系统按键,不放音量条(放了整行就挤出屏幕,全屏键被切掉) */}
-            {!compact && (
-              <Slider
-                size="small"
-                aria-label="音量"
-                value={muted ? 0 : volume}
-                onChange={handleVolume}
-                sx={{ color: '#FE2C55', width: 80, mx: 1 }}
-              />
-            )}
-            {pipOk && (
-              <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ color: pip ? '#FE2C55' : '#fff' }}>
-                <PictureInPictureAltIcon fontSize="small" />
-              </IconButton>
-            )}
-            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={{ color: '#fff' }}>
-              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-            </IconButton>
-          </Box>
-        </Box>
+        <ControlBar
+          time={timeStore}
+          scrub={scrub}
+          duration={duration}
+          compact={compact}
+          controlsVisible={controlsVisible}
+          playing={playing}
+          muted={muted}
+          volume={volume}
+          pip={pip}
+          pipOk={pipOk}
+          isFs={isFs}
+          onTogglePlay={togglePlay}
+          onSeek={seek}
+          onToggleMute={toggleMute}
+          onVolume={handleVolume}
+          onTogglePip={onTogglePip}
+          onFullscreen={goFullscreen}
+          onScrub={onScrub}
+          onScrubEnd={onScrubEnd}
+        />
       )}
     </Box>
   );
 });
-
-/**
- * 页内全屏:铺满视口的黑底浮层,<video> 由 VideoPlayer 挪进 hostRef。点画面切换控制条,
- * 控制条 3 秒不动自己收起。挂在 body 下(推荐流的祖先有 transform,fixed 在里面铺不满)。
- */
-function PseudoFullscreen({
-  hostRef,
-  playing,
-  time,
-  scrub,
-  duration,
-  muted,
-  onTogglePlay,
-  onScrub,
-  onScrubEnd,
-  onToggleMute,
-  onExit,
-}: {
-  hostRef: (node: HTMLDivElement | null) => void;
-  playing: boolean;
-  time: TimeStore;
-  scrub: number | null;
-  duration: number;
-  muted: boolean;
-  onTogglePlay: () => void;
-  onScrub: ScrubHandler;
-  onScrubEnd: ScrubEndHandler;
-  onToggleMute: () => void;
-  onExit: () => void;
-}) {
-  const [shown, setShown] = useState(true);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const poke = useCallback(() => {
-    setShown(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setShown(false), 3000);
-  }, []);
-  useEffect(() => {
-    poke();
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [poke]);
-  return (
-    <Box
-      data-no-drag
-      data-no-swipe
-      role="dialog"
-      aria-label="全屏播放"
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      sx={{ position: 'fixed', inset: 0, zIndex: 1600, bgcolor: '#000', animation: 'qq-fade-in 0.2s ease-out both', touchAction: 'none' }}
-    >
-      <Box ref={hostRef} onClick={() => (shown ? setShown(false) : poke())} sx={{ position: 'absolute', inset: 0 }} />
-      <Box
-        onPointerDown={poke}
-        sx={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          px: 'max(12px, env(safe-area-inset-left))',
-          pb: 'max(8px, var(--sab, 0px))',
-          pt: 3,
-          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
-          color: '#fff',
-          opacity: shown ? 1 : 0,
-          pointerEvents: shown ? 'auto' : 'none',
-          transition: 'opacity 0.2s',
-        }}
-      >
-        <SeekSlider time={time} scrub={scrub} duration={duration} onScrub={onScrub} onScrubEnd={onScrubEnd} sx={BAR_SEEK_SX} />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton onClick={onTogglePlay} aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
-            {playing ? <PauseIcon /> : <PlayArrowIcon />}
-          </IconButton>
-          <Box sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
-            <PlayTime time={time} scrub={scrub} duration={duration} />
-          </Box>
-          <Box sx={{ flex: 1 }} />
-          <IconButton onClick={onToggleMute} aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
-            {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-          </IconButton>
-          <IconButton onClick={onExit} aria-label="退出全屏" sx={{ color: '#fff' }}>
-            <FullscreenExitIcon />
-          </IconButton>
-        </Box>
-      </Box>
-    </Box>
-  );
-}
-
-/**
- * 规则解析失败时的界面(本地和服务端都没解出来,或流放不出来)。没有外链 iframe 可退
- * (2026-09-26 起全站不再嵌 iframe:吞手势、没进度、没小窗):就地给「重试」和「用 XX 打开」,
- * 客户端里把失败现场报给服务器(lib/clientDiag)。
- */
-/**
- * 会接管 <video> 的安卓国产浏览器(lib/hijackBrowser)里不建播放器,给「在 App 中观看」。
- * 外框跟播放器一样(详情 16:9 / 推荐流铺满),推荐流的上下滑照常 —— 只有两个按钮吃点击。
- */
-function AppOnlyPlayer({ poster, fill, appPath }: { poster?: string; fill?: boolean; appPath?: string }) {
-  const path = appPath || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
-  const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', textDecoration: 'none' } as const;
-  return (
-    <Box
-      sx={{
-        position: fill ? 'absolute' : 'relative',
-        inset: fill ? 0 : undefined,
-        width: '100%',
-        aspectRatio: fill ? undefined : '16/9',
-        bgcolor: '#000',
-        background: poster ? `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.75)), url("${mediaUrl(poster)}") center/${fill ? 'contain' : 'cover'} no-repeat #000` : '#000',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 1.5,
-        color: 'rgba(255,255,255,0.9)',
-        textAlign: 'center',
-        px: 3,
-      }}
-    >
-      <Box sx={{ fontSize: 15 }}>请在清秋月 App 里观看</Box>
-      <Box sx={{ fontSize: 12, opacity: 0.7, maxWidth: 320 }}>
-        {hijackBrowserName()}会用它自己的播放器接管网页视频,常常报「视频不存在」,也会挡住上下滑动。用 App 播放更稳,也能选清晰度、小窗。
-      </Box>
-      <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
-        <Box component="a" href={appOpenUrl(path)} data-no-drag sx={{ ...btn, bgcolor: 'primary.main', borderColor: 'transparent' }}>
-          打开 App
-        </Box>
-        <Box component="a" href="/download" data-no-drag sx={btn}>
-          下载 App
-        </Box>
-      </Box>
-    </Box>
-  );
-}
-
-function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
-  const label = matchProvider(pageUrl)?.rule.label ?? '原站';
-  const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
-  return (
-    <Box
-      sx={{
-        position: fill ? 'absolute' : 'relative',
-        inset: fill ? 0 : undefined,
-        width: '100%',
-        aspectRatio: fill ? undefined : '16/9',
-        bgcolor: fill ? 'transparent' : '#000',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 1.5,
-        color: 'rgba(255,255,255,0.85)',
-        textAlign: 'center',
-        px: 3,
-      }}
-    >
-      <Box sx={{ fontSize: 15 }}>这条视频暂时没能加载出来</Box>
-      <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>
-        {webCannotFetchMedia(pageUrl) ? `网页版拿不到这个片源（${label}要求在它自己的页面或 App 里取片），可以在清秋月 App 里看，或去${label}看` : message}
-      </Box>
-      <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
-        <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
-          重试
-        </Box>
-        <Box
-          component="button"
-          type="button"
-          data-no-drag
-          onClick={() => {
-            void openExternalUrl(pageUrl).then((ok) => {
-              if (!ok) window.open(pageUrl, '_blank', 'noopener');
-            });
-          }}
-          sx={btn}
-        >
-          用{label}打开
-        </Box>
-      </Box>
-    </Box>
-  );
-}
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(rawProps, ref) {
   // 播放结果上报:包一层回调,内层播放器不用知道内容 id。
