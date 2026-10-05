@@ -57,7 +57,7 @@ import {
 import { PoseBoneEditor } from '@/components/digital-human/PoseBoneEditor';
 import { list as listMenus, save as saveMenu, update as updateMenu, remove as deleteMenu } from '@/apis/menu';
 import type { MenuItem as DbMenuItem } from '@/beans/system';
-import { errMessage } from '@/lib/errMessage';
+import { JsonEditor } from './JsonEditor';
 import type {
   VrmModelConfig, ActionConfig, DanceStyleConfig, PoseConfig,
   ExpressionPresetConfig, VisemeConfig, SceneConfig, LightConfig, DecorationConfig,
@@ -911,43 +911,6 @@ function SceneEditor({ value, onChange, onCancel, onSave }: EditorProps<SceneCon
         <Button onClick={onCancel}>取消</Button>
       </Stack>
     </Stack>
-  );
-}
-
-// ============================================================================
-// Shared JSON editor
-// ============================================================================
-function JsonEditor<T>({ label, value, onChange, minRows = 12 }: { label: string; value: T; onChange: (v: T) => void; minRows?: number }) {
-  const [text, setText] = React.useState(() => JSON.stringify(value, null, 2));
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setText(JSON.stringify(value, null, 2));
-    setError(null);
-  }, [value]);
-
-  return (
-    <TextField
-      label={error ? `${label} (JSON 错误)` : label}
-      value={text}
-      onChange={(e) => {
-        setText(e.target.value);
-        try {
-          const parsed = JSON.parse(e.target.value);
-          setError(null);
-          onChange(parsed);
-        } catch (err) {
-          setError(errMessage(err) ?? null);
-        }
-      }}
-      multiline
-      minRows={minRows}
-      maxRows={40}
-      fullWidth
-      error={!!error}
-      helperText={error || '实时解析；只有合法 JSON 时才会写回对象'}
-      sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
-    />
   );
 }
 
