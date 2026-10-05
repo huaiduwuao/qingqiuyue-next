@@ -89,6 +89,13 @@ const PLATFORMS = [
 
 const TASK_PLATFORMS: readonly string[] = ['douyin', 'kuaishou', 'youtube', 'tiktok'];
 
+// YouTube / TikTok 只能上传站内视频文件(后端 resolveSiteVideo),文章、专题、人物等分享出去必失败,不给入口。
+const INTL_VIDEO_TYPES = new Set(['video', 'short_drama', 'film', 'teleplay', 'animation', 'vshow', 'documentary', 'drama_episode']);
+function platformsFor(contentType: string) {
+  if (INTL_VIDEO_TYPES.has(String(contentType || '').toLowerCase())) return PLATFORMS;
+  return PLATFORMS.filter((p) => p.value !== 'youtube' && p.value !== 'tiktok');
+}
+
 export default function ShareButtons(props: ShareButtonsProps) {
   const {
     contentType, contentId, title, url, cover, desc, subtitle, topicId, defaultTags,
@@ -227,7 +234,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
         <ShareRoundedIcon />
       </IconButton>
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
-        {PLATFORMS.map((p) => (
+        {platformsFor(contentType).map((p) => (
           <MenuItem
             key={p.value}
             onClick={() => {
@@ -269,7 +276,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
         <ShareRoundedIcon sx={{ fontSize: 18 }} />
       </IconButton>
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
-        {PLATFORMS.map((p) => (
+        {platformsFor(contentType).map((p) => (
           <MenuItem
             key={p.value}
             onClick={() => {
@@ -317,7 +324,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
               <MoreHorizRoundedIcon sx={{ fontSize: 18 }} />
             </IconButton>
             <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
-              {PLATFORMS.map((p) => (
+              {platformsFor(contentType).map((p) => (
                 <MenuItem
                   key={p.value}
                   onClick={() => {
@@ -333,7 +340,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
           </>
         ) : (
           <>
-            {PLATFORMS.map((p) => (
+            {platformsFor(contentType).map((p) => (
               <Button
                 key={p.value}
                 size="small"
