@@ -56,7 +56,7 @@ export default function SpiderRunPage() {
     router.push(`/system/spider/batch/${batchId}/stats`);
   };
 
-  const sources = (sourcesQuery.data?.list ?? []) as Array<{
+  const sources = (sourcesQuery.data?.list ?? []) as unknown as Array<{
     id: number;
     name: string;
     domain: string;

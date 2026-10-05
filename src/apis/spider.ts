@@ -11,6 +11,7 @@ import type {
   CrawlTimeseries,
   ActivityFeed,
   SpiderSource,
+  CrawlTask,
   BatchJob,
   BatchJobDetail,
   CreateBatchParams,
@@ -59,7 +60,7 @@ export async function getHourlyStats(): Promise<HourlyStats> {
   return spiderClient('/hourly/stats', { method: 'GET' });
 }
 
-export async function triggerHourlyRefresh(): Promise<any> {
+export async function triggerHourlyRefresh(): Promise<unknown> {
   return spiderClient('/hourly/refresh', { method: 'POST' });
 }
 
@@ -77,27 +78,39 @@ export async function getBatchDetail(id: number): Promise<BatchJobDetail> {
   return spiderClient(`/batch/${id}`, { method: 'GET' });
 }
 
-export async function startBatch(id: number): Promise<any> {
+export async function startBatch(id: number): Promise<unknown> {
   return spiderClient(`/batch/${id}/start`, { method: 'POST' });
 }
 
-export async function pauseBatch(id: number): Promise<any> {
+export async function pauseBatch(id: number): Promise<unknown> {
   return spiderClient(`/batch/${id}/pause`, { method: 'POST' });
 }
 
-export async function resumeBatch(id: number): Promise<any> {
+export async function resumeBatch(id: number): Promise<unknown> {
   return spiderClient(`/batch/${id}/resume`, { method: 'POST' });
 }
 
-export async function cancelBatch(id: number): Promise<any> {
+export async function cancelBatch(id: number): Promise<unknown> {
   return spiderClient(`/batch/${id}/cancel`, { method: 'POST' });
 }
 
-export async function deleteBatch(id: number): Promise<any> {
+export async function deleteBatch(id: number): Promise<unknown> {
   return spiderClient(`/batch/${id}`, { method: 'DELETE' });
 }
 
-export async function getBatchStats(id: number): Promise<any> {
+/** /batch/:id/stats(id=0 是全局汇总);字段都可能缺 */
+export interface BatchStats {
+  total?: number;
+  running?: number;
+  paused?: number;
+  completed?: number;
+  cancelled?: number;
+  failed?: number;
+  todayProcessed?: number;
+  weekProcessed?: number;
+}
+
+export async function getBatchStats(id: number): Promise<BatchStats | null | undefined> {
   return spiderClient(`/batch/${id}/stats`, { method: 'GET' });
 }
 
@@ -141,7 +154,7 @@ export interface SourceDraft {
   ok: boolean;
   status: 'draft' | 'applied' | 'discarded';
   sample_title: string;
-  report?: any;
+  report?: Record<string, unknown>;
   source_id: string;
   template_id: string;
   create_time?: string;
@@ -170,11 +183,11 @@ export async function listSourceDrafts(params?: { status?: string; category?: st
   return spiderClient('/source-setup/drafts', { method: 'GET', params });
 }
 
-export async function applyDraftsBatch(ids: Array<string | number>): Promise<{ applied: number; failed: number; results: any[] }> {
+export async function applyDraftsBatch(ids: Array<string | number>): Promise<{ applied: number; failed: number; results: unknown[] }> {
   return spiderClient('/source-setup/drafts/apply-batch', { method: 'POST', data: { ids: ids.map((x) => Number(x)) } });
 }
 
-export async function discardSourceDraft(id: string | number): Promise<any> {
+export async function discardSourceDraft(id: string | number): Promise<unknown> {
   return spiderClient(`/source-setup/drafts/${id}/discard`, { method: 'POST' });
 }
 
@@ -189,12 +202,12 @@ export async function getWorkerStats(): Promise<WorkerStats> {
 }
 
 /** 改槽位 / 排空;Worker 下一次心跳(≤10s)生效 */
-export async function updateWorker(id: string, data: { slots?: number; desired?: 'active' | 'draining' }): Promise<any> {
+export async function updateWorker(id: string, data: { slots?: number; desired?: 'active' | 'draining' }): Promise<unknown> {
   return spiderClient(`/workers/${encodeURIComponent(id)}`, { method: 'PUT', data });
 }
 
 /** 清理离线 Worker 的行 */
-export async function deleteWorker(id: string): Promise<any> {
+export async function deleteWorker(id: string): Promise<unknown> {
   return spiderClient(`/workers/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
@@ -207,7 +220,7 @@ export async function launchWorkerContainer(slots: number): Promise<{ name: stri
   return adminClient('/ops/spider-workers', { method: 'POST', data: { slots } });
 }
 
-export async function removeWorkerContainer(name: string): Promise<any> {
+export async function removeWorkerContainer(name: string): Promise<unknown> {
   return adminClient(`/ops/spider-workers/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
 
@@ -220,7 +233,7 @@ export async function getSiteStats(): Promise<SiteStats> {
   return spiderClient('/sites/stats', { method: 'GET' });
 }
 
-export async function updateSite(domain: string, data: { paused?: boolean; max_concurrent?: number; priority?: number }): Promise<any> {
+export async function updateSite(domain: string, data: { paused?: boolean; max_concurrent?: number; priority?: number }): Promise<{ requeued?: number } | undefined> {
   return spiderClient(`/sites/${encodeURIComponent(domain)}`, { method: 'PUT', data });
 }
 
@@ -232,27 +245,27 @@ export async function crawlSiteNow(domain: string, data?: { max_pages?: number; 
 // Source APIs
 export async function listSources(
   params?: PageParams & { keyword?: string; type?: string; status?: string; category?: string },
-): Promise<PageResult<any>> {
+): Promise<PageResult<SpiderSource>> {
   const res = await spiderClient('/sources', { params });
   return normalizePageResponse(res);
 }
 
-export async function createSource(params: { name: string; domain: string; url: string; type: string }): Promise<any> {
+export async function createSource(params: { name: string; domain: string; url: string; type: string }): Promise<unknown> {
   return spiderClient('/sources', { method: 'POST', data: params });
 }
 
-export async function updateSource(id: number, params: { name: string; domain: string; url: string; type: string }): Promise<any> {
+export async function updateSource(id: number, params: { name: string; domain: string; url: string; type: string }): Promise<unknown> {
   return spiderClient(`/sources/${id}`, { method: 'PUT', data: params });
 }
 
-export async function deleteSource(id: number): Promise<any> {
+export async function deleteSource(id: number): Promise<unknown> {
   return spiderClient(`/sources/${id}`, { method: 'DELETE' });
 }
 
 // Template APIs
 export async function listTemplates(
   params?: PageParams & { keyword?: string; type?: string; status?: string; source_id?: string; domain?: string },
-): Promise<PageResult<any>> {
+): Promise<PageResult<Record<string, unknown>>> {
   const res = await spiderClient('/templates', { params });
   return normalizePageResponse(res);
 }
@@ -290,15 +303,15 @@ function templateBody(params: TemplateWrite) {
   };
 }
 
-export async function createTemplate(params: TemplateWrite): Promise<any> {
+export async function createTemplate(params: TemplateWrite): Promise<unknown> {
   return spiderClient('/templates', { method: 'POST', data: templateBody(params) });
 }
 
-export async function updateTemplate(id: number, params: TemplateWrite): Promise<any> {
+export async function updateTemplate(id: number, params: TemplateWrite): Promise<unknown> {
   return spiderClient(`/templates/${id}`, { method: 'PUT', data: templateBody(params) });
 }
 
-export async function deleteTemplate(id: number): Promise<any> {
+export async function deleteTemplate(id: number): Promise<unknown> {
   return spiderClient(`/templates/${id}`, { method: 'DELETE' });
 }
 
@@ -320,7 +333,7 @@ export async function getRecentActivity(): Promise<ActivityFeed> {
 }
 
 // ─── Tasks ───
-export async function listTasks(params?: PageParams & { status?: string; type?: string; keyword?: string }): Promise<PageResult<any>> {
+export async function listTasks(params?: PageParams & { status?: string; type?: string; keyword?: string }): Promise<PageResult<CrawlTask>> {
   const res = await spiderClient('/tasks', { params });
   return normalizePageResponse(res);
 }
@@ -331,24 +344,24 @@ export async function getTaskDetail(id: string): Promise<CrawlTaskDetail> {
 
 // source_id:后端 CrawlRequest / RuleCrawlRequest 声明为字符串(源 id 是超 2^53 的
 // BIGINT)。以前传 number,JSON 解码直接失败,带源的任务一律创建不了。
-export async function createTask(params: { source_id?: string; start_url: string; max_depth?: number; max_pages?: number; proxy_url?: string }): Promise<any> {
+export async function createTask(params: { source_id?: string; start_url: string; max_depth?: number; max_pages?: number; proxy_url?: string }): Promise<unknown> {
   return spiderClient('/tasks', { method: 'POST', data: params });
 }
 
-export async function createRuleTask(params: { source_id: string; start_url: string; max_pages?: number; incremental?: boolean; proxy_url?: string }): Promise<any> {
+export async function createRuleTask(params: { source_id: string; start_url: string; max_pages?: number; incremental?: boolean; proxy_url?: string }): Promise<unknown> {
   return spiderClient('/tasks/rule', { method: 'POST', data: params });
 }
 
-export async function stopTask(id: string): Promise<any> {
+export async function stopTask(id: string): Promise<unknown> {
   return spiderClient(`/tasks/${id}/stop`, { method: 'POST' });
 }
 
 /** 已结束的规则任务重新放回队列 */
-export async function retryTask(id: string): Promise<any> {
+export async function retryTask(id: string): Promise<unknown> {
   return spiderClient(`/tasks/${id}/retry`, { method: 'POST' });
 }
 
-export async function deleteTask(id: string): Promise<any> {
+export async function deleteTask(id: string): Promise<unknown> {
   return spiderClient(`/tasks/${id}`, { method: 'DELETE' });
 }
 
@@ -372,15 +385,15 @@ export async function getProxyStats(): Promise<ProxyStats> {
   return spiderClient('/proxies/stats', { method: 'GET' });
 }
 
-export async function addProxy(params: { url: string; type: 'http' | 'https' | 'socks5' }): Promise<any> {
+export async function addProxy(params: { url: string; type: 'http' | 'https' | 'socks5' }): Promise<unknown> {
   return spiderClient('/proxies', { method: 'POST', data: params });
 }
 
-export async function toggleProxy(id: string, active: boolean): Promise<any> {
+export async function toggleProxy(id: string, active: boolean): Promise<unknown> {
   return spiderClient(`/proxies/${id}`, { method: 'PUT', data: { active } });
 }
 
-export async function deleteProxy(id: string): Promise<any> {
+export async function deleteProxy(id: string): Promise<unknown> {
   return spiderClient(`/proxies/${id}`, { method: 'DELETE' });
 }
 
@@ -425,15 +438,15 @@ export async function getTemplateDetail(id: number): Promise<TemplateDetail> {
   return spiderClient(`/templates/${id}`, { method: 'GET' });
 }
 
-export async function addTemplateAttr(templateId: number, attr: { name: string; type: string; code: string; content: string; remark?: string }): Promise<any> {
+export async function addTemplateAttr(templateId: number, attr: { name: string; type: string; code: string; content: string; remark?: string }): Promise<unknown> {
   return spiderClient(`/templates/${templateId}/attrs`, { method: 'POST', data: attr });
 }
 
-export async function updateTemplateAttr(attrId: number, patch: Partial<{ name: string; type: string; code: string; content: string; remark: string }>): Promise<any> {
+export async function updateTemplateAttr(attrId: number, patch: Partial<{ name: string; type: string; code: string; content: string; remark: string }>): Promise<unknown> {
   return spiderClient(`/templates/attrs/${attrId}`, { method: 'PUT', data: patch });
 }
 
-export async function deleteTemplateAttr(attrId: number): Promise<any> {
+export async function deleteTemplateAttr(attrId: number): Promise<unknown> {
   return spiderClient(`/templates/attrs/${attrId}`, { method: 'DELETE' });
 }
 
@@ -447,7 +460,7 @@ export async function getSourceDetail(id: number): Promise<SpiderSource> {
 }
 
 // ─── Batch 批量操作 ───
-export async function batchOperate(params: { action: 'start' | 'pause' | 'resume' | 'cancel'; batch_ids: number[] }): Promise<any> {
+export async function batchOperate(params: { action: 'start' | 'pause' | 'resume' | 'cancel'; batch_ids: number[] }): Promise<unknown> {
   return spiderClient('/batch/operate', { method: 'POST', data: params });
 }
 
@@ -566,7 +579,7 @@ export async function startContentBackfill(params: {
 }
 
 /** 查单次补全任务状态。 */
-export async function getContentBackfillStatus(taskId: number): Promise<any> {
+export async function getContentBackfillStatus(taskId: number): Promise<unknown> {
   return spiderClient(`/content/backfill/${taskId}/status`, { method: 'GET' });
 }
 
@@ -653,7 +666,7 @@ export async function getContentItemStats(ids: Array<string | number>): Promise<
     method: 'GET',
     params: { ids: ids.map(String).join(',') },
   });
-  return (res as any)?.stats ?? {};
+  return (res as { stats?: Record<string, ContentItemStats> } | null | undefined)?.stats ?? {};
 }
 
 // =====================================================================
@@ -859,13 +872,13 @@ export async function getContentTrend(): Promise<{ items: ContentTrend[] }> {
 export async function getContentList(params?: ContentListParams): Promise<{ items: ContentItem[]; total: number; page?: number }> {
   return spiderClient('/content/list', { method: 'GET', params });
 }
-export async function getContentDetail(id: number): Promise<any> {
+export async function getContentDetail(id: number): Promise<unknown> {
   return spiderClient(`/content/detail/${id}`, { method: 'GET' });
 }
 
 // 工具接口(模板/单源健康/清理)
 // 后端绑 source_id(必填),以前发 sourceId 永远 400
-export async function exportTemplates(params: { sourceId: EntityId; format?: string; template?: string[] }): Promise<any> {
+export async function exportTemplates(params: { sourceId: EntityId; format?: string; template?: string[] }): Promise<unknown> {
   const { sourceId, ...rest } = params;
   return spiderClient('/templates/export', { method: 'POST', data: { ...rest, source_id: toEntityId(sourceId) } });
 }
@@ -878,7 +891,7 @@ export async function testBookProfile(params: {
   title?: string;
   author?: string;
   bookId?: string;
-}): Promise<any> {
+}): Promise<unknown> {
   return spiderClient('/templates/book-test', {
     method: 'POST',
     data: { content: params.content, title: params.title, author: params.author, book_id: params.bookId },
@@ -893,7 +906,7 @@ export async function testTemplate(params: {
   selector?: string;        // 没存模板时直接试选择器
   jsExtract?: string;
   maxItems?: number;
-}): Promise<any> {
+}): Promise<unknown> {
   return spiderClient('/templates/test', {
     method: 'POST',
     data: {
@@ -907,7 +920,7 @@ export async function testTemplate(params: {
     timeout: 120_000, // 可能要开无头浏览器,给足时间
   });
 }
-export async function listTemplateAttrs(templateId: number): Promise<{ items: any[]; total: number }> {
+export async function listTemplateAttrs(templateId: number): Promise<{ items: Record<string, unknown>[]; total: number }> {
   return spiderClient(`/templates/${templateId}/attrs`, { method: 'GET' });
 }
 export async function getHourlySourceHealth(sourceId: EntityId): Promise<HourlySourceHealth> {

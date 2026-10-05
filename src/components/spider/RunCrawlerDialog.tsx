@@ -90,7 +90,7 @@ export function RunCrawlerDialog({
     });
   };
 
-  const sourceOptions = (sourcesQuery.data?.list ?? []) as Array<{ id: number; name: string; domain: string; category: string; status: number }>;
+  const sourceOptions = (sourcesQuery.data?.list ?? []) as unknown as Array<{ id: number; name: string; domain: string; category: string; status: number }>;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

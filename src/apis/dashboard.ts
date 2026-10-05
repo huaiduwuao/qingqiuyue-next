@@ -11,10 +11,10 @@ import { DemandItem } from '@/beans/reward';
 import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizePageResponse } from '@/beans/pagination';
+import { normalizePageResponse, type LegacyPageResult } from '@/beans/pagination';
 
 /** 解开 axios 拦截器的包装层,拿到真正的后端 body */
-function unwrap<T = any>(resp: any): T {
+function unwrap<T = unknown>(resp: unknown): T {
   // 拦截器已剥壳,resp 就是业务数据;保留 unwrap 仅作占位以兼容旧调用方
   return resp as T;
 }
@@ -33,7 +33,7 @@ export interface WipItem {
 }
 export async function getCreatorWipList(params?: PageParams): Promise<PageResult<WipItem>> {
   const res = await unwrap<PageData<WipItem>>(await accountClient('/creator/wip/list', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<WipItem>);
 }
 
 // 合集(作品合集)不在这里:真实表是 PG 的 user_my_list,读写走 apis/my-list.ts
@@ -56,9 +56,9 @@ export interface HdVideo {
   views?: number;
   likes?: number;
   hasCover: boolean;
-  review?: any;
-  subtitles?: any[];
-  audioTracks?: any[];
+  review?: unknown;
+  subtitles?: unknown[];
+  audioTracks?: unknown[];
   failedReason?: string;
   failedStage?: 'transcode' | 'review';
   scheduledAt?: number;
@@ -66,7 +66,7 @@ export interface HdVideo {
 }
 export async function getHdVideoList(params?: PageParams): Promise<PageResult<HdVideo>> {
   const res = await unwrap<PageData<HdVideo>>(await accountClient('/creator/hd/videos', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<HdVideo>);
 }
 
 export interface Reviewer {
@@ -113,12 +113,12 @@ export interface Activity {
   myWonReward?: string;
   myWonAt?: number;
   myRank?: number;
-  submissions?: any[];
-  leaderboard?: any[];
+  submissions?: unknown[];
+  leaderboard?: unknown[];
 }
 export async function getActivityList(params?: { category?: string; status?: string }): Promise<PageResult<Activity>> {
   const res = await unwrap<PageData<Activity>>(await accountClient('/creator/activity/list', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<Activity>);
 }
 
 export interface MyWork {
@@ -176,7 +176,7 @@ export async function getHotBounties(params?: PageParams & {
   if (params?.order) demandParams.order = params.order;
   const resp = unwrap<PageData<DemandItem>>(await accountClient('/demand/client/page', { params: demandParams }));
   const list = (resp?.list ?? resp?.records ?? []).map((d) => bountyFromDemand(d));
-  return normalizePageResponse({ list, total: resp?.total ?? resp?.totalRow ?? list.length, page, pageSize } as any);
+  return normalizePageResponse({ list, total: resp?.total ?? resp?.totalRow ?? list.length, page, pageSize });
 }
 
 export async function getBountyDetail(id: string | number) {
@@ -210,7 +210,7 @@ function bountyFromDemand(demand: DemandItem): Bounty {
     daysLeft,
     sponsor: demand.username || '',
     sponsorAvatar: demand.avatar,
-    sponsorId: (demand as any).createUser,
+    sponsorId: (demand as { createUser?: number }).createUser,
     gradient: CATEGORY_GRADIENT[category] ?? gradient2('#FE2C55', '#8B5CF6'),
     cover: demand.cover,
     subtitle: demand.subtitle,
@@ -225,7 +225,7 @@ function bountyFromDemand(demand: DemandItem): Bounty {
 
 export async function getContentActivityFeed(params?: { limit?: number }): Promise<PageResult<Activity>> {
   const res = await unwrap<PageData<Activity>>(await accountClient('/content/activity/feed', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<Activity>);
 }
 
 export interface GiftItem {
@@ -241,7 +241,7 @@ export interface GiftItem {
 }
 export async function getGiftList(): Promise<PageResult<GiftItem>> {
   const res = await unwrap<PageData<GiftItem>>(await accountClient('/live/gifts'));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<GiftItem>);
 }
 
 export interface LikePreview {
@@ -250,16 +250,26 @@ export interface LikePreview {
   cover: string;
   type: string;
 }
+/** /account/likes/page 一行里这里用到的字段 */
+interface LikedRow {
+  id: string | number;
+  title?: string;
+  cover?: string;
+  coverUrl?: string;
+  category?: string;
+  contentType?: string;
+}
+
 /** 我赞过的内容(取 /account/likes/page 的最近几条作预览)。 */
 export async function getLikesPreview(limit = 6): Promise<PageResult<LikePreview>> {
-  const res = unwrap<PageData<any>>(await accountClient('/account/likes/page'));
-  const list: LikePreview[] = (res?.list ?? []).slice(0, limit).map((c: any) => ({
+  const res = unwrap<PageData<LikedRow>>(await accountClient('/account/likes/page'));
+  const list: LikePreview[] = (res?.list ?? []).slice(0, limit).map((c) => ({
     id: String(c.id),
     title: c.title ?? '',
     cover: c.cover ?? c.coverUrl ?? '',
     type: c.category ?? c.contentType ?? '',
   }));
-  return normalizePageResponse({ list, total: res?.total ?? list.length } as any);
+  return normalizePageResponse({ list, total: res?.total ?? list.length } as LegacyPageResult<LikePreview>);
 }
 
 // ========== 个人中心 5 大分区真实计数 ==========
@@ -283,7 +293,8 @@ export interface MePageItem {
   coverUrl?: string;
   author?: { id?: number; nickname?: string; avatar?: string };
   contentType?: string;
-  [k: string]: any;
+  type?: string;
+  [k: string]: unknown;
 }
 export interface MePageResp<T = MePageItem> {
   list: T[];
@@ -314,7 +325,7 @@ export interface TrendPoint {
 }
 export async function getCreatorTrend(params: { range: '7d' | '30d' }): Promise<PageResult<TrendPoint>> {
   const res = await unwrap<PageData<TrendPoint>>(await accountClient('/creator/trend', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<TrendPoint>);
 }
 
 // 内容分布(各类型作品数量)
@@ -355,7 +366,7 @@ export interface HotTopic {
 }
 export async function getCreatorHotTopics(params?: PageParams): Promise<PageResult<HotTopic>> {
   const res = await unwrap<PageData<HotTopic>>(await accountClient('/creator/hot-topics', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<HotTopic>);
 }
 
 // ========== 创作者档案(CreatorProfileHeader) ==========
@@ -387,9 +398,9 @@ export async function getCreatorProfile(): Promise<{
     await accountClient('/creator/profile')
   );
   // 兜底:badges 字段可能为字符串(JSON)或数组
-  if (data && typeof (data.profile as any)?.badges === 'string') {
+  if (data && typeof (data.profile as { badges?: unknown } | undefined)?.badges === 'string') {
     try {
-      data.badges = JSON.parse((data.profile as any).badges);
+      data.badges = JSON.parse((data.profile as unknown as { badges: string }).badges);
     } catch {
       data.badges = [];
     }
@@ -412,7 +423,7 @@ export interface RewardRanker {
 }
 export async function getRewardRanking(params?: PageParams): Promise<PageResult<RewardRanker>> {
   const res = await unwrap<PageData<RewardRanker>>(await accountClient('/reward/ranking', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<RewardRanker>);
 }
 
 export interface RewardCategory {
@@ -488,7 +499,7 @@ export interface PointRecordList {
 
 export async function listMyPointRecords(params?: PageParams): Promise<PageResult<PointRecord>> {
   const res = await unwrap<PointRecordList>(await accountClient('/reward/point-records', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as unknown as LegacyPageResult<PointRecord>);
 }
 
 // ========== 后台 dashboard(/admin/system/dashboard/analysis) ==========
@@ -520,7 +531,7 @@ export interface AdminTrendPoint {
 }
 export async function getAdminTrend(params?: { days?: number }): Promise<PageResult<AdminTrendPoint>> {
   const res = await unwrap<PageData<AdminTrendPoint>>(await accountClient('/admin/dashboard/trend', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<AdminTrendPoint>);
 }
 
 export interface AdminContentDist {
@@ -531,7 +542,7 @@ export interface AdminContentDist {
 }
 export async function getAdminContentDistribution(): Promise<PageResult<AdminContentDist>> {
   const res = await unwrap<PageData<AdminContentDist>>(await accountClient('/admin/dashboard/content-distribution'));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<AdminContentDist>);
 }
 
 // ========== 积分商城(用户中心 points 页) ==========
@@ -613,7 +624,7 @@ export interface TopPerformingItem {
 }
 export async function getTopPerformingContent(params?: PageParams & { days?: 7 | 30 }): Promise<PageResult<TopPerformingItem>> {
   const res = await unwrap<PageData<TopPerformingItem>>(await accountClient('/creator/content/top-performing', { params }));
-  return normalizePageResponse(res as any);
+  return normalizePageResponse(res as LegacyPageResult<TopPerformingItem>);
 }
 
 // ========== 权益 / 活动(recharge 页;套餐见 apis/payment.ts 的 getDiamondPackages) ==========
