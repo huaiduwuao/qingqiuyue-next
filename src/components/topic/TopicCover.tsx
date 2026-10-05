@@ -40,6 +40,7 @@ function iconByType(contentType?: string) {
       return <MovieRoundedIcon {...p} />;
     case 'TELEPLAY':
     case 'VSHOW':
+    case 'DOCUMENTARY':
       return <TheaterComedyRoundedIcon {...p} />;
     case 'NOVEL':
     case 'COMICS':

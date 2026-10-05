@@ -53,7 +53,7 @@ type SourceRow = SourceFormData & { id: number };
 
 // module_source 里实际在用的 type / category(category 可能是逗号拼的多值,后端按包含匹配)
 const TYPE_OPTIONS = ['auto', 'crawl_text', 'copyright_only'].map((v) => ({ label: v, value: v }));
-const CATEGORY_OPTIONS = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'SHORT_DRAMA', 'VSHOW', 'NOVEL', 'COMICS', 'MUSIC', 'NEWS', 'ARTICLE', 'LIVE', 'WALLPAPER'].map((v) => ({ label: v, value: v }));
+const CATEGORY_OPTIONS = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'SHORT_DRAMA', 'VSHOW', 'DOCUMENTARY', 'NOVEL', 'COMICS', 'MUSIC', 'NEWS', 'ARTICLE', 'LIVE', 'WALLPAPER'].map((v) => ({ label: v, value: v }));
 
 export default function SpiderSourcesPage() {
   const qc = useQueryClient();

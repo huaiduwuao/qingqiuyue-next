@@ -34,7 +34,7 @@ import { TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约�
 const PAGE_SIZE = 20;
 
 
-const TYPE_OPTIONS = ['', 'VIDEO', 'ARTICLE', 'NOVEL', 'MUSIC', 'FILM', 'TELEPLAY', 'ANIMATION', 'COMICS', 'PICTURE', 'NEWS', 'VSHOW', 'LIVE'];
+const TYPE_OPTIONS = ['', 'VIDEO', 'ARTICLE', 'NOVEL', 'MUSIC', 'FILM', 'TELEPLAY', 'ANIMATION', 'COMICS', 'PICTURE', 'NEWS', 'VSHOW', 'DOCUMENTARY', 'LIVE'];
 const STATUS_OPTIONS = [
   { value: '', label: '全部状态' },
   { value: 'PUBLISH', label: '已发布' },

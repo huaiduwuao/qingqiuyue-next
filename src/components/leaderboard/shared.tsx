@@ -42,7 +42,7 @@ export function relativeTime(s?: string): string {
 }
 
 // 封面比例:书/剧/番是竖版,音乐是方形,视频/直播/资讯是横版。
-const PORTRAIT = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DRAMA', 'ANIMATION', 'VSHOW']);
+const PORTRAIT = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DRAMA', 'ANIMATION', 'VSHOW', 'DOCUMENTARY']);
 export function coverShape(contentType: string): { w: number; h: number } {
   const t = (contentType || '').toUpperCase();
   if (PORTRAIT.has(t)) return { w: 42, h: 56 };

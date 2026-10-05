@@ -1,6 +1,6 @@
 // 「我的」页的类型、常量与纯函数(从 MyHomePage.tsx 拆出,无 React 依赖)。
 
-export type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
+export type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'DOCUMENTARY' | 'LIVE' | 'ARTICLE' | 'NEWS';
 
 export type MyItem = {
   id: number;

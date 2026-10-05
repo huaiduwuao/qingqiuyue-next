@@ -122,6 +122,13 @@ export const CONTENT_CATALOG: ContentCatalogEntry[] = [
     playability: 'resolvable',
   },
   {
+    code: 'DOCUMENTARY',
+    label: '纪录片',
+    shortDesc: '自然 / 人文 / 历史 / 科教纪录片,央视网等可站内播放',
+    sectionId: 'documentary',
+    playability: 'resolvable',
+  },
+  {
     code: 'LIVE',
     label: '直播',
     shortDesc: '各平台直播入口,状态依赖源实时性',

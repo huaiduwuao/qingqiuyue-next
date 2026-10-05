@@ -79,6 +79,7 @@ const CAT_GRADIENT: Record<string, string> = {
   TELEPLAY: gradient2('#8B5CF6', '#C4B5FD'),
   ANIMATION: gradient2('#06B6D4', '#5DF7F2'),
   VSHOW: gradient2('#FFB400', '#FFD566'),
+  DOCUMENTARY: gradient2('#0EA5E9', '#7DD3FC'),
 };
 const NEUTRAL_GRADIENT = gradient2('#6B7280', '#9CA3AF');
 
@@ -87,6 +88,7 @@ const CAT_COLOR: Record<string, string> = {
   TELEPLAY: '#8B5CF6',
   ANIMATION: 'secondary.main',
   VSHOW: 'warning.main',
+  DOCUMENTARY: '#0EA5E9',
 };
 const DEFAULT_CAT_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
 
@@ -105,7 +107,7 @@ const THEATER_DEFAULTS = { category: 'all', region: '', genre: '', year: '', min
 
 export function TheaterPanel() {
   // 放映厅四种内容各有详情页,列表一出来就把它们的代码预取好
-  useDetailRoutePrefetch(['FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW']);
+  useDetailRoutePrefetch(['FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'DOCUMENTARY']);
   // 筛选条件存 URL:点进详情再返回时还原(以前是 useState,一返回就全回到默认)
   const [filters, setFilters] = useUrlFilters(THEATER_DEFAULTS);
   const { category, region, genre, year, minRating, sort } = filters;

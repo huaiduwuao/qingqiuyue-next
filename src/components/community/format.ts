@@ -37,6 +37,7 @@ export const CONTENT_TYPE_LABEL: Record<string, string> = {
   TELEPLAY: '剧集',
   ANIMATION: '动画',
   VSHOW: '综艺',
+  DOCUMENTARY: '纪录片',
   COMICS: '漫画',
   MUSIC: '音乐',
   NOVEL: '小说',

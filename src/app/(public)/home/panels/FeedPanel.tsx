@@ -130,7 +130,7 @@ interface RawFeedRecord {
 }
 
 // 精选流参与交错的类型。NEWS 不在内:它基本是热搜词条,没有封面。
-const RECOMMEND_TYPES = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'COMICS', 'MUSIC', 'NOVEL', 'SHORT_DRAMA', 'ARTICLE', 'LIVE'];
+const RECOMMEND_TYPES = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'DOCUMENTARY', 'COMICS', 'MUSIC', 'NOVEL', 'SHORT_DRAMA', 'ARTICLE', 'LIVE'];
 const RECOMMEND_PER_TYPE = 2;
 
 // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望字段

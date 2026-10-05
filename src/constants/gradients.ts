@@ -26,6 +26,7 @@ export const TYPE_GRADIENT: Record<string, string> = {
   ANIMATION: gradient2('#5DDB96', '#25F4EE'),
   COMICS: gradient2(ACCENT.blue.main, ACCENT.purple.main),
   VSHOW: gradient2('#FE2C55', '#FFB400'),
+  DOCUMENTARY: gradient2('#0EA5E9', '#7DD3FC'),
   NEWS: gradient2('#C5C8D6', '#8B8FA3'),
 };
 

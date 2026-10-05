@@ -31,6 +31,7 @@ export const PUBLISH_HUB_TYPE_TO_CONTENT_TYPE: Record<string, string> = {
   'music': 'MUSIC',
   'comics': 'COMICS',
   'vshow': 'VSHOW',
+  'documentary': 'DOCUMENTARY',
   'short-drama': 'SHORT_DRAMA',
   'teleplay': 'TELEPLAY',
   'film': 'FILM',

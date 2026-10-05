@@ -67,6 +67,7 @@ export const BUILTIN_TYPE_SECTIONS: HomeSection[] = [
   { id: 'teleplay', label: '小剧场', kind: 'type', contentType: 'TELEPLAY', builtin: true },
   { id: 'drama', label: '短剧', kind: 'type', contentType: 'SHORT_DRAMA', builtin: true },
   { id: 'entertainment', label: '综艺', kind: 'type', contentType: 'VSHOW', builtin: true },
+  { id: 'documentary', label: '纪录片', kind: 'type', contentType: 'DOCUMENTARY', builtin: true },
   { id: 'music', label: '音乐', kind: 'type', contentType: 'MUSIC', builtin: true },
   { id: 'anime', label: '二次元', kind: 'type', contentType: 'ANIMATION', builtin: true },
   { id: 'news', label: '资讯', kind: 'type', contentType: 'NEWS', builtin: true },

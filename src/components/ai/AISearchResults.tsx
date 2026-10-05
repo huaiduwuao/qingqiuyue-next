@@ -31,7 +31,7 @@ import { PlayTag } from '@/components/common/PlayTag';
 export const AI_GRADIENT = `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`;
 
 const TYPE_LABEL: Record<string, string> = {
-  FILM: '电影', TELEPLAY: '电视剧', VSHOW: '综艺', ANIMATION: '动画', VIDEO: '视频',
+  FILM: '电影', TELEPLAY: '电视剧', VSHOW: '综艺', DOCUMENTARY: '纪录片', ANIMATION: '动画', VIDEO: '视频',
   MUSIC: '音乐', NOVEL: '小说', COMICS: '漫画', ARTICLE: '文章', NEWS: '资讯', LIVE: '直播',
 };
 

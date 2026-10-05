@@ -25,7 +25,7 @@ interface RelatedContentProps {
 }
 
 /** 竖版封面的内容类型(书、漫画、影视海报),其余按横版 16:9。 */
-const PORTRAIT_TYPES = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DRAMA', 'ANIMATION', 'VSHOW']);
+const PORTRAIT_TYPES = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DRAMA', 'ANIMATION', 'VSHOW', 'DOCUMENTARY']);
 
 const DEFAULT_SIZE = 12;
 

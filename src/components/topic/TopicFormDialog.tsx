@@ -49,6 +49,7 @@ const RULE_CONTENT_TYPES: { value: string; label: string }[] = [
   { value: 'ANIMATION', label: '动画' },
   { value: 'COMICS', label: '漫画' },
   { value: 'VSHOW', label: '综艺' },
+  { value: 'DOCUMENTARY', label: '纪录片' },
   { value: 'NOVEL', label: '小说' },
   { value: 'MUSIC', label: '音乐' },
   { value: 'ARTICLE', label: '文章' },

@@ -4,7 +4,7 @@ import type { SuggestCreator, SuggestTopic } from '@/apis/search';
 // 搜索结果来自 GET /api/content/search(@/apis/search);以下是前端类型与纯函数。
 export type SearchContentItemContentType =
   | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
-  | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW'
+  | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW' | 'DOCUMENTARY'
   | 'POETRY';
 /**
  * 与后端 recommendapp.searchRow 对齐(content-api /api/content/search):
@@ -72,6 +72,7 @@ export const TYPE_LABEL: Record<SearchContentItem['contentType'], string> = {
   ANIMATION: '动画',
   NEWS: '资讯',
   VSHOW: '综艺',
+  DOCUMENTARY: '纪录片',
   POETRY: '古诗',
 };
 
@@ -86,6 +87,7 @@ export const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
   ANIMATION: '#F472B6',
   NEWS: '#C5C8D6',
   VSHOW: '#FE2C55',
+  DOCUMENTARY: '#0EA5E9',
   POETRY: '#7C3AED',
 };
 

@@ -44,7 +44,7 @@ const TILE_BORDER = '1px solid rgba(255,255,255,0.09)';
 
 const TYPE_ICON: Record<string, string> = {
   MUSIC: '🎵', FILM: '🎬', TELEPLAY: '📺', SHORT_DRAMA: '🎭', ANIMATION: '✨', COMICS: '📖', NOVEL: '📚',
-  VIDEO: '▶️', VSHOW: '🎤', LIVE: '🔴', ARTICLE: '📝', NEWS: '📰', WALLPAPER: '🖼️', PERSON: '👤',
+  VIDEO: '▶️', VSHOW: '🎤', DOCUMENTARY: '🌏', LIVE: '🔴', ARTICLE: '📝', NEWS: '📰', WALLPAPER: '🖼️', PERSON: '👤',
 };
 
 const RATIO: Record<CardShape, string> = { poster: '3 / 4', square: '1 / 1', wide: '16 / 9', text: '16 / 9', avatar: '1 / 1' };
