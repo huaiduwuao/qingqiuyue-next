@@ -64,7 +64,7 @@ export default function AgentDetail({ agentId }: AgentDetailProps) {
       try {
         setLoading(true)
         const [agentData, assocData] = await Promise.all([
-          agentmAPI.getAgentById(agentId),
+          agentmAPI.getAgentById<AgentInfo>(agentId),
           canvasAPI.getAssociations(agentId).catch(() => null),
         ])
         if (!mounted) return

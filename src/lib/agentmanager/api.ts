@@ -143,7 +143,7 @@ class AgentManagerAPI {
     messages: { role: string; content: string }[],
     options?: { stream?: boolean; temperature?: number }
   ) {
-    return this.request<any>('/gateway/llm/chat/completions', {
+    return this.request<unknown>('/gateway/llm/chat/completions', {
       method: 'POST',
       body: JSON.stringify({ model, messages, ...options }),
     })
@@ -305,7 +305,17 @@ class AgentManagerAPI {
           const dataLine = block.split('\n').find(l => l.startsWith('data:'))
           if (!dataLine) continue
           const dataStr = dataLine.slice(5).trim()
-          let data: any
+          /** AG-UI 事件:按 type 区分,各类型只用到下面这些字段 */
+          let data: {
+            type?: string
+            delta?: string
+            message?: string
+            toolCallId?: string
+            toolCallName?: string
+            content?: string
+            name?: string
+            value?: unknown
+          }
           try {
             data = JSON.parse(dataStr)
           } catch {
@@ -420,7 +430,7 @@ class AgentManagerAPI {
   }
 
   async getTeam(id: number) {
-    return this.request<{ team: Team; stats: any }>(`/teams/${id}`)
+    return this.request<{ team: Team; stats: Record<string, unknown> }>(`/teams/${id}`)
   }
 
   async deleteTeam(id: number) {
@@ -453,7 +463,7 @@ class AgentManagerAPI {
     return this.request<{ list: AgentTask[]; total: number }>(`/teams/${teamId}/tasks?${query}`)
   }
 
-  async dispatchTask(teamId: number, data: { agent_id: number; task_type: string; title?: string; input?: any }) {
+  async dispatchTask(teamId: number, data: { agent_id: number; task_type: string; title?: string; input?: unknown }) {
     return this.request<AgentTask>(`/teams/${teamId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -500,7 +510,7 @@ class AgentManagerAPI {
     return this.request<{ skills: Skill[] }>(`/skills/instances/${instanceId}`)
   }
 
-  async attachSkillToInstance(instanceId: number, skillId: number, config?: any) {
+  async attachSkillToInstance(instanceId: number, skillId: number, config?: unknown) {
     return this.request<InstanceSkill>(`/skills/instances/${instanceId}`, {
       method: 'POST',
       body: JSON.stringify({ skill_id: skillId, config }),
@@ -509,7 +519,7 @@ class AgentManagerAPI {
 
   // ========== Admin ==========
   async getLLMGovernance() {
-    return this.request<any>('/admin/llm-governance')
+    return this.request<Record<string, unknown>>('/admin/llm-governance')
   }
 
   async getCostStats(period?: string) {
@@ -547,8 +557,8 @@ class AgentManagerAPI {
   }
 
   // ========== Agents 管理 ==========
-  async getAgentById(id: number) {
-    return this.request<any>(`/agents/${id}`)
+  async getAgentById<T = Agent>(id: number) {
+    return this.request<T>(`/agents/${id}`)
   }
 
   async listAgents() {
@@ -558,15 +568,15 @@ class AgentManagerAPI {
     return res.list || []
   }
 
-  async updateAgent(id: number, data: Record<string, any>) {
-    return this.request<any>(`/agents/${id}`, {
+  async updateAgent(id: number, data: Record<string, unknown>) {
+    return this.request<Agent>(`/agents/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
   }
 
-  async createAgent(data: Record<string, any>) {
-    return this.request<any>('/agents', {
+  async createAgent(data: Record<string, unknown>) {
+    return this.request<Agent>('/agents', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -618,7 +628,7 @@ class AgentManagerAPI {
   }
 
   // ========== 工作流执行 / 调度 / 执行记录 ==========
-  async executeWorkflow(workflowId: number, input?: Record<string, any>) {
+  async executeWorkflow(workflowId: number, input?: Record<string, unknown>) {
     return this.request<{ run: WorkflowRun; error?: string }>(`/workflows/${workflowId}/execute`, {
       method: 'POST',
       body: JSON.stringify({ input: input ?? {} }),
@@ -706,7 +716,7 @@ export interface Instance {
   description?: string
   region: string
   weight: number
-  tags: Record<string, any>
+  tags: Record<string, unknown>
   status: 'active' | 'paused' | 'offline'
   health_status: 'unknown' | 'healthy' | 'unhealthy'
   health_msg?: string
@@ -786,8 +796,8 @@ export interface AgentTask {
   agent_id: number
   task_type: string
   title: string
-  input: Record<string, any>
-  output: Record<string, any>
+  input: Record<string, unknown>
+  output: Record<string, unknown>
   status: 'pending' | 'running' | 'completed' | 'failed'
   error_msg?: string
   priority: number
@@ -803,7 +813,7 @@ export interface Skill {
   description?: string
   category: string
   tags: string[]
-  config: Record<string, any>
+  config: Record<string, unknown>
   source: 'local' | 'hub' | 'builtin'
   status: 'draft' | 'published' | 'archived'
   install_count: number
@@ -814,7 +824,7 @@ export interface InstanceSkill {
   instance_id: number
   skill_id: number
   enabled: boolean
-  config: Record<string, any>
+  config: Record<string, unknown>
 }
 
 export type ModelProviderType = 'llm' | 'tts' | 'asr' | 'diffusion' | 'codingplan'
@@ -829,7 +839,7 @@ export interface NodeType {
   category?: 'flow' | 'entity' | 'io'
   allow_source?: boolean
   allow_target?: boolean
-  default_config?: Record<string, any>
+  default_config?: Record<string, unknown>
   sort_order?: number
   enabled?: boolean
 }
@@ -850,7 +860,7 @@ export interface WorkflowSchedule {
   last_run_at?: string
   last_status?: string
   run_count?: number
-  trigger_input?: Record<string, any>
+  trigger_input?: Record<string, unknown>
   enabled?: boolean
 }
 
@@ -860,8 +870,8 @@ export interface WorkflowRun {
   schedule_id?: number
   source: 'manual' | 'scheduled'
   status: 'claimed' | 'running' | 'completed' | 'failed' | 'unknown'
-  trigger_input?: Record<string, any>
-  final_state?: Record<string, any>
+  trigger_input?: Record<string, unknown>
+  final_state?: Record<string, unknown>
   error?: string
   claimed_at?: string
   started_at?: string
@@ -878,8 +888,8 @@ export interface WorkflowRunStep {
   start_time?: string
   end_time?: string
   duration_ms?: number
-  input?: Record<string, any>
-  output?: Record<string, any>
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   error?: string
   attempt?: number
 }
@@ -1031,9 +1041,9 @@ export interface ConversationMessage {
   input_tokens: number
   output_tokens: number
   total_tokens: number
-  tool_calls?: Record<string, any>
+  tool_calls?: Record<string, unknown>
   tool_call_count: number
-  reasoning_steps?: Record<string, any>
+  reasoning_steps?: Record<string, unknown>
   is_checkpoint: boolean
   status: 'success' | 'error' | 'partial'
   error_msg?: string

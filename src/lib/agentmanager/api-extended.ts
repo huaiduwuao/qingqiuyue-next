@@ -42,7 +42,7 @@ export interface KanbanEvent {
   id: number
   task_id: number
   kind: string
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   created_at: string
 }
 
@@ -87,7 +87,7 @@ export interface MCPCatalogEntry {
 export interface MCPTool {
   name: string
   description?: string
-  input_schema?: Record<string, any>
+  input_schema?: Record<string, unknown>
 }
 
 // ========== Skill Executable ==========
@@ -102,7 +102,7 @@ export interface ExecutableSkill {
   // kind=tool
   tool_config?: {
     func_name: string
-    input_schema: Record<string, any>
+    input_schema: Record<string, unknown>
     destructive: boolean
   }
   // kind=prompt
@@ -118,7 +118,7 @@ export interface ExecutableSkill {
 export interface PipelineStep {
   type: 'skill' | 'tool' | 'mcp'
   ref: string
-  args?: Record<string, any>
+  args?: Record<string, unknown>
   next_on?: string
 }
 
@@ -309,8 +309,8 @@ class ExtendedAgentmAPI {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     // SSE stream via ReadableStream
     return new EventSource(`${API_BASE}/agent/run/stream`, {
-      fetch: (url: string, init: any) => ({ ...fetch(url, init), body, headers }),
-    } as any)
+      fetch: (url: string, init: RequestInit) => ({ ...fetch(url, init), body, headers }),
+    } as EventSourceInit)
   }
 
   async listAgentExecutions(agentId?: number, params?: { status?: string; limit?: number }) {
@@ -326,7 +326,7 @@ class ExtendedAgentmAPI {
     return this.request<{ message: string }>(`/agent/executions/${executionId}/interrupt`, { method: 'POST' })
   }
 
-  async resumeAgentExecution(executionId: string, resumeData: Record<string, any>) {
+  async resumeAgentExecution(executionId: string, resumeData: Record<string, unknown>) {
     return this.request<AgentExecution>(`/agent/executions/${executionId}/resume`, {
       method: 'POST', body: JSON.stringify(resumeData),
     })

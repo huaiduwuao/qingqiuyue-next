@@ -18,8 +18,8 @@ export interface CanvasNodeData {
   label: string
   nodeType: CanvasNodeType
   refId?: number
-  config?: Record<string, any>
-  [key: string]: any
+  config?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 /** 后端画布实体 */
@@ -29,10 +29,10 @@ export interface AgentCanvas {
   name: string
   description: string
   canvas_data: {
-    nodes?: any[]
-    edges?: any[]
+    nodes?: unknown[]
+    edges?: unknown[]
   }
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   version: number
   create_time: string
   update_time: string
@@ -60,7 +60,7 @@ export interface WorkflowNodeDef {
   id: string
   type: string
   name: string
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   position?: { x: number; y: number }
 }
 
@@ -83,7 +83,7 @@ export interface SkillResult {
   kind: SkillKind
   tool_name?: string
   tool_description?: string
-  input_schema?: Record<string, any>
+  input_schema?: Record<string, unknown>
   func_name?: string
   prompt_template?: string
   mcp_server_name?: string
@@ -94,7 +94,7 @@ export interface SkillResult {
 export interface PipelineStepDef {
   type: string
   ref: string
-  args?: Record<string, any>
+  args?: Record<string, unknown>
   next_on?: string
 }
 
@@ -113,7 +113,7 @@ export interface AgentSkillInfo {
   skill_id: number
   enabled: boolean
   priority: number
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   skill_name: string
   skill_category: string
   skill_status: string
@@ -123,7 +123,7 @@ export interface AgentMCPInfo {
   agent_id: number
   mcp_server_id: number
   enabled: boolean
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   mcp_server_name: string
   mcp_tool_count: number
 }
@@ -147,7 +147,7 @@ export interface AgentMemoryInfo {
   name: string
   memory_type: string
   description: string
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   content: string
   priority: number
   access_count: number

@@ -35,9 +35,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  * 后端按 event: delta(增量文本)/ result(最终结果)/ error 推送。
  * onDelta 收增量,onResult 收最终对象,onError 收错误。
  */
-async function requestStream<TResult = any>(
+async function requestStream<TResult = unknown>(
   path: string,
-  body: any,
+  body: unknown,
   handlers: {
     onDelta?: (text: string) => void
     onResult?: (result: TResult) => void
@@ -100,13 +100,13 @@ export const canvasAPI = {
   getCanvas: (agentId: number) =>
     request<AgentCanvas>(`/canvas/${agentId}`),
 
-  saveCanvas: (agentId: number, canvasData: any, config?: any) =>
+  saveCanvas: (agentId: number, canvasData: unknown, config?: unknown) =>
     request<{ success: boolean }>(`/canvas/${agentId}`, {
       method: 'PUT',
       body: JSON.stringify({ canvas_data: canvasData, config }),
     }),
 
-  addNode: (agentId: number, node: { node_id: string; node_type: string; ref_id?: number; position?: any; config?: any }) =>
+  addNode: (agentId: number, node: { node_id: string; node_type: string; ref_id?: number; position?: { x: number; y: number }; config?: unknown }) =>
     request(`/canvas/${agentId}/nodes`, {
       method: 'POST',
       body: JSON.stringify(node),
@@ -119,7 +119,7 @@ export const canvasAPI = {
   getAssociations: (agentId: number) =>
     request<AgentAssociations>(`/canvas/${agentId}/associations`),
 
-  linkSkill: (agentId: number, skillId: number, config?: any) =>
+  linkSkill: (agentId: number, skillId: number, config?: unknown) =>
     request(`/canvas/${agentId}/link-skill`, {
       method: 'POST',
       body: JSON.stringify({ skill_id: skillId, config }),
@@ -128,7 +128,7 @@ export const canvasAPI = {
   unlinkSkill: (agentId: number, skillId: number) =>
     request(`/canvas/${agentId}/link-skill/${skillId}`, { method: 'DELETE' }),
 
-  linkMCP: (agentId: number, mcpServerId: number, config?: any) =>
+  linkMCP: (agentId: number, mcpServerId: number, config?: unknown) =>
     request(`/canvas/${agentId}/link-mcp`, {
       method: 'POST',
       body: JSON.stringify({ mcp_server_id: mcpServerId, config }),
@@ -168,7 +168,7 @@ export const canvasAPI = {
   listMemories: (agentId: number) =>
     request<AgentMemoryInfo[]>(`/canvas/${agentId}/memories`),
 
-  setMemory: (agentId: number, data: { id?: number; name: string; memory_type?: string; description?: string; config?: any; content?: string; priority?: number }) =>
+  setMemory: (agentId: number, data: { id?: number; name: string; memory_type?: string; description?: string; config?: unknown; content?: string; priority?: number }) =>
     request<AgentMemoryInfo>(`/canvas/${agentId}/memories`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -179,7 +179,7 @@ export const canvasAPI = {
 
   // ========== LLM 生成 ==========
   // currentCanvas:当前画布 {nodes,edges},传入后 LLM 在其基础上按 prompt 修改(对话操作画布)
-  generateWorkflow: (prompt: string, agentContext?: string, currentCanvas?: { nodes: any[]; edges: any[] }) =>
+  generateWorkflow: (prompt: string, agentContext?: string, currentCanvas?: { nodes: unknown[]; edges: unknown[] }) =>
     request<WorkflowResult>('/canvas/generate-workflow', {
       method: 'POST',
       body: JSON.stringify({ prompt, agent_context: agentContext, current_canvas: currentCanvas }),
@@ -189,7 +189,7 @@ export const canvasAPI = {
   generateWorkflowStream: (
     prompt: string,
     agentContext: string | undefined,
-    currentCanvas: { nodes: any[]; edges: any[] } | undefined,
+    currentCanvas: { nodes: unknown[]; edges: unknown[] } | undefined,
     handlers: { onDelta?: (text: string) => void; onResult?: (r: WorkflowResult) => void; onError?: (e: string) => void },
   ) =>
     requestStream<WorkflowResult>('/canvas/generate-workflow-stream', {

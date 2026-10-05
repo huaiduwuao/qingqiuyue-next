@@ -29,16 +29,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const text = await res.text().catch(() => res.statusText)
     throw new Error(text || `${res.status} ${res.statusText}`)
   }
-  const json = await res.json().catch(() => ({} as any))
+  const json: unknown = await res.json().catch(() => ({}))
   // 业务失败是 HTTP 200 + {code≠200, msg}(response.FailWithMsg),比如退订超过 7 天、
   // 加油包已用完;以前当成功返回,调用方读 undefined 字段才崩。
   if (json && typeof json === 'object' && 'code' in json) {
-    const code = Number((json as any).code)
-    if (code !== 200 && code !== 0) throw new Error((json as any).msg || `请求失败(${code})`)
+    const code = Number((json as { code?: unknown }).code)
+    if (code !== 200 && code !== 0) throw new Error((json as { msg?: string }).msg || `请求失败(${code})`)
   }
   // 兼容 {code, data, msg} 与裸 body
   if (json && typeof json === 'object' && 'data' in json && ('code' in json || 'msg' in json)) {
-    return (json as any).data as T
+    return (json as { data?: unknown }).data as T
   }
   return json as T
 }
