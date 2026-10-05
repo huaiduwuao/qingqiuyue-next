@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getLikesPreview, getAccountStats } from '@/apis/dashboard';
+import type { Theme } from '@mui/material/styles';
 import { useRouter } from 'next/navigation';
 import { loginHref } from '@/lib/auth/redirect';
 import Box from '@mui/material/Box';
@@ -111,7 +112,9 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     staleTime: 30 * 1000,
     enabled: !!currentUser?.id,
   });
-  const LIKES_PREVIEW: Array<{ id: string | number; title?: string; cover?: string; type?: string }> = (likesResp?.list ?? []).map((l: any) => ({
+  /** 卡片头部展示用到的用户字段(不同登录方式下名字字段不一) */
+  const userView = currentUser as { nickname?: string; username?: string; name?: string; following?: number; followers?: number } | null | undefined;
+  const LIKES_PREVIEW: Array<{ id: string | number; title?: string; cover?: string; type?: string }> = (likesResp?.list ?? []).map((l) => ({
     id: l.id, title: l.title, cover: coverBackground(l.cover, gradient2('#C8A882', '#8B6F47')), type: l.type,
   }));
 
@@ -153,11 +156,11 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               width: 64,
               height: 64,
               borderRadius: '50%',
-              background: (t: any) =>
+              background: (t: Theme) =>
                 t.palette.mode === 'dark'
                   ? 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)'
                   : 'radial-gradient(circle at 35% 35%, #e8e8ee 0%, #b8b8c0 70%)',
-              boxShadow: (t: any) =>
+              boxShadow: (t: Theme) =>
                 t.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(0,0,0,0.08)',
             }}
           />
@@ -205,13 +208,13 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             height: compact ? 40 : 56,
             borderRadius: '50%',
             flexShrink: 0,
-            background: (t: any) =>
+            background: (t: Theme) =>
               t.palette.mode === 'dark'
                 ? 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)'
                 : 'radial-gradient(circle at 35% 35%, #e8e8ee 0%, #b8b8c0 70%)',
             position: 'relative',
             overflow: 'hidden',
-            boxShadow: (t: any) =>
+            boxShadow: (t: Theme) =>
               t.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(0,0,0,0.08)',
             cursor: 'pointer',
           }}
@@ -224,7 +227,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               top: '15%',
               left: '15%',
               borderRadius: '50%',
-              background: (t: any) =>
+              background: (t: Theme) =>
                 t.palette.mode === 'dark'
                   ? 'radial-gradient(circle at 30% 30%, #3a3a44 0%, #2a2a32 40%, #1c1c24 80%)'
                   : 'radial-gradient(circle at 30% 30%, #f5f5f0 0%, #d8d8d0 40%, #a8a8a0 80%)',
@@ -248,7 +251,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               onClick={() => go('/home/recommend?tab=me')}
               sx={{ fontSize: compact ? 14 : 17, fontWeight: 600, color: 'text.primary', lineHeight: 1.2, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
             >
-              {(currentUser as any)?.nickname ?? (currentUser as any)?.username ?? (currentUser as any)?.name ?? '未登录'}
+              {userView?.nickname ?? userView?.username ?? userView?.name ?? '未登录'}
             </Typography>
             <IconButton
               size="small"
@@ -273,7 +276,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               color: 'text.secondary',
             }}
           >
-            <Box component="span">关注 {(currentUser as any)?.following ?? 0}</Box>
+            <Box component="span">关注 {userView?.following ?? 0}</Box>
             <Box
               component="span"
               sx={{
@@ -283,7 +286,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                 bgcolor: 'text.disabled',
               }}
             />
-            <Box component="span">粉丝 {(currentUser as any)?.followers ?? 0}</Box>
+            <Box component="span">粉丝 {userView?.followers ?? 0}</Box>
           </Box>
         </Box>
       </Box>
@@ -482,11 +485,11 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           paper: {
             sx: {
               borderRadius: 3,
-              background: (t: any) =>
+              background: (t: Theme) =>
                 t.palette.mode === 'dark'
                   ? 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)'
                   : 'background.paper',
-              border: (t: any) =>
+              border: (t: Theme) =>
                 t.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.08)' : (t.palette.divider || '1px solid rgba(0,0,0,0.12)'),
             },
           },

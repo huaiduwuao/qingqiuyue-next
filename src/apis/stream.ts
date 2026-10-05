@@ -63,17 +63,19 @@ function generateRandomId(length: number): string {
   return result;
 }
 
-function getNestedValue(obj: any, path: string): any {
+/** 按 a.b[0].c 这样的路径从任意 JSON 里取值,取不到返回 undefined */
+function getNestedValue(obj: unknown, path: string): unknown {
   if (!path || !obj) return undefined;
-  let result = obj;
+  // 动态 JSON 路径:逐级下钻,每一级都可能是任意对象
+  let result = obj as Record<string, unknown> | unknown[] | null | undefined;
   for (const part of path.split('.')) {
     if (result == null) return undefined;
     const indexMatch = part.match(/^(\w+)\[(\d+)\]$/);
     if (indexMatch) {
-      result = result[indexMatch[1]];
-      if (Array.isArray(result)) result = result[parseInt(indexMatch[2])];
+      result = (result as Record<string, unknown>)[indexMatch[1]] as typeof result;
+      if (Array.isArray(result)) result = result[parseInt(indexMatch[2])] as typeof result;
     } else {
-      result = result[part];
+      result = (result as Record<string, unknown>)[part] as typeof result;
     }
   }
   return result;
@@ -95,7 +97,7 @@ function extractParams(parser: StreamParser, url: string): Record<string, string
   return params;
 }
 
-async function resolveDispatchUrl(dispatchUrl: string, cfg: any): Promise<string> {
+async function resolveDispatchUrl(dispatchUrl: string, cfg: { headers?: Record<string, string>; urlField?: string }): Promise<string> {
   try {
     const resp = await fetch(dispatchUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0', ...(cfg.headers || {}) }
@@ -103,7 +105,7 @@ async function resolveDispatchUrl(dispatchUrl: string, cfg: any): Promise<string
     if (!resp.ok) return dispatchUrl;
     const ct = resp.headers.get('content-type') || '';
     if (ct.includes('mpegurl') || ct.includes('octet-stream')) return dispatchUrl;
-    const json: any = await resp.json().catch(() => null);
+    const json: unknown = await resp.json().catch(() => null);
     const real = cfg.urlField ? getNestedValue(json, cfg.urlField) : null;
     return real && typeof real === 'string' && real.startsWith('http') ? real : dispatchUrl;
   } catch {
@@ -111,44 +113,56 @@ async function resolveDispatchUrl(dispatchUrl: string, cfg: any): Promise<string
   }
 }
 
-async function extractStreams(parser: StreamParser, apiResponse: any): Promise<any[]> {
+/** 解析出的一路流 */
+interface ParsedStream {
+  quality: string;
+  resolution: string;
+  url: string;
+  needPay: boolean;
+  format: string;
+}
+
+/** 流条目上直接读的几个字段(其余按解析脚本里的路径取) */
+type StreamItem = { disp?: { info?: string }; videoWidth?: number; videoHeight?: number };
+
+async function extractStreams(parser: StreamParser, apiResponse: { data?: unknown }): Promise<ParsedStream[]> {
   const script = JSON.parse(parser.response_parse_script);
   const data = apiResponse.data || apiResponse;
-  let items: any[] = [];
+  let items: unknown = [];
   if (script.streamsExpr.includes('concat')) {
     const m = script.streamsExpr.match(/data\.(\w+)\.concat\(data\.(\w+)\)/);
-    if (m) items = [...(getNestedValue(data, m[1]) || []), ...(getNestedValue(data, m[2]) || [])];
+    if (m) items = [...((getNestedValue(data, m[1]) || []) as unknown[]), ...((getNestedValue(data, m[2]) || []) as unknown[])];
   } else {
     items = getNestedValue(data, script.streamsExpr.replace(/^data\./, '')) || [];
   }
   if (!Array.isArray(items)) return [];
 
-  const domain = script.domainPath ? getNestedValue(data, script.domainPath.replace(/^data\./, '')) : '';
+  const domain = (script.domainPath ? getNestedValue(data, script.domainPath.replace(/^data\./, '')) : '') as string;
   const patterns: string[] = script.playableMatch?.length ? script.playableMatch : ['.m3u8', 'm3u8?', '.mp4', '/atcl?', 'pm2='];
   const isPlayable = (u: string) => u && patterns.some(p => u.includes(p));
 
-  const raw = items.map((item: any) => {
+  const raw: ParsedStream[] = items.map((item: StreamItem) => {
     let url = '';
     const dispInfo = item.disp?.info || '';
     if (dispInfo) url = dispInfo;
     else {
-      url = getNestedValue(item, script.urlPath.replace(/^item\./, '')) || '';
+      url = (getNestedValue(item, script.urlPath.replace(/^item\./, '')) as string) || '';
       if (url && !url.startsWith('http') && domain) url = domain + url;
     }
-    const quality = getNestedValue(item, (script.qualityPath || '').replace(/^item\./, '')) || '';
+    const quality = (getNestedValue(item, (script.qualityPath || '').replace(/^item\./, '')) as string) || '';
     const resolution = item.videoWidth && item.videoHeight ? `${item.videoWidth}x${item.videoHeight}` : '';
     const needPay = getNestedValue(item, (script.needpayPath || '').replace(/^item\./, ''));
     return { quality: quality || resolution, resolution, url, needPay: needPay === 1 || needPay === true, format: 'm3u8' };
-  }).filter((s: any) => isPlayable(s.url));
+  }).filter((s) => isPlayable(s.url));
 
   if (script.resolve?.match?.length && script.resolve.urlField) {
     const finalExt = script.resolve.finalExt || '.m3u8';
-    await Promise.all(raw.map(async (s: any) => {
+    await Promise.all(raw.map(async (s) => {
       if (s.url && !s.url.includes(finalExt) && script.resolve.match.some((m: string) => s.url.includes(m))) {
         s.url = await resolveDispatchUrl(s.url, script.resolve);
       }
     }));
-    return raw.filter((s: any) => s.url && s.url.includes(finalExt));
+    return raw.filter((s) => s.url && s.url.includes(finalExt));
   }
   return raw;
 }
@@ -273,7 +287,7 @@ export async function parseStream(url: string, opts: { refresh?: boolean } = {})
 
     const params = extractParams(matched, urlNoProto);
     const headers = JSON.parse(matched.headers);
-    let apiResponse: any;
+    let apiResponse: { data?: unknown };
     if (matched.method === 'POST') {
       apiResponse = await fetch(matched.api_endpoint, { method: 'POST', headers, body: JSON.stringify(params) }).then(r => r.json());
     } else {
