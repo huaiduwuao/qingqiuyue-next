@@ -21,10 +21,11 @@ import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import GavelRoundedIcon from '@mui/icons-material/GavelRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { formatCount } from '@/lib/utils/format';
 import { REVIEWER_LEVEL_META, type HdVideo, type Reviewer } from './data';
-import { RESOLUTION_META, formatSize } from './hdPublishModel';
+import { RESOLUTION_META, coverBackground, formatSize } from './hdPublishModel';
 import { STATUS_META } from './hdPublishMeta';
 
 /** 视频详情抽屉:状态/分辨率、数据表现、失败原因、审核流程时间线、音轨字幕、转码进度和底部操作。 */
@@ -40,6 +41,7 @@ export const HdVideoDetailDrawer = React.memo(function HdVideoDetailDrawer({
   onPublishNow: handlePublishNow,
   onDelete: handleDelete,
   onOpenAppeal: handleOpenAppeal,
+  onChangeCover,
 }: {
   detail: HdVideo | null;
   setDetailId: (id: string | null) => void;
@@ -52,6 +54,8 @@ export const HdVideoDetailDrawer = React.memo(function HdVideoDetailDrawer({
   onPublishNow: (id: string) => void;
   onDelete: (id: string) => void;
   onOpenAppeal: () => void;
+  /** 打开换封面弹窗 */
+  onChangeCover: (id: string) => void;
 }) {
   return (
     <Drawer
@@ -87,7 +91,8 @@ export const HdVideoDetailDrawer = React.memo(function HdVideoDetailDrawer({
                 width: '100%',
                 aspectRatio: '16/9',
                 borderRadius: 1.5,
-                background: detail.cover,
+                bgcolor: 'action.hover',
+                background: coverBackground(detail.cover),
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
@@ -95,6 +100,23 @@ export const HdVideoDetailDrawer = React.memo(function HdVideoDetailDrawer({
               }}
             >
               <MovieFilterRoundedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.7)', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45))' }} />
+              <Button
+                size="small"
+                startIcon={<ImageRoundedIcon sx={{ fontSize: 14 }} />}
+                onClick={() => onChangeCover(detail.id)}
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  textTransform: 'none',
+                  fontSize: 12,
+                  color: '#fff',
+                  bgcolor: 'rgba(0,0,0,0.55)',
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+                }}
+              >
+                换封面
+              </Button>
               {detail.hasCover && (
                 <Typography
                   sx={{

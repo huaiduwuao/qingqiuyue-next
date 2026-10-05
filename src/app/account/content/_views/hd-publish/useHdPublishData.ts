@@ -3,7 +3,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getHdVideoList } from '@/apis/dashboard';
-import { managePage, updateShare, type ModuleContentItem } from '@/apis/module-content';
+import { managePage, setContentCover, updateShare, type ModuleContentItem } from '@/apis/module-content';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { gradient3 } from '@/constants/gradients';
 import type { SavedContent } from '../../_components/useContentForm';
@@ -27,6 +27,18 @@ export const HD_MANAGE_VIDEOS_QUERY_KEY = ['module-content', 'hd-publish', 'vide
 type NewHdOp =
   | { kind: 'remove'; videoId: string }
   | { kind: 'update'; videoId: string; apply: (v: HdVideo) => HdVideo };
+
+/** 封面图片走现有的文件上传接口(与视频上传同一个),返回图片地址。 */
+export async function uploadCoverImage(image: Blob, fileName: string): Promise<string | undefined> {
+  const formData = new FormData();
+  formData.append('file', image, fileName);
+  const res = await accountClient.post('/file/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  // 拦截器已剥到业务层,返回值就是 {url}
+  const url = (res as { url?: string } | undefined)?.url;
+  return typeof url === 'string' && url.trim() ? url.trim() : undefined;
+}
 
 /**
  * 视频列表:HD 视频接口 + 管理列表里的 VIDEO 内容合并去重(mergeServerHdVideos),外加删除 /
@@ -97,11 +109,12 @@ export function useHdVideos(setSnack: SetSnack) {
 
   /** 先叠上乐观改动再发请求:成功则等服务端刷新后撤掉改动,失败立即撤掉(回滚)。返回是否成功。 */
   const runOptimistic = useCallback(
-    async (op: NewHdOp, request: () => Promise<unknown>, okMsg: string, failMsg: string) => {
+    async <T,>(op: NewHdOp, request: () => Promise<T>, okMsg: string | ((res: T) => string), failMsg: string) => {
       const opId = ++opSeqRef.current;
       setOps((p) => [...liveHdOps(p, markNow()), { ...op, opId } as HdPendingOp]);
+      let res: T;
       try {
-        await request();
+        res = await request();
       } catch (e) {
         setOps((p) => p.filter((o) => o.opId !== opId));
         setSnack(`${failMsg}:${formatApiError(e)}`);
@@ -110,7 +123,7 @@ export function useHdVideos(setSnack: SetSnack) {
       const confirmedAt = markNow();
       setOps((p) => p.map((o) => (o.opId === opId ? { ...o, confirmedAt } : o)));
       refetchServer();
-      setSnack(okMsg);
+      setSnack(typeof okMsg === 'function' ? okMsg(res) : okMsg);
       return true;
     },
     [markNow, refetchServer, setSnack],
@@ -217,9 +230,46 @@ export function useHdVideos(setSnack: SetSnack) {
     [runOptimistic],
   );
 
+  /** 换封面:先在界面上换掉,后端只改封面一列(setContentCover);失败换回原来的。 */
+  const handleSetCover = useCallback(
+    (id: string, coverUrl: string) =>
+      runOptimistic(
+        { kind: 'update', videoId: id, apply: (v) => ({ ...v, cover: coverUrl, hasCover: true }) },
+        () => setContentCover(id, coverUrl),
+        (res) =>
+          String(res?.status ?? '').toUpperCase() === 'REVIEWING' &&
+          videos.find((v) => v.id === id)?.status === 'published'
+            ? '封面已保存,视频重新进入审核'
+            : '封面已保存',
+        '封面保存失败',
+      ),
+    [runOptimistic, videos],
+  );
+
+  /** 换封面弹窗的「保存」:先把图片(截帧或本地图)传到文件上传接口,再调后端保存封面。返回是否成功。 */
+  const saveCover = useCallback(
+    async (id: string, image: Blob, fileName: string) => {
+      let url: string | undefined;
+      try {
+        url = await uploadCoverImage(image, fileName);
+      } catch (e) {
+        setSnack({ msg: `封面上传失败:${formatApiError(e)}`, severity: 'error' });
+        return false;
+      }
+      if (!url) {
+        setSnack({ msg: '封面上传成功但没有返回地址,请重试', severity: 'error' });
+        return false;
+      }
+      return handleSetCover(id, url);
+    },
+    [handleSetCover, setSnack],
+  );
+
   return {
     videos,
     addVideo,
+    handleSetCover,
+    saveCover,
     fastChannelQuota,
     handleDelete,
     handleRetry,

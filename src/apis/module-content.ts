@@ -121,6 +121,25 @@ export async function updateShare(params: ModuleContentItem) {
   return contentClient('/module/content', { method: 'POST', data: params });
 }
 
+export interface SetCoverResult {
+  id: string;
+  coverUrl: string;
+  /** 换完后的内容状态:创作者换已上线内容的封面会回到 REVIEWING */
+  status: string;
+}
+
+/**
+ * 只换封面(作者本人或内容运营)。后端只改 cover_url 一列,正文 / metadata 等原样保留;
+ * 不要拿 updateShare 换封面 —— 那条接口按请求体整体重写标题、简介、标签。
+ * id 是十进制字符串(BIGINT 超 2^53)。
+ */
+export async function setContentCover(id: string, coverUrl: string): Promise<SetCoverResult> {
+  return contentClient<SetCoverResult>(`/module/content/${encodeURIComponent(id)}/cover`, {
+    method: 'POST',
+    data: { coverUrl },
+  });
+}
+
 // 批量删除:后端 /module/content/{id} 一次只接受单个 id,前端循环逐个删。
 // 错误时 Promise.all 不中断,先成功的标 done,失败的 throw 最后一笔错误。
 // 用户勾选 N 条 → handleBatchDelete → await Promise.all(remove(...)) → N 次 DELETE。

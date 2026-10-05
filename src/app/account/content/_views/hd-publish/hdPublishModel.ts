@@ -67,6 +67,51 @@ export function dedupeHdVideos(list: any[] | undefined): HdVideo[] {
   }));
 }
 
+/** http(s) 地址或站内路径(封面图片、视频文件都用它判);渐变色占位、data:/javascript: 等都不算。 */
+export function isUrlLike(s: string | undefined): s is string {
+  return !!s && (/^https?:\/\/[^/]/i.test(s) || (s.startsWith('/') && !s.startsWith('//')));
+}
+
+/**
+ * 封面的 CSS background:图片地址包成 url(),渐变色占位原样用。
+ * 此前直接把 cover 塞进 background,真封面(图片地址)是无效的 CSS,一律显示成空白。
+ */
+export function coverBackground(cover: string | undefined): string | undefined {
+  if (!cover) return undefined;
+  if (isUrlLike(cover)) return `center / cover no-repeat url("${encodeURI(decodeURISafe(cover)).replace(/"/g, '%22')}")`;
+  return cover;
+}
+
+function decodeURISafe(s: string): string {
+  try {
+    return decodeURI(s);
+  } catch {
+    return s;
+  }
+}
+
+// 只认视频文件地址;source_url 之类多半是外站播放页,截不了帧
+const VIDEO_URL_KEYS = ['videoUrl', 'video_url', 'mp4Url', 'playUrl'];
+
+function pickVideoUrl(raw: string | undefined): string | undefined {
+  if (!raw || raw[0] !== '{') return undefined;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    for (const k of VIDEO_URL_KEYS) {
+      const v = obj[k];
+      if (typeof v === 'string' && isUrlLike(v.trim())) return v.trim();
+    }
+  } catch {
+    // 不是 JSON:没有可截帧的视频地址
+  }
+  return undefined;
+}
+
+/** 管理列表行里的视频文件地址:上传器写在正文 JSON 的 videoUrl,其余表单可能写在 metadata。 */
+export function extractVideoUrl(item: Pick<ModuleContentItem, 'content' | 'metadata'>): string | undefined {
+  return pickVideoUrl(item.content?.trim()) ?? pickVideoUrl(item.metadata?.trim());
+}
+
 /** 管理列表里的 VIDEO 内容(module_content)→ HdVideo,用于并进本地列表。 */
 export function moduleContentToHdVideo(item: ModuleContentItem): HdVideo {
   return {
@@ -85,6 +130,7 @@ export function moduleContentToHdVideo(item: ModuleContentItem): HdVideo {
     audioTracks: [{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }],
     views: item.readNum ?? 0,
     likes: item.agreeNum ?? 0,
+    videoUrl: extractVideoUrl(item),
   };
 }
 
@@ -95,14 +141,23 @@ export function moduleContentToHdVideo(item: ModuleContentItem): HdVideo {
 export function mergeServerHdVideos(hdVideos: HdVideo[], manageItems: ModuleContentItem[] | undefined): HdVideo[] {
   const ids = new Set(hdVideos.map((v) => v.id));
   const extra: HdVideo[] = [];
+  // HD 接口不带视频地址,同一条在管理列表里有就借过来(换封面截帧用)
+  const videoUrls = new Map<string, string>();
   for (const item of manageItems ?? []) {
     if (!item || item.id === undefined || item.id === null) continue;
     const id = String(item.id);
-    if (ids.has(id)) continue;
+    if (ids.has(id)) {
+      const url = extractVideoUrl(item);
+      if (url && !videoUrls.has(id)) videoUrls.set(id, url);
+      continue;
+    }
     ids.add(id);
     extra.push(moduleContentToHdVideo(item));
   }
-  return [...extra, ...hdVideos];
+  const main = videoUrls.size
+    ? hdVideos.map((v) => (!v.videoUrl && videoUrls.has(v.id) ? { ...v, videoUrl: videoUrls.get(v.id) } : v))
+    : hdVideos;
+  return [...extra, ...main];
 }
 
 /**

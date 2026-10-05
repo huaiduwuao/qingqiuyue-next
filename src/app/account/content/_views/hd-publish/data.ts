@@ -112,6 +112,8 @@ export interface HdVideo {
   audioTracks: AudioTrack[];
   hasCover: boolean;
   review?: ReviewInfo;
+  /** 视频文件地址(管理列表正文里的 videoUrl 等),换封面时用来截帧;没有就只能上传图片 */
+  videoUrl?: string;
 }
 
 export const REVIEW_CHECK_TEMPLATE: Pick<ReviewCheck, 'id' | 'label' | 'desc'>[] = [

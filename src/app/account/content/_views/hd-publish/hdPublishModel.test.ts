@@ -5,7 +5,10 @@ import {
   applyHdOps,
   buildReviewHistory,
   computeHdStats,
+  coverBackground,
   dedupeHdVideos,
+  extractVideoUrl,
+  isUrlLike,
   formatSize,
   liveHdOps,
   mapApiReviewers,
@@ -159,5 +162,36 @@ describe('hdPublishModel', () => {
     expect(mapApiReviewers({ records: [r] } as never)[0]).toMatchObject({ id: 'r1', level: 2, avgReviewSec: 300 });
     expect(mapApiReviewers({ list: [r] } as never)).toHaveLength(1);
     expect(mapApiReviewers(undefined)).toEqual([]);
+  });
+
+  it('coverBackground 图片地址包成 url(),渐变占位原样,空值不给', () => {
+    expect(coverBackground('https://cdn.x/a b.jpg')).toBe('center / cover no-repeat url("https://cdn.x/a%20b.jpg")');
+    expect(coverBackground('/qq-media/c.png')).toBe('center / cover no-repeat url("/qq-media/c.png")');
+    expect(coverBackground('linear-gradient(135deg, #000 0%, #fff 100%)')).toBe('linear-gradient(135deg, #000 0%, #fff 100%)');
+    expect(coverBackground('')).toBeUndefined();
+    expect(coverBackground('https://x/")<b>')).not.toContain('")<');
+  });
+
+  it('isUrlLike 只认 http(s) 和站内路径', () => {
+    expect(isUrlLike('https://a.b/c')).toBe(true);
+    expect(isUrlLike('/qq-media/v.mp4')).toBe(true);
+    for (const bad of ['//evil.com/x', 'javascript:alert(1)', 'data:image/png;base64,AA', 'https:///x', '', undefined]) {
+      expect(isUrlLike(bad)).toBe(false);
+    }
+  });
+
+  it('extractVideoUrl 读正文 JSON 的 videoUrl,其次 metadata;不是 JSON 或不是地址就没有', () => {
+    expect(extractVideoUrl({ content: '{"videoUrl":"/qq-media/v.mp4","resolution":"4K"}' })).toBe('/qq-media/v.mp4');
+    expect(extractVideoUrl({ content: '一段简介', metadata: '{"playUrl":"https://cdn/v.m3u8"}' })).toBe('https://cdn/v.m3u8');
+    expect(extractVideoUrl({ content: '{"videoUrl":"javascript:x"}' })).toBeUndefined();
+    expect(extractVideoUrl({ content: '{broken', metadata: '{"source_url":"https://www.bilibili.com/video/BV1"}' })).toBeUndefined();
+  });
+
+  it('mergeServerHdVideos 给 HD 接口的条目借上管理列表里的视频地址', () => {
+    const merged = mergeServerHdVideos([video({ id: '1' })], [
+      { id: '1', content: '{"videoUrl":"/qq-media/1.mp4"}' },
+    ] as unknown as ModuleContentItem[]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].videoUrl).toBe('/qq-media/1.mp4');
   });
 });

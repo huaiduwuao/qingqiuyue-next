@@ -31,7 +31,7 @@ import type { SavedContent } from '../../_components/useContentForm';
 import { PUBLISH_TYPES } from '../../_components/publishTypes';
 import { rewardTaskHref, takeTaskDeliveryParams, type TaskDeliveryContext } from '@/lib/bountyDelivery';
 import { PublishStepper } from './PublishStepper';
-import { AppealDialog, ReviewHistoryDialog } from './HdPublishDialogs';
+import { AppealDialog, CoverPickerDialog, ReviewHistoryDialog } from './HdPublishDialogs';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -51,6 +51,7 @@ import { HdStatCards } from './HdStatCards';
 import { HdUploadArea } from './HdUploadArea';
 import { HdUploadForm } from './HdUploadForm';
 import { HdVideoDetailDrawer } from './HdVideoDetailDrawer';
+import { HdVideoList } from './HdVideoList';
 
 export default function HdPublishPage() {
   const { setActiveTab } = useActiveTab();
@@ -98,10 +99,30 @@ export default function HdPublishPage() {
     handleTypeClick(type);
   }, [handleTypeClick]);
 
-  const { videos, addVideo, fastChannelQuota, handleDelete, handleRetry, handlePublishNow, handleFastTrackReview, handleResubmitReview } =
+  const { videos, addVideo, saveCover, fastChannelQuota, handleDelete, handleRetry, handlePublishNow, handleFastTrackReview, handleResubmitReview } =
     useHdVideos(setSnack);
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
   const closeReviewHistory = useCallback(() => setReviewHistoryOpen(false), []);
+  const openReviewHistory = useCallback(() => setReviewHistoryOpen(true), []);
+  // 换封面:目标视频 id + 保存中(上传图片 → 后端只改封面列,见 useHdVideos.saveCover)
+  const [coverTargetId, setCoverTargetId] = useState<string | null>(null);
+  const [coverSaving, setCoverSaving] = useState(false);
+  const coverTarget = useMemo(() => videos.find((v) => v.id === coverTargetId) ?? null, [videos, coverTargetId]);
+  const openCoverPicker = useCallback((id: string) => setCoverTargetId(id), []);
+  const closeCoverPicker = useCallback(() => setCoverTargetId(null), []);
+  const handleSaveCover = useCallback(
+    async (image: Blob, fileName: string) => {
+      if (!coverTargetId) return;
+      setCoverSaving(true);
+      try {
+        // 失败时 saveCover 已提示、界面已换回原封面;弹窗留着可以重选
+        if (await saveCover(coverTargetId, image, fileName)) setCoverTargetId(null);
+      } finally {
+        setCoverSaving(false);
+      }
+    },
+    [coverTargetId, saveCover],
+  );
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealReason, setAppealReason] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
@@ -303,6 +324,14 @@ export default function HdPublishPage() {
 
         {/* VIDEO 上传元数据表单 — 内联(原 Dialog 内容),分步:基础信息 → 质量/特性 → 音轨/字幕 */}
         <HdUploadForm upload={upload} />
+
+        {/* 我的视频:点开看详情,卡片上换封面 */}
+        <HdVideoList
+          videos={videos}
+          onOpenDetail={setDetailId}
+          onChangeCover={openCoverPicker}
+          onOpenReviewHistory={openReviewHistory}
+        />
         </>
       )}
 
@@ -319,6 +348,17 @@ export default function HdPublishPage() {
         onPublishNow={handlePublishNow}
         onDelete={handleDelete}
         onOpenAppeal={handleOpenAppeal}
+        onChangeCover={openCoverPicker}
+      />
+
+      {/* 换封面:视频截帧 / 本地图片 → 上传 → 保存到后端 */}
+      <CoverPickerDialog
+        key={coverTargetId ?? 'none'}
+        open={!!coverTarget}
+        video={coverTarget}
+        saving={coverSaving}
+        onClose={closeCoverPicker}
+        onSave={handleSaveCover}
       />
 
       {/* 申诉 Dialog */}

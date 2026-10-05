@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   manageList: [] as any[],
   del: vi.fn(),
   post: vi.fn(),
+  setCover: vi.fn(),
 }));
 
 vi.mock('@/apis/dashboard', () => ({
@@ -17,7 +18,7 @@ vi.mock('@/apis/dashboard', () => ({
 vi.mock('@/apis/module-content', () => ({
   managePage: vi.fn(async () => ({ list: api.manageList.map((v) => ({ ...v })), total: api.manageList.length })),
   updateShare: vi.fn(),
-  setContentCover: vi.fn(),
+  setContentCover: (...a: unknown[]) => api.setCover(...a),
 }));
 vi.mock('@/lib/api/client', () => ({
   accountClient: { delete: (...a: unknown[]) => api.del(...a), post: (...a: unknown[]) => api.post(...a) },
@@ -68,6 +69,7 @@ beforeEach(() => {
   api.manageList = [];
   api.del.mockReset();
   api.post.mockReset();
+  api.setCover.mockReset();
 });
 
 describe('useHdVideos', () => {
@@ -203,5 +205,66 @@ describe('useHdVideos', () => {
     expect(result.current.videos.map((v) => v.id)).toEqual(['77']);
     await waitFor(() => expect(statusOf(result.current.videos, '77')).toBe('reviewing'));
     expect(result.current.videos).toHaveLength(1);
+  });
+
+  it('换封面:上传图片后调后端保存,成功提示;服务端刷新后用服务端的封面', async () => {
+    api.hdList = [hd('1', 'PUBLISH', { cover: 'https://old/c.jpg', hasCover: true })];
+    const { result, setSnack } = setup();
+    await waitFor(() => expect(result.current.videos).toHaveLength(1));
+
+    api.post.mockResolvedValue({ url: 'https://cdn/new.jpg' });
+    api.setCover.mockResolvedValue({ id: '1', coverUrl: 'https://cdn/new.jpg', status: 'REVIEWING' });
+    api.hdList = [hd('1', 'REVIEWING', { cover: 'https://cdn/new.jpg', hasCover: true })];
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.saveCover('1', new Blob(['x'], { type: 'image/jpeg' }), 'f.jpg');
+    });
+    expect(ok).toBe(true);
+    expect(api.post).toHaveBeenCalledWith('/file/upload', expect.any(FormData), expect.anything());
+    expect(api.setCover).toHaveBeenCalledWith('1', 'https://cdn/new.jpg');
+    expect(setSnack).toHaveBeenLastCalledWith('封面已保存,视频重新进入审核');
+    await waitFor(() => expect(statusOf(result.current.videos, '1')).toBe('reviewing'));
+    expect(result.current.videos[0].cover).toBe('https://cdn/new.jpg');
+  });
+
+  it('换封面保存中先显示新封面,失败换回原封面并提示', async () => {
+    api.hdList = [hd('1', 'REVIEWING', { cover: 'https://old/c.jpg', hasCover: true })];
+    const { result, setSnack } = setup();
+    await waitFor(() => expect(result.current.videos).toHaveLength(1));
+
+    const req = deferred();
+    api.setCover.mockReturnValue(req.promise);
+    let pending!: Promise<boolean>;
+    act(() => {
+      pending = result.current.handleSetCover('1', 'https://cdn/new.jpg');
+    });
+    expect(result.current.videos[0].cover).toBe('https://cdn/new.jpg');
+    await act(async () => {
+      req.reject(new Error('只能修改自己的内容'));
+      await pending;
+    });
+    expect(result.current.videos[0].cover).toBe('https://old/c.jpg');
+    expect(setSnack).toHaveBeenLastCalledWith('封面保存失败:只能修改自己的内容');
+  });
+
+  it('封面图片上传失败或没返回地址时不调保存接口', async () => {
+    api.hdList = [hd('1', 'REVIEWING')];
+    const { result, setSnack } = setup();
+    await waitFor(() => expect(result.current.videos).toHaveLength(1));
+
+    api.post.mockRejectedValueOnce(new Error('文件过大'));
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.saveCover('1', new Blob(['x']), 'f.jpg');
+    });
+    expect(ok).toBe(false);
+    expect(setSnack).toHaveBeenLastCalledWith({ msg: '封面上传失败:文件过大', severity: 'error' });
+
+    api.post.mockResolvedValueOnce({});
+    await act(async () => {
+      ok = await result.current.saveCover('1', new Blob(['x']), 'f.jpg');
+    });
+    expect(ok).toBe(false);
+    expect(api.setCover).not.toHaveBeenCalled();
   });
 });
