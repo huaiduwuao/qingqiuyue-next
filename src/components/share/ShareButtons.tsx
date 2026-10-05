@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 通用分享按钮组:抖音 / 快手 / 小红书 / 复制链接 / Web Share。
+ * 通用分享按钮组:抖音 / 快手 / 小红书 / YouTube / TikTok / 复制链接 / Web Share。
  *
  * 用法:
  *   <ShareButtons
@@ -14,7 +14,7 @@
  *   />
  *
  * 行为:
- *   - 抖音/快手 → 弹 ShareTaskDialog 走 OpenAPI 真发布
+ *   - 抖音/快手/YouTube/TikTok → 弹 ShareTaskDialog 走 OpenAPI 真发布
  *   - 小红书   → 走引导式分享(html-to-image 转分享卡 PNG → 复制到剪贴板 + 唤起 App)
  *   - 复制 / Web Share 走 navigator 能力
  *   - Tauri 桌面端 navigator.share 不工作时降级复制
@@ -38,7 +38,7 @@ import {
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
-import ShareTaskDialog from './ShareTaskDialog';
+import ShareTaskDialog, { type ShareTaskPlatform } from './ShareTaskDialog';
 import ShareCardPreview, { type ShareCardData } from './ShareCardPreview';
 import type { EntityId } from '@/lib/id';
 import { errName } from '@/lib/errMessage';
@@ -83,7 +83,11 @@ const PLATFORMS = [
   { value: 'douyin', label: '抖音', color: '#FE2C55', icon: '抖音' },
   { value: 'kuaishou', label: '快手', color: '#FFA836', icon: '快手' },
   { value: 'xiaohongshu', label: '小红书', color: '#FF2442', icon: '小红书' },
+  { value: 'youtube', label: 'YouTube', color: '#FF0000', icon: 'YouTube' },
+  { value: 'tiktok', label: 'TikTok', color: '#25F4EE', icon: 'TikTok' },
 ] as const;
+
+const TASK_PLATFORMS: readonly string[] = ['douyin', 'kuaishou', 'youtube', 'tiktok'];
 
 export default function ShareButtons(props: ShareButtonsProps) {
   const {
@@ -93,7 +97,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
     onAfterShare,
   } = props;
 
-  const [taskDialogPlatform, setTaskDialogPlatform] = useState<'douyin' | 'kuaishou' | null>(null);
+  const [taskDialogPlatform, setTaskDialogPlatform] = useState<ShareTaskPlatform | null>(null);
   const [xhsDialogOpen, setXhsDialogOpen] = useState(false);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' | 'info' }>({
     open: false, msg: '', severity: 'info',
@@ -136,8 +140,8 @@ export default function ShareButtons(props: ShareButtonsProps) {
   };
 
   const handlePlatformClick = async (platform: string) => {
-    if (platform === 'douyin' || platform === 'kuaishou') {
-      setTaskDialogPlatform(platform);
+    if (TASK_PLATFORMS.includes(platform)) {
+      setTaskDialogPlatform(platform as ShareTaskPlatform);
       return;
     }
     if (platform === 'xiaohongshu') {
@@ -369,7 +373,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
       </Box>
       )}
 
-      {/* 抖音/快手 真发布对话框 */}
+      {/* 抖音/快手/YouTube/TikTok 真发布对话框 */}
       {taskDialogPlatform && (
         <ShareTaskDialog
           open={!!taskDialogPlatform}

@@ -2,7 +2,7 @@
 
 /**
  * 作品管理里单个作品的「⋮」操作菜单:作品是创作者中心各功能的汇合点——
- * 从这里查看详情、加入合集、设定价、分发到抖音/快手、登记原创、参加活动。
+ * 从这里查看详情、加入合集、设定价、分发到抖音/快手/YouTube/TikTok、登记原创、参加活动。
  *
  * 作品 id 是后端 idgen 发的 BIGINT(> 2^53),全程按字符串原样传,不要 Number()。
  * 老版本 core-api 可能把 id 当 JSON 数字发来(精度已丢),这种 id 不可信,依赖 id 的操作一律禁用。
@@ -41,7 +41,7 @@ import { getDetailRoute } from '@/lib/contentRoute';
 import { getMyLists, addToMyList, createMyList } from '@/apis/my-list';
 import { getMyPaidContents, setPaidContent } from '@/apis/social-monetize';
 import { applyCerts } from '@/apis/original';
-import ShareTaskDialog from '@/components/share/ShareTaskDialog';
+import ShareTaskDialog, { type ShareTaskPlatform } from '@/components/share/ShareTaskDialog';
 import { useActiveTab } from '../ActiveTabContext';
 
 /** 创作者中心的「合集」就是 type=topic 的收藏夹(与 _views/collection 同一份数据、同一个 queryKey) */
@@ -56,7 +56,16 @@ export interface WorkRef {
   status?: string;
 }
 
-type DialogKind = 'collection' | 'price' | 'douyin' | 'kuaishou' | 'original' | null;
+type DialogKind = 'collection' | 'price' | ShareTaskPlatform | 'original' | null;
+
+/** 「分发到…」菜单项;YouTube / TikTok 由清秋月上传本站视频 */
+const SHARE_TARGETS: { value: ShareTaskPlatform; label: string }[] = [
+  { value: 'douyin', label: '抖音' },
+  { value: 'kuaishou', label: '快手' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'tiktok', label: 'TikTok' },
+];
+const isShareDialog = (d: DialogKind): d is ShareTaskPlatform => SHARE_TARGETS.some((t) => t.value === d);
 type Toast = { msg: string; severity: 'success' | 'error'; action?: { label: string; onClick: () => void } };
 
 /** module_content.status 是大写枚举,另有一批老数据是小写 active(等同已发布) */
@@ -137,20 +146,16 @@ export function WorkActionsMenu({ work, size = 'small' }: { work: WorkRef; size?
           disabled={!id || !published}
           onClick={() => open('price')}
         />
-        <ActionItem
-          icon={<ShareRoundedIcon fontSize="small" />}
-          label="分发到抖音"
-          hint={needPublishHint}
-          disabled={!id || !published}
-          onClick={() => open('douyin')}
-        />
-        <ActionItem
-          icon={<ShareRoundedIcon fontSize="small" />}
-          label="分发到快手"
-          hint={needPublishHint}
-          disabled={!id || !published}
-          onClick={() => open('kuaishou')}
-        />
+        {SHARE_TARGETS.map((t) => (
+          <ActionItem
+            key={t.value}
+            icon={<ShareRoundedIcon fontSize="small" />}
+            label={`分发到${t.label}`}
+            hint={needPublishHint}
+            disabled={!id || !published}
+            onClick={() => open(t.value)}
+          />
+        ))}
         <ActionItem
           icon={<VerifiedUserOutlinedIcon fontSize="small" />}
           label="登记原创"
@@ -201,7 +206,7 @@ export function WorkActionsMenu({ work, size = 'small' }: { work: WorkRef; size?
         />
       )}
 
-      {id && (dialog === 'douyin' || dialog === 'kuaishou') && (
+      {id && isShareDialog(dialog) && (
         <ShareTaskDialog
           open
           onClose={() => setDialog(null)}

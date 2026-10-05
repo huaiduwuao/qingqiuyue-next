@@ -65,6 +65,10 @@ export async function createTask(params: {
   tags?: string[];
   shareCardImageUrl?: string;
   topicId?: string;
+  /** YouTube / TikTok:正文(标题之外的部分) */
+  description?: string;
+  /** YouTube / TikTok:想要的可见性 private(缺省)/ unlisted(仅 YouTube)/ public / friends / followers(仅 TikTok) */
+  privacy?: string;
   scheduledAt?: number; // Unix 秒,定时发布
 }) {
   const { socialAccountId, contentType, contentId, scheduledAt, videoId, ...rest } = params;
