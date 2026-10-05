@@ -210,7 +210,9 @@ function ShareModuleDetailContent() {
     });
   };
 
-  const SidebarContent = () => (
+  // 以前写成组件 <SidebarContent />:每次渲染都是一个新的组件类型,点一下目录项
+  // 整棵侧栏就卸载重挂,长目录的滚动位置跳回顶部。改成普通函数调用,DOM 原地复用。
+  const renderSidebar = () => (
     <Box sx={{ height: '100%', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1 }}>
@@ -290,7 +292,7 @@ function ShareModuleDetailContent() {
                 overflow: 'hidden',
               }}
             >
-              <SidebarContent />
+              {renderSidebar()}
             </Box>
 
             {/* Mobile drawer */}
@@ -308,7 +310,7 @@ function ShareModuleDetailContent() {
                   <CloseIcon fontSize="small" />
                 </IconButton>
               </Box>
-              <SidebarContent />
+              {renderSidebar()}
             </Drawer>
 
             {/* Content area */}
