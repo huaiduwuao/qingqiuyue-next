@@ -17,6 +17,7 @@ import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import { AvailabilityBadge, specOf } from './AvailabilityBadge';
 import { loadAvailability, peekAvailability, type AvailabilityItem } from '@/apis/availability';
 import type { EntityId } from '@/lib/id';
+import { isDesktopClient } from '@/lib/clientAuth';
 import type { SxProps, Theme } from '@mui/material/styles';
 
 /** 这些类型没有能不能播的问题,不必发请求。 */
@@ -66,7 +67,8 @@ export function PlayTag({ id, contentType, status, readyItems, totalItems, varia
   const item = usePlayAvailability(id, inert || !!given);
   if (inert) return null;
 
-  const st = given ?? item?.status;
+  // 接口说只有 App 能放(取片要带源站 Referer)时,网页上标「App 可看」;客户端里照常「站内可播」。
+  const st = !given && item?.ok && item.appOnly && !isDesktopClient() ? 'app_only' : (given ?? item?.status);
   if (!st || item?.axis === 'none' || st === 'not_applicable') return null;
 
   const ready = readyItems ?? item?.readyItems;

@@ -15,6 +15,8 @@ export interface AvailabilityItem {
   ok: boolean;
   readyItems?: number;
   totalItems?: number;
+  /** 能看,但片源取片要带源站 Referer(B 站番剧):网页端放不了,只有 App 能放。 */
+  appOnly?: boolean;
 }
 
 const BATCH = 60;

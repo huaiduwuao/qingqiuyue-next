@@ -24,6 +24,7 @@ import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
+import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import type { PlaybackStatus } from '@/apis/recommend';
 import type { SxProps, Theme } from '@mui/material/styles';
 
@@ -85,6 +86,10 @@ export function specOf(
     case 'resolvable':
     case 'embeddable':
       return { label: '站内可播', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
+    case 'app_only':
+      // 前端合成的状态(PlayTag:接口说 appOnly 且不在客户端里)。片源取片要带源站 Referer,
+      // 浏览器带不了,只有 App 的原生请求能放(B 站番剧)。
+      return { label: 'App 可看', tone: 'partial', icon: <PhoneIphoneRoundedIcon /> };
     case 'bandwidth_limited':
       // 音乐:没有可匿名播放的整首(版权 / 会员),去原平台听。
       if (contentType === 'MUSIC') {

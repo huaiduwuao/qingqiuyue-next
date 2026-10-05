@@ -60,6 +60,7 @@ export const AppOnlyPlayer = memo(function AppOnlyPlayer({ poster, fill, appPath
  */
 export const LocalPlayError = memo(function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
   const label = matchProvider(pageUrl)?.rule.label ?? '原站';
+  const appOnly = webCannotFetchMedia(pageUrl);
   const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
   return (
     <Box
@@ -81,12 +82,23 @@ export const LocalPlayError = memo(function LocalPlayError({ pageUrl, message, f
     >
       <Box sx={{ fontSize: 15 }}>这条视频暂时没能加载出来</Box>
       <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>
-        {webCannotFetchMedia(pageUrl) ? `网页版拿不到这个片源（${label}要求在它自己的页面或 App 里取片），可以在清秋月 App 里看，或去${label}看` : message}
+        {appOnly ? `网页版拿不到这个片源（${label}要求在它自己的页面或 App 里取片），可以在清秋月 App 里看，或去${label}看` : message}
       </Box>
       <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
-        <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
-          重试
-        </Box>
+        {appOnly ? (
+          <Box
+            component="a"
+            href={appOpenUrl(window.location.pathname + window.location.search)}
+            data-no-drag
+            sx={{ ...btn, bgcolor: 'primary.main', borderColor: 'transparent', textDecoration: 'none' }}
+          >
+            在 App 里看
+          </Box>
+        ) : (
+          <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
+            重试
+          </Box>
+        )}
         <Box
           component="button"
           type="button"
@@ -101,6 +113,11 @@ export const LocalPlayError = memo(function LocalPlayError({ pageUrl, message, f
           用{label}打开
         </Box>
       </Box>
+      {appOnly && (
+        <Box component="a" href="/download" data-no-drag sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+          还没装 App？去下载
+        </Box>
+      )}
     </Box>
   );
 });
