@@ -33,6 +33,7 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import TheatersRoundedIcon from '@mui/icons-material/TheatersRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
+import LibraryBooksRoundedIcon from '@mui/icons-material/LibraryBooksRounded';
 import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useApp } from '@/contexts/AppContext';
@@ -85,6 +86,8 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'feed', label: '动态', path: '/home/recommend?tab=feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
   { key: 'topic', label: '意境', path: '/home/recommend?tab=topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+  // 合集广场是独立页面(/collections),同内容管理一样 router.push 过去
+  { key: 'collections', label: '合集广场', path: '/collections', icon: <LibraryBooksRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
   // 内容管理/悬赏中心:router.push 同页跳转(不开新标签),保留历史栈可返回
   { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', dividerBefore: true },
   { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },

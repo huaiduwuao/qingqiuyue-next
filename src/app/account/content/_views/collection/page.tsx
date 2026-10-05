@@ -280,7 +280,13 @@ export default function CollectionPage() {
     deleteM.mutate(id);
   };
 
-  /** 统一入口:公开/私密都进 ShareDialog,里面支持开 share token 和改价 */
+  // 对话框里改了可见性 / 链接 / 价格后列表会重拉:用最新的那一行,而不是打开时的快照。
+  const liveShare = shareTarget ? collections.find((c) => String(c.id) === String(shareTarget.id)) : undefined;
+  const liveShareTarget: ShareTarget | null = liveShare
+    ? { id: liveShare.id, name: liveShare.title, isPublic: liveShare.isPublic, shareToken: liveShare.shareToken, price: liveShare.price }
+    : shareTarget;
+
+  /** 统一入口:公开/私密都进 ShareDialog,里面支持可见性、share token 和定价 */
   const openShareDialog = (c: Collection) => {
     setAnchorEl(null);
     setShareTarget({ id: c.id, name: c.title, isPublic: c.isPublic, shareToken: c.shareToken, price: c.price });
@@ -330,7 +336,7 @@ export default function CollectionPage() {
 
       <ShareDialog
         open={!!shareTarget}
-        target={shareTarget}
+        target={liveShareTarget}
         onClose={() => setShareTarget(null)}
         onChanged={invalidate}
         onSnack={setSnack}
@@ -505,8 +511,8 @@ export default function CollectionPage() {
                         backdropFilter: 'blur(4px)',
                       }}
                     >
-                      {c.isPublic ? <PublicRoundedIcon sx={{ fontSize: 11 }} /> : <LockOutlinedIcon sx={{ fontSize: 11 }} />}
-                      {c.isPublic ? '公开' : '私密'}
+                      {c.price > 0 || c.isPublic ? <PublicRoundedIcon sx={{ fontSize: 11 }} /> : <LockOutlinedIcon sx={{ fontSize: 11 }} />}
+                      {c.price > 0 ? `付费 · ${c.price} 钻` : c.isPublic ? '公开' : c.shareToken ? '仅链接' : '私密'}
                     </Box>
                   </Box>
                   <IconButton

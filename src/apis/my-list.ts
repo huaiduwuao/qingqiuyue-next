@@ -38,8 +38,36 @@ export interface MyListItem {
    * 未开启或不返回(取决于是否 owner)。
    */
   shareToken?: string | null;
-  /** 解锁价格(单位:钻)。0 表示免费。shareToken 配套使用。 */
+  /** 买断价(单位:钻)。0 / 不下发表示免费;> 0 是付费合集(公开可列出,未买断只看前几项)。 */
   price: number;
+  /** 可见性:paid 付费 / public 公开 / link 仅链接 / private 私密 */
+  visibility?: CollectionVisibility;
+  /** 作者头像(广场 / 详情才给) */
+  ownerAvatar?: string;
+  // 以下只对付费合集有意义:
+  /** 当前访问者已买断(合集主本人也算) */
+  unlocked?: boolean;
+  /** 当前访问者只能看预览 */
+  locked?: boolean;
+  /** 未买断时可看的条目数 */
+  previewCount?: number;
+  /** 买断后一并解锁的作者付费作品数 */
+  paidWorks?: number;
+  /** 买断人数 */
+  unlockCount?: number;
+}
+
+/** 合集可见性(后端 mylistpay.ListInfo.Visibility) */
+export type CollectionVisibility = 'paid' | 'public' | 'link' | 'private';
+
+/** 付费合集未买断时可预览的条目数(后端 mylistpay.PreviewItems) */
+export const COLLECTION_PREVIEW_ITEMS = 3;
+/** 合集买断最高价(钻,后端 mylistpay.MaxPrice) */
+export const COLLECTION_MAX_PRICE = 10000;
+
+/** 合集详情页地址(静态导出,走查询参数) */
+export function collectionHref(id: EntityId): string {
+  return `/collections/detail?id=${encodeURIComponent(String(id))}`;
 }
 
 // 收藏夹中的内容项
@@ -64,7 +92,12 @@ export interface MyListPageResponse {
 // 收藏夹内容响应
 export interface MyListContentResponse {
   list: MyListContentItem[];
+  /** 全部条目数(付费合集未买断时 list 只有预览那几项,total 仍是全部) */
   total: number;
+  /** 付费合集未买断:只给了前 previewCount 项 */
+  locked?: boolean;
+  previewCount?: number;
+  price?: number;
 }
 
 // 获取用户所有收藏夹列表
@@ -81,11 +114,14 @@ export async function getMyLists(listType?: MyListType): Promise<MyListPageRespo
  * 空歌单不会出现在广场上(后端过滤)。
  */
 export async function getPublicLists(params: {
-  type?: MyListType;
+  /** all = 不分类型(合集广场) */
+  type?: MyListType | 'all';
   keyword?: string;
   sort?: 'hot' | 'new';
   /** 只要平台编排的 */
   official?: boolean;
+  /** true 只要付费合集,false 只要免费的,不传都要 */
+  paid?: boolean;
   page?: number;
   size?: number;
 } = {}): Promise<MyListPageResponse & { page: number; size: number }> {
@@ -95,6 +131,7 @@ export async function getPublicLists(params: {
       ...(params.keyword ? { keyword: params.keyword } : {}),
       ...(params.sort ? { sort: params.sort } : {}),
       ...(params.official ? { official: 1 } : {}),
+      ...(params.paid !== undefined ? { paid: params.paid ? 1 : 0 } : {}),
       page: params.page ?? 1,
       size: params.size ?? 24,
     },
@@ -102,10 +139,24 @@ export async function getPublicLists(params: {
   return res;
 }
 
-// 单个收藏夹(自己的,或别人公开的)
-export async function getMyListDetail(id: EntityId): Promise<MyListItem> {
-  const res = await contentClient('/my-list/detail', { params: { id } });
+// 单个合集:自己的、公开的、付费的(只给预览),或凭分享口令 token 看的私密合集
+export async function getMyListDetail(id: EntityId, shareToken?: string): Promise<MyListItem> {
+  const res = await contentClient('/my-list/detail', { params: shareToken ? { id, token: shareToken } : { id } });
   return res;
+}
+
+/** 某个用户主页的合集:公开 + 付费(本人看自己时含私密),分页 */
+export async function getListsByUser(
+  userId: EntityId,
+  params: { type?: MyListType | 'all'; page?: number; size?: number } = {},
+): Promise<MyListPageResponse & { page: number; size: number }> {
+  return contentClient(`/my-list/by-user/${encodeURIComponent(String(userId))}`, {
+    params: {
+      ...(params.type ? { type: params.type } : {}),
+      page: params.page ?? 1,
+      size: params.size ?? 24,
+    },
+  });
 }
 
 // 创建收藏夹;带 contentIds 可一步建好(「把播放队列存为歌单」)
@@ -310,14 +361,30 @@ export const LIST_TYPE_ICONS: Record<MyListType, string> = {
 // 后端见 internal/handler/my_list_share.go:
 //   POST   /my-list/:id/share-token   生成/重置分享 token(owner)
 //   DELETE /my-list/:id/share-token   关闭分享(owner)
-//   POST   /my-list/:id/price         设置解锁价格(钻,owner)
-//   POST   /my-list/:id/unlock        钻石解锁(登录用户)
+//   POST   /my-list/:id/price         设置买断价(钻,owner;需创作者 Lv4)
+//   POST   /my-list/:id/unlock        钻石买断(登录用户)
 //   GET    /my-list/shared/:token     凭 token 公开访问(可选登录)
 export interface SharedListResponse {
   list: MyListItem;
   unlocked: boolean;
   price: number;
   itemCount: number;
+  previewCount?: number;
+  paidWorks?: number;
+}
+
+/** 买断结果(后端 mylistpay.Result) */
+export interface ListUnlockResult {
+  ok: boolean;
+  unlocked: boolean;
+  /** 之前已买过 / 合集主本人 / 免费合集,本次没有扣款 */
+  alreadyUnlocked: boolean;
+  /** 买断价(钻) */
+  price: number;
+  /** 本次实际扣款(钻) */
+  paid: number;
+  /** 买断后的余额(钻) */
+  balance: number;
 }
 
 /** 凭 token 公开拉取合集。返回 paywall 元信息或全量内容,看后端决定。 */
@@ -325,8 +392,8 @@ export async function getSharedList(token: string): Promise<SharedListResponse> 
   return contentClient(`/my-list/shared/${encodeURIComponent(token)}`);
 }
 
-/** 钻石解锁合集(需要登录);后端幂等。 */
-export async function unlockList(listId: EntityId): Promise<{ ok: boolean; unlocked: boolean }> {
+/** 钻石买断合集(需要登录);后端幂等,已买过不重复扣。余额不足时报错文案里带价格和余额。 */
+export async function unlockList(listId: EntityId): Promise<ListUnlockResult> {
   return contentClient(`/my-list/${encodeURIComponent(String(listId))}/unlock`, {
     method: 'POST',
   });
@@ -346,11 +413,11 @@ export async function deleteShareToken(listId: EntityId): Promise<{ ok: boolean 
   });
 }
 
-/** 设置解锁价格(钻,owner-only)。0 = 免费,留空不清零。 */
+/** 设置买断价(钻,owner-only)。0 = 免费;> 0 需创作者 Lv4,不够时报错文案带当前 / 所需等级。 */
 export async function setListPrice(
   listId: EntityId,
   price: number
-): Promise<{ ok: boolean; price: number }> {
+): Promise<{ ok: boolean; price: number; visibility?: CollectionVisibility }> {
   return contentClient(`/my-list/${encodeURIComponent(String(listId))}/price`, {
     method: 'POST',
     data: { price },

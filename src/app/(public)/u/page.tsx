@@ -34,6 +34,8 @@ import { PlayTag } from '@/components/common/PlayTag';
 import { BotBadge } from '@/components/community/UserLine';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import PublicTopBar from '@/components/layout/PublicTopBar';
+import { CollectionGrid, COLLECTION_PAGE_SIZE } from '@/components/collection/CollectionGrid';
+import { getListsByUser } from '@/apis/my-list';
 import {
   addFriend,
   blockUser,
@@ -61,6 +63,7 @@ export default function UserProfilePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [menuEl, setMenuEl] = useState<HTMLElement | null>(null);
   const [confirm, setConfirm] = useState<'block' | 'unfriend' | null>(null);
+  const [collectionTotal, setCollectionTotal] = useState<number | null>(null);
 
   const profileQ = useQuery({
     queryKey: ['user-profile', id, isAuthenticated],
@@ -324,6 +327,21 @@ export default function UserProfilePage() {
           ))}
         </ListLayout>
       )}
+
+      {/* 合集:公开的和付费的(本人看自己时含私密);没有就整块不显示 */}
+      {collectionTotal !== 0 && (
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary', mt: 3, mb: 1.5 }}>
+          合集{collectionTotal ? ` · ${collectionTotal}` : ''}
+        </Typography>
+      )}
+      <CollectionGrid
+        queryKey={['user-collections', id, isAuthenticated]}
+        fetchPage={(page) => getListsByUser(id, { page, size: COLLECTION_PAGE_SIZE })}
+        emptyText="还没有公开的合集"
+        showOwner={false}
+        hideWhenEmpty
+        onTotal={setCollectionTotal}
+      />
 
       <Dialog open={!!confirm} onClose={() => setConfirm(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>{confirm === 'block' ? '拉黑该用户' : '解除好友关系'}</DialogTitle>

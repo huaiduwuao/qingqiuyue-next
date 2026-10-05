@@ -39,6 +39,7 @@ import PlaylistImportDialog from '@/components/player/PlaylistImportDialog';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { PlayTag } from '@/components/common/PlayTag';
 import {
+  collectionHref,
   createMyList,
   deleteMyList,
   getMyListContent,
@@ -426,6 +427,21 @@ function PlaylistDetail({ id }: { id: string }) {
           </Box>
         </Box>
       </Box>
+
+      {/* 付费歌单未买断:服务端只给前几首,完整曲目要去合集详情页买断 */}
+      {!isLiked && realContent.data?.locked && (
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          action={
+            <Button size="small" onClick={() => router.push(collectionHref(id))} sx={{ textTransform: 'none' }}>
+              去解锁
+            </Button>
+          }
+        >
+          这是付费歌单,当前只能试听前 {rows.length} 首,共 {content.data?.total ?? rows.length} 首
+        </Alert>
+      )}
 
       {content.isLoading ? (
         <Center>

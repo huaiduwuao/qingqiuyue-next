@@ -1,16 +1,17 @@
 'use client';
 
-// 合集分享对话框:在创作者中心的「合集管理」里,⋮ 菜单或卡片上的分享图标
-// 触发。统一处理公开 / 私密合集的分享入口 —— 公开合集保留原有的
-// `/playlist?id=` 链接复制;私密合集通过分享 token 走 `/my-list/shared?token=`。
+// 合集分享 / 可见性对话框:在创作者中心的「合集管理」里,⋮ 菜单或卡片上的分享图标触发。
 //
 // 三件事:
-//   1. 开启 / 重置 / 关闭 私密分享链接
-//   2. 复制链接(公开 / 私密都各自合适的 URL)
-//   3. 设置解锁价格(钻,0 = 免费)
+//   1. 可见性:公开 / 仅链接 / 私密 / 付费(付费填钻石价,需创作者 Lv4,不够时显示后端给的当前 / 所需等级)
+//   2. 开启 / 重置 / 关闭 私密分享链接(`/my-list/shared?token=`)
+//   3. 复制链接:公开 / 付费合集用合集详情页 `/collections/detail?id=`
 //
-// 后端:internal/handler/my_list_share.go 的 share-token / price 接口;
-// 路由调用见 src/apis/my-list.ts 的 createShareToken / deleteShareToken / setListPrice。
+// 付费合集公开可列出(合集广场、主页),别人只看得到前 3 个作品,买断后看全部,
+// 并一并解锁合集里你本人发布的付费作品。
+//
+// 后端:internal/handler/my_list_share.go 的 share-token / price 接口 + PUT /my-list/:id(isPublic);
+// 路由调用见 src/apis/my-list.ts 的 createShareToken / deleteShareToken / setListPrice / updateMyList。
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,9 +35,14 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import {
+  COLLECTION_MAX_PRICE,
+  COLLECTION_PREVIEW_ITEMS,
+  collectionHref,
   createShareToken,
   deleteShareToken,
   setListPrice,
+  updateMyList,
+  type CollectionVisibility,
 } from '@/apis/my-list';
 import { formatApiError } from '@/lib/api/client';
 
@@ -66,6 +72,20 @@ interface Props {
   onSnack: (msg: string) => void;
 }
 
+const VISIBILITY_OPTIONS: { v: CollectionVisibility; label: string; desc: string }[] = [
+  { v: 'public', label: '公开', desc: '广场可见,全部可看' },
+  { v: 'link', label: '仅链接', desc: '凭链接访问' },
+  { v: 'private', label: '私密', desc: '只有自己' },
+  { v: 'paid', label: '付费', desc: '预览 + 钻石买断' },
+];
+
+const VISIBILITY_HINT: Record<CollectionVisibility, string> = {
+  public: '公开 — 任何人都能在合集广场看到',
+  link: '仅链接 — 只有拿到链接的人能看',
+  private: '私密 — 只有你自己能看',
+  paid: '付费 — 公开可见,买断后看全部',
+};
+
 export default function ShareDialog({ open, target, onClose, onChanged, onSnack }: Props) {
   const qc = useQueryClient();
 
@@ -79,8 +99,20 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
   const playlistUrl = useMemo(() => {
     if (!target) return '';
     const base = typeof window === 'undefined' ? '' : window.location.origin;
-    return `${base}/playlist?id=${encodeURIComponent(String(target.id))}`;
+    return `${base}${collectionHref(target.id)}`;
   }, [target]);
+
+  const currentVisibility: CollectionVisibility = !target
+    ? 'private'
+    : target.price > 0
+      ? 'paid'
+      : target.isPublic
+        ? 'public'
+        : target.shareToken
+          ? 'link'
+          : 'private';
+  const [visibility, setVisibility] = useState<CollectionVisibility>(currentVisibility);
+  const [visError, setVisError] = useState('');
 
   // 复制后给个 1.2s 的视觉反馈
   const [copied, setCopied] = useState(false);
@@ -94,6 +126,8 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
   useEffect(() => {
     if (open && target) {
       setPriceInput(target.price > 0 ? String(target.price) : '');
+      setVisibility(currentVisibility);
+      setVisError('');
       setConfirmClose(false);
       setCopied(false);
     }
@@ -133,15 +167,33 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
     onError: (e: unknown) => onSnack(formatApiError(e) || '关闭失败'),
   });
 
-  const priceM = useMutation({
-    mutationFn: (price: number) => setListPrice(target!.id, price),
-    onSuccess: (res, price) => {
+  // 可见性一次保存:付费先定价(Lv4 门槛在后端,失败就停在这里把原因显示出来);
+  // 其它三种先把价格清零,再改公开 / 分享链接。
+  const visibilityM = useMutation({
+    mutationFn: async ({ v, price }: { v: CollectionVisibility; price: number }) => {
+      const t = target!;
+      if (v === 'paid') {
+        await setListPrice(t.id, price);
+        return;
+      }
+      if (t.price > 0) await setListPrice(t.id, 0);
+      if (v === 'public') {
+        if (!t.isPublic) await updateMyList(t.id, { isPublic: true });
+        return;
+      }
+      if (t.isPublic) await updateMyList(t.id, { isPublic: false });
+      if (v === 'link' && !t.shareToken) await createShareToken(t.id);
+      if (v === 'private' && t.shareToken) await deleteShareToken(t.id);
+    },
+    onSuccess: (_res, { v, price }) => {
+      setVisError('');
       onChanged();
       qc.invalidateQueries({ queryKey: ['creator-collections'] });
-      const shown = res?.price ?? price;
-      onSnack(shown === 0 ? '价格已清空(免费)' : `价格已设为 ${shown} 钻`);
+      onSnack(
+        v === 'paid' ? `已设为付费合集,${price} 钻买断` : v === 'public' ? '已设为公开' : v === 'link' ? '已设为仅链接可见' : '已设为私密',
+      );
     },
-    onError: (e: unknown) => onSnack(formatApiError(e) || '设置失败'),
+    onError: (e: unknown) => setVisError(formatApiError(e) || '保存失败'),
   });
 
   const handleCopy = async (text: string, label: string) => {
@@ -156,26 +208,32 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
     }
   };
 
-  const handleSavePrice = () => {
-    const n = Number(priceInput);
-    // 后端 socialmonetize.MaxContentPrice:合集买断价同样 ≤ 10000 钻
-    if (!Number.isFinite(n) || n < 0 || n > 10000) {
-      onSnack('价格需为 0 ~ 10000 的整数(钻)');
+  const handleSaveVisibility = () => {
+    if (visibility === 'paid') {
+      const n = Number(priceInput);
+      // 后端 mylistpay.MaxPrice:合集买断价 1 ~ 10000 钻
+      if (!Number.isInteger(n) || n < 1 || n > COLLECTION_MAX_PRICE) {
+        setVisError(`价格需为 1 ~ ${COLLECTION_MAX_PRICE} 的整数(钻)`);
+        return;
+      }
+      visibilityM.mutate({ v: 'paid', price: n });
       return;
     }
-    priceM.mutate(Math.floor(n));
+    visibilityM.mutate({ v: visibility, price: 0 });
   };
 
   if (!target) return null;
 
   const hasShare = !!target.shareToken;
-  const isBusy = enableM.isPending || resetM.isPending || disableM.isPending || priceM.isPending;
+  const isBusy = enableM.isPending || resetM.isPending || disableM.isPending || visibilityM.isPending;
+  const visibilityDirty =
+    visibility !== currentVisibility || (visibility === 'paid' && Number(priceInput) !== target.price);
 
   return (
     <>
       <Dialog open={open} onClose={isBusy ? undefined : onClose} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
-          {target.isPublic ? (
+          {target.isPublic || target.price > 0 ? (
             <PublicRoundedIcon fontSize="small" sx={{ color: 'success.main' }} />
           ) : (
             <LockOutlinedIcon fontSize="small" sx={{ color: 'warning.main' }} />
@@ -185,7 +243,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
               分享合集:{target.name}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-              当前状态:{target.isPublic ? '公开 — 任何人都能在歌单广场看到' : '私密 — 只能凭链接访问'}
+              当前状态:{VISIBILITY_HINT[currentVisibility]}
             </Typography>
           </Box>
           <IconButton size="small" onClick={onClose} disabled={isBusy}>
@@ -194,6 +252,70 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
         </DialogTitle>
 
         <DialogContent dividers sx={{ pt: 2 }}>
+          {/* ─── 可见性 / 价格 ─── */}
+          <Box sx={{ mb: 2 }}>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.75 }}>谁能看这个合集</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
+              {VISIBILITY_OPTIONS.map((o) => (
+                <Box
+                  key={o.v}
+                  role="radio"
+                  aria-checked={visibility === o.v}
+                  tabIndex={0}
+                  onClick={() => !isBusy && setVisibility(o.v)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isBusy && setVisibility(o.v)}
+                  sx={{
+                    p: 1,
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    border: '1px solid',
+                    borderColor: visibility === o.v ? 'primary.main' : 'divider',
+                    bgcolor: visibility === o.v ? 'rgba(254, 44, 85, 0.08)' : 'transparent',
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: visibility === o.v ? 'primary.main' : 'text.primary' }}>
+                    {o.label}
+                  </Typography>
+                  <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>{o.desc}</Typography>
+                </Box>
+              ))}
+            </Box>
+            {visibility === 'paid' && (
+              <Box sx={{ mt: 1.5 }}>
+                <TextField
+                  type="number"
+                  size="small"
+                  label="买断价(钻)"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  slotProps={{ htmlInput: { min: 1, max: COLLECTION_MAX_PRICE, step: 1 } }}
+                  sx={{ width: 160 }}
+                />
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                  1 ~ {COLLECTION_MAX_PRICE} 钻,1 钻 = ¥0.1。付费合集会出现在合集广场和你的主页,别人可先看前 {COLLECTION_PREVIEW_ITEMS} 个作品,
+                  买断后看全部,并一并解锁合集里你本人发布的付费作品。需要创作者等级 Lv4。
+                </Typography>
+              </Box>
+            )}
+            {visError && (
+              <Alert severity="error" sx={{ mt: 1.5, fontSize: 12 }}>
+                {visError}
+              </Alert>
+            )}
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSaveVisibility}
+              disabled={isBusy || !visibilityDirty}
+              sx={{ mt: 1.5, textTransform: 'none' }}
+            >
+              {visibilityM.isPending ? '保存中…' : '保存可见性'}
+            </Button>
+          </Box>
+
+          <Divider sx={{ mb: 2 }} />
+
           {hasShare ? (
             // ─── 已开启 ───
             <Stack spacing={2}>
@@ -259,44 +381,13 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
                 </Button>
               </Stack>
 
-              <Divider />
-
-              {/* 公开合集也能设价格(配合 share-token 工作),保留公开的复制入口 */}
-              <Box>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
-                  解锁价格(钻,0 = 免费)
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  <TextField
-                    type="number"
-                    size="small"
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                    placeholder={target.price > 0 ? String(target.price) : '0'}
-                    slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                    sx={{ width: 160 }}
-                  />
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={handleSavePrice}
-                    disabled={isBusy || priceInput === ''}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    保存价格
-                  </Button>
-                </Stack>
-                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
-                  设价后,链接访问者需先消耗钻石解锁才能查看完整内容。免费(0)直接可见。
-                </Typography>
-              </Box>
             </Stack>
           ) : (
             // ─── 未开启 ───
             <Stack spacing={2}>
               <Alert severity="info" sx={{ fontSize: 12 }}>
-                {target.isPublic
-                  ? '当前合集是公开的,任何人都能在歌单广场找到。这里再开启「私密链接」可让指定访客凭链接访问,适合给少数人定向分享。'
+                {target.isPublic || target.price > 0
+                  ? '当前合集是公开可见的,任何人都能在合集广场找到。这里再开启「私密链接」可让指定访客凭链接直达。'
                   : '当前合集是私密的,只有你自己能看到。开启后系统会生成一个含访问令牌的链接,把它发给指定的人就能访问。'}
               </Alert>
 
@@ -320,8 +411,8 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
 
               <Divider />
 
-              {/* 公开合集也能复制 /playlist?id= */}
-              {target.isPublic && (
+              {/* 公开 / 付费合集复制合集详情页链接 */}
+              {(target.isPublic || target.price > 0) && (
                 <Box>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
                     公开页面链接
