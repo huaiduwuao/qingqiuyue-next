@@ -137,7 +137,7 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
   // 立即执行
   const handleExecute = async (w: WorkflowRow) => {
     try {
-      const res: any = await agentmAPI.executeWorkflow(w.id, {})
+      const res = (await agentmAPI.executeWorkflow(w.id, {})) as { error?: string; run?: { status?: string; error?: string } }
       if (res.error) {
         alert(`执行失败: ${res.error}`)
       } else {
@@ -288,7 +288,7 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
             onChange={(e) => setCronExpr(e.target.value)}
             helperText="5 字段(分 时 日 月 周),如 0 * * * * = 每小时;支持 6 字段带秒"
           />
-          <TextField select size="small" label="上次未跑完时(重叠策略)" value={overlap} onChange={(e) => setOverlap(e.target.value as any)}>
+          <TextField select size="small" label="上次未跑完时(重叠策略)" value={overlap} onChange={(e) => setOverlap(e.target.value as typeof overlap)}>
             <MenuItem value="skip">跳过本次(skip)</MenuItem>
             <MenuItem value="replace">取消上次,执行本次(replace)</MenuItem>
           </TextField>

@@ -79,7 +79,7 @@ export default function AgentTerminal({ token }: AgentTerminalProps) {
 
     try {
       let endpoint = ''
-      let body: Record<string, any> = {}
+      let body: Record<string, unknown> = {}
 
       if (runtime === 'claude') {
         endpoint = '/api/v1/agentmanager/terminal/claude'

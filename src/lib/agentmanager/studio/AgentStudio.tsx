@@ -45,9 +45,12 @@ const NODE_PALETTE = [
 // 选择弹窗类型
 type SelectDialogType = 'skill' | 'mcp' | null
 
+/** 技能 / MCP 选择列表的一项(只用到这几个字段) */
+type SelectItem = { id: number; name: string; category?: string; tool_count?: number }
+
 // 选择弹窗
 function SelectDialog({ type, onClose, onSelect }: { type: SelectDialogType; onClose: () => void; onSelect: (id: number) => void }) {
-  const [list, setList] = useState<any[]>([])
+  const [list, setList] = useState<SelectItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -435,7 +438,7 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     setRole(a.role ?? 'assistant')
     setModel(a.model ?? '')
     setDesc(a.description ?? '')
-    setPrompt((a as any).system_prompt ?? '')
+    setPrompt((a as { system_prompt?: string }).system_prompt ?? '')
     setDirty(false)
     // 延迟加载关联资源
     setTimeout(() => loadAssociationsToGraph(a.id), 100)

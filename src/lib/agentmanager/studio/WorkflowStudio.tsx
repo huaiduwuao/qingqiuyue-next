@@ -92,13 +92,17 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
     onLoaded?.(w.name)
     setDesc(w.description ?? '')
     setWtype(w.workflow_type)
-    let def: any = {}
+    /** workflow_json 的形状(各字段都可能缺) */
+    let def: {
+      nodes?: { id?: string | number; name?: string; label?: string; type?: string; position?: { x?: number; y?: number }; config?: Record<string, unknown> }[]
+      edges?: { id?: string | number; source?: string | number; target?: string | number; condition?: string; label?: string }[]
+    } = {}
     try {
       def = JSON.parse(w.workflow_json || '{}')
     } catch {
       def = {}
     }
-    const nodes: DraftNode[] = (def.nodes ?? []).map((n: any, i: number) => ({
+    const nodes: DraftNode[] = (def.nodes ?? []).map((n, i) => ({
       id: String(n.id ?? `n${i}`),
       label: n.name ?? n.label ?? String(n.id ?? `节点${i}`),
       sub: n.type,
@@ -107,7 +111,7 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
       y: n.position?.y ?? 60 + Math.floor(i / 3) * 120,
       config: n.config ?? {},
     }))
-    const edges: DraftEdge[] = (def.edges ?? []).map((e: any, i: number) => ({
+    const edges: DraftEdge[] = (def.edges ?? []).map((e, i) => ({
       id: String(e.id ?? `e${i}`),
       source: String(e.source),
       target: String(e.target),
@@ -159,9 +163,9 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
               kind: n.type ?? 'step',
               x: n.position?.x ?? 80 + (i % 3) * 200,
               y: n.position?.y ?? 60 + Math.floor(i / 3) * 120,
-              config: (n as any).config ?? {},
+              config: (n as { config?: Record<string, unknown> }).config ?? {},
             }))
-            const edges: DraftEdge[] = (result.edges ?? []).map((e: any, i: number) => ({
+            const edges: DraftEdge[] = (result.edges ?? []).map((e: { id?: string | number; source?: string | number; target?: string | number; condition?: string; label?: string }, i: number) => ({
               id: String(e.id ?? `e${i}`),
               source: String(e.source),
               target: String(e.target),

@@ -369,7 +369,7 @@ export default function SessionManager() {
                       ? 'action.hover'
                       : msg.role === 'assistant'
                         ? 'background.default'
-                        : 'warning.50' as any,
+                        : 'warning.50',
                   }}
                 >
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>

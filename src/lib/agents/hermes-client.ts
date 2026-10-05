@@ -22,13 +22,13 @@ export interface HermesClientOptions {
 export interface SessionOptions {
   persona: string
   systemPrompt?: string
-  context?: any
+  context?: Record<string, unknown>
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
-  tool_calls?: any[]
+  tool_calls?: unknown[]
   tool_call_id?: string
 }
 
@@ -81,7 +81,7 @@ export class HermesClient {
     this.captureCookies(r)
   }
 
-  private async req<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+  private async req<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set('Cookie', this.cookieHeader())
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
@@ -114,12 +114,12 @@ export class HermesClient {
   }
 
   /** 列出所有 session */
-  async listSessions(): Promise<any[]> {
-    return this.req<any[]>('/api/sessions')
+  async listSessions(): Promise<unknown[]> {
+    return this.req<unknown[]>('/api/sessions')
   }
 
   /** 往 session 发消息 */
-  async sendMessage(sessionId: string, message: ChatMessage): Promise<any> {
+  async sendMessage(sessionId: string, message: ChatMessage): Promise<unknown> {
     return this.req(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
@@ -127,17 +127,17 @@ export class HermesClient {
   }
 
   /** 列所有 skill */
-  async listSkills(): Promise<any[]> {
-    return this.req<any[]>('/api/skills')
+  async listSkills(): Promise<unknown[]> {
+    return this.req<unknown[]>('/api/skills')
   }
 
   /** 查 run 状态 */
-  async getRun(runId: string): Promise<any> {
+  async getRun(runId: string): Promise<unknown> {
     return this.req(`/api/runs/${encodeURIComponent(runId)}`)
   }
 
   /** 创建 cron job */
-  async createCron(opts: { cron: string; prompt: string; agentId?: string }): Promise<any> {
+  async createCron(opts: { cron: string; prompt: string; agentId?: string }): Promise<unknown> {
     return this.req('/api/cron/jobs', {
       method: 'POST',
       body: JSON.stringify({
@@ -149,7 +149,7 @@ export class HermesClient {
   }
 
   /** 列出 memory graph 节点 (用于持久化记忆) */
-  async getMemoryGraph(): Promise<any> {
+  async getMemoryGraph(): Promise<unknown> {
     return this.req('/api/learning/graph')
   }
 

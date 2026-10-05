@@ -50,8 +50,11 @@ interface SelectDialogProps {
   onSelect: (id: number) => void
 }
 
+/** 技能 / MCP 选择列表的一项(只用到这几个字段) */
+type SelectItem = { id: number; name: string; category?: string; tool_count?: number }
+
 function SelectDialog({ type, onClose, onSelect }: SelectDialogProps) {
-  const [list, setList] = useState<any[]>([])
+  const [list, setList] = useState<SelectItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -247,13 +250,13 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
         if (!mounted) return
 
         const data = canvas.canvas_data || {}
-        const loadedNodes: Node[] = (data.nodes || []).map((n: any) => ({
+        const loadedNodes: Node[] = ((data.nodes || []) as Node[]).map((n) => ({
           id: n.id,
           type: 'canvasNode',
           position: n.position || { x: 100, y: 100 },
           data: n.data || { label: n.id },
         }))
-        const loadedEdges: Edge[] = (data.edges || []).map((e: any) => ({
+        const loadedEdges: Edge[] = ((data.edges || []) as Edge[]).map((e) => ({
           id: e.id,
           source: e.source,
           target: e.target,

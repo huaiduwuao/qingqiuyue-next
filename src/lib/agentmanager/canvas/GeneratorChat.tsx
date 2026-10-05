@@ -226,7 +226,7 @@ function ResultCard({ success, title, error, children }: { success: boolean; tit
   )
 }
 
-function JsonPreview({ data }: { data: any }) {
+function JsonPreview({ data }: { data: unknown }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ marginTop: 6 }}>

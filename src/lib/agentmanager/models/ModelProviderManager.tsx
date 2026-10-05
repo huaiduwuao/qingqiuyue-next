@@ -223,7 +223,7 @@ export default function ModelProviderManager() {
               size="small"
               sx={{ flex: 1 }}
               value={form.api_format ?? 'openai'}
-              onChange={(e) => setForm({ ...form, api_format: e.target.value as any })}
+              onChange={(e) => setForm({ ...form, api_format: e.target.value as typeof form.api_format })}
             >
               <MenuItem value="openai">OpenAI 兼容</MenuItem>
               <MenuItem value="anthropic">Anthropic</MenuItem>
@@ -234,7 +234,7 @@ export default function ModelProviderManager() {
               size="small"
               sx={{ flex: 1 }}
               value={form.auth_field ?? 'authorization'}
-              onChange={(e) => setForm({ ...form, auth_field: e.target.value as any })}
+              onChange={(e) => setForm({ ...form, auth_field: e.target.value as typeof form.auth_field })}
             >
               <MenuItem value="authorization">Authorization: Bearer</MenuItem>
               <MenuItem value="x-api-key">x-api-key</MenuItem>

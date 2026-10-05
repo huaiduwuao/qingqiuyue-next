@@ -160,9 +160,18 @@ export function ChatPanel({ agentId = 'xiaoyue', title = 'AI 助手', onClose }:
 }
 
 // 提取响应内容
-function extractContent(response: any): string {
-  if (!response) return '无响应'
-  if (typeof response === 'string') return response
+/** 兼容的几种回包形状(OpenAI choices / content / text / message) */
+type ChatResponse = {
+  choices?: { message?: { content?: string } }[]
+  content?: string
+  text?: string
+  message?: string
+}
+
+function extractContent(raw: unknown): string {
+  if (!raw) return '无响应'
+  if (typeof raw === 'string') return raw
+  const response = raw as ChatResponse
 
   // OpenAI 格式
   if (response.choices?.[0]?.message?.content) {

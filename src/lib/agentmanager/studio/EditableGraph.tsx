@@ -45,7 +45,7 @@ export interface DraftNode {
   kind?: string
   x: number
   y: number
-  config?: Record<string, any>
+  config?: Record<string, unknown>
 }
 
 export interface DraftEdge {
@@ -123,7 +123,7 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
         kind: n.data.kind as string,
         x: n.position.x,
         y: n.position.y,
-        config: (n.data.config as Record<string, any>) ?? {},
+        config: (n.data.config as Record<string, unknown>) ?? {},
       })),
       edges: edges.map((e) => ({
         id: e.id,
@@ -190,15 +190,15 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   )
 
   // 双击节点编辑
-  const onNodeDoubleClick = useCallback((_: any, node: Node) => {
+  const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
     setEditingNode(node)
     setEditLabel((node.data.label as string) ?? '')
-    setEditConfig(JSON.stringify((node.data.config as Record<string, any>) ?? {}, null, 2))
+    setEditConfig(JSON.stringify((node.data.config as Record<string, unknown>) ?? {}, null, 2))
   }, [])
 
   const saveNodeEdit = useCallback(() => {
     if (!editingNode) return
-    let cfg: Record<string, any> = {}
+    let cfg: Record<string, unknown> = {}
     try {
       cfg = JSON.parse(editConfig || '{}')
     } catch {

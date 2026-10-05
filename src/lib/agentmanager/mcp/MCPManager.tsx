@@ -82,7 +82,7 @@ export default function MCPManager({ token }: Props) {
 
   const openInstall = (entry: MCPCatalogEntry | 'custom') => {
     setInstalling(entry)
-    setForm({ name: entry === 'custom' ? '' : entry.id, env: {}, url: entry === 'custom' ? '' : entry.url_hint || '', transport: entry === 'custom' ? 'sse' : (entry.transport as any) })
+    setForm({ name: entry === 'custom' ? '' : entry.id, env: {}, url: entry === 'custom' ? '' : entry.url_hint || '', transport: entry === 'custom' ? 'sse' : (entry.transport as typeof form.transport) })
   }
 
   const install = async () => {
@@ -268,7 +268,7 @@ export default function MCPManager({ token }: Props) {
                 size="small"
                 label="传输方式"
                 value={form.transport}
-                onChange={(e) => setForm({ ...form, transport: e.target.value as any })}
+                onChange={(e) => setForm({ ...form, transport: e.target.value as typeof form.transport })}
                 slotProps={{ select: { native: true } }}
               >
                 <option value="sse">SSE</option>

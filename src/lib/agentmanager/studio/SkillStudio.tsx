@@ -94,7 +94,7 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
         setName(result.name)
         setDesc(result.description)
         setCategory(result.category || '其他')
-        const cfg = (result as any).config ?? {}
+        const cfg = (result as SkillResult & { config?: unknown }).config ?? {}
         setConfig(JSON.stringify(cfg, null, 2))
         graphRef.current?.setData(
           [
@@ -144,7 +144,7 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
     // 从画布找处理节点(kind=skill)的 config;找不到用原表单值兜底
     const draft = graphRef.current?.getData()
     const skillNode = draft?.nodes.find((n) => n.kind === 'skill')
-    let cfg: any = skillNode?.config ?? {}
+    let cfg: Record<string, unknown> = skillNode?.config ?? {}
     if (!skillNode) {
       try {
         cfg = JSON.parse(config || '{}')
