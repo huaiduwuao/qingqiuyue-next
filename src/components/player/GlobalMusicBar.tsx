@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDuration } from '@/lib/utils/format';
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -33,10 +34,6 @@ import { CoverImage } from '@/components/common/CoverImage';
 const BAR_H = 64;
 const DISC = 56;
 
-function fmt(s: number) {
-  if (!isFinite(s) || s < 0) return '0:00';
-  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-}
 
 /** 底部导航存在时贴在它上面,否则贴屏幕底(含安全区) */
 const BOTTOM = 'calc(max(var(--bottom-nav-inset, 0px), var(--sab, 0px)) + 10px)';
@@ -386,7 +383,7 @@ export default function GlobalMusicBar() {
           </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mt: -0.75 }}>
-          <Box sx={{ fontSize: 11, color: 'text.secondary', minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(shown)}</Box>
+          <Box sx={{ fontSize: 11, color: 'text.secondary', minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatDuration(shown)}</Box>
           <Slider
             size="small"
             aria-label="播放进度"
@@ -400,7 +397,7 @@ export default function GlobalMusicBar() {
             }}
             sx={{ py: 0.5, '& .MuiSlider-thumb': { width: 10, height: 10 } }}
           />
-          <Box sx={{ fontSize: 11, color: 'text.secondary', minWidth: 34, fontVariantNumeric: 'tabular-nums' }}>{fmt(duration)}</Box>
+          <Box sx={{ fontSize: 11, color: 'text.secondary', minWidth: 34, fontVariantNumeric: 'tabular-nums' }}>{formatDuration(duration)}</Box>
         </Box>
       </Box>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountWanK } from '@/lib/utils/format';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -156,10 +157,10 @@ export default function CreatorPage() {
             }}
           >
             <StatCard icon={<VideoLibraryRounded />} label="作品数" value={data.totalWorks.toString()} color="primary.main" />
-            <StatCard icon={<VisibilityRoundedIcon />} label="总播放" value={formatNum(data.totalViews)} color="secondary.main" />
-            <StatCard icon={<FavoriteRoundedIcon />} label="总点赞" value={formatNum(data.totalLikes)} color="warning.main" />
-            <StatCard icon={<ModeCommentRoundedIcon />} label="总评论" value={formatNum(data.totalComments)} color="#8B5CF6" />
-            <StatCard icon={<ShareRoundedIcon />} label="总分享" value={formatNum(data.totalShares)} color="success.main" />
+            <StatCard icon={<VisibilityRoundedIcon />} label="总播放" value={formatCountWanK(data.totalViews)} color="secondary.main" />
+            <StatCard icon={<FavoriteRoundedIcon />} label="总点赞" value={formatCountWanK(data.totalLikes)} color="warning.main" />
+            <StatCard icon={<ModeCommentRoundedIcon />} label="总评论" value={formatCountWanK(data.totalComments)} color="#8B5CF6" />
+            <StatCard icon={<ShareRoundedIcon />} label="总分享" value={formatCountWanK(data.totalShares)} color="success.main" />
             <StatCard icon={<GroupsRoundedIcon />} label="粉丝" value={data.followers.toString()} color="primary.main" />
             <StatCard icon={<PersonAddRoundedIcon />} label="关注" value={data.following.toString()} color="secondary.main" />
           </Box>
@@ -205,12 +206,6 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 function VideoLibraryRounded() {
   return <Box sx={{ width: 20, height: 20, borderRadius: 0.5, bgcolor: 'primary.main' }} />;
-}
-
-function formatNum(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
 }
 
 /**
@@ -276,13 +271,13 @@ function CreatorMobile({ data }: { data: CreatorStats }) {
         <MobileStatRow
           items={[
             { label: '作品', value: data.totalWorks.toString() },
-            { label: '播放', value: formatNum(data.totalViews) },
-            { label: '点赞', value: formatNum(data.totalLikes) },
-            { label: '粉丝', value: formatNum(data.followers) },
+            { label: '播放', value: formatCountWanK(data.totalViews) },
+            { label: '点赞', value: formatCountWanK(data.totalLikes) },
+            { label: '粉丝', value: formatCountWanK(data.followers) },
           ]}
         />
         <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mt: 1.25 }}>
-          评论 {formatNum(data.totalComments)} · 分享 {formatNum(data.totalShares)} · 关注 {formatNum(data.following)}
+          评论 {formatCountWanK(data.totalComments)} · 分享 {formatCountWanK(data.totalShares)} · 关注 {formatCountWanK(data.following)}
         </Typography>
       </MobileSection>
     </Box>

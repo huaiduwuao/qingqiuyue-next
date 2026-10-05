@@ -15,6 +15,7 @@
 // user_my_list 没有的字段(合集状态 进行中/已完结/草稿、分类、自动排序、订阅数、
 // 累计播放)都已从界面上去掉 —— 与其显示写不进去的开关和恒为 0 的数字,不如不显示。
 
+import { formatCount } from '@/lib/utils/format';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -122,12 +123,6 @@ function toWorkRef(w: MyWork): WorkRef | null {
   const id = toEntityId(w.id);
   if (id === null) return null;
   return { id, title: w.title, cover: w.cover ?? '', views: w.views ?? 0 };
-}
-
-function formatNum(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
 }
 
 /** 封面缺省时拿夹子里前几项的封面拼一格,和「我的」页的宫格逻辑一致 */
@@ -421,7 +416,7 @@ export default function CollectionPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
           {[
             { label: '合集总数', value: String(collections.length), color: '#FE2C55' },
-            { label: '收录作品', value: formatNum(totalWorks), color: 'var(--fg-cyan)' },
+            { label: '收录作品', value: formatCount(totalWorks), color: 'var(--fg-cyan)' },
             { label: '公开合集', value: String(counts.pub), color: 'var(--fg-green)' },
           ].map((s) => (
             <Box key={s.label} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
@@ -602,7 +597,7 @@ function WorkRow({ work, right }: { work: WorkRef; right?: React.ReactNode }) {
         <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {work.title}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatNum(work.views)} 播放</Typography>
+        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatCount(work.views)} 播放</Typography>
       </Box>
       {right}
     </>

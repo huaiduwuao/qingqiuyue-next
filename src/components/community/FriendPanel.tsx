@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -688,7 +689,7 @@ function SuggestionCard({
             textOverflow: 'ellipsis',
           }}
         >
-          {user.douyinId ? `${user.douyinId} · ` : ''}{user.followers >= 10000 ? `${(user.followers / 10000).toFixed(1)}w` : user.followers} 粉丝
+          {user.douyinId ? `${user.douyinId} · ` : ''}{formatCountW(user.followers)} 粉丝
         </Typography>
       </Box>
       {isFriend ? (

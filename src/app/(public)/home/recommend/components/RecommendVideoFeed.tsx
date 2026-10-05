@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -89,12 +90,6 @@ function isPortrait(metadata?: unknown): boolean {
   } catch {
     return false;
   }
-}
-
-function formatCount(n?: number): string {
-  if (n == null || isNaN(n)) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toString();
 }
 
 
@@ -964,7 +959,7 @@ export function RecommendVideoFeed() {
                           label="点赞"
                           onClick={(e) => { e.stopPropagation(); handleLike(); }}
                           icon={liked ? <FavoriteRoundedIcon sx={{ fontSize: 32 }} /> : <FavoriteBorderRoundedIcon sx={{ fontSize: 32 }} />}
-                          value={formatCount(likedCount)}
+                          value={formatCountW(likedCount)}
                           activeColor={ACCENT}
                           badge={likeBurst && likeBurst.id === video.id ? String(likeBurst.key) : null}
                         />
@@ -972,7 +967,7 @@ export function RecommendVideoFeed() {
                           active={commentsOpen}
                           label="评论"
                           icon={<ModeCommentRoundedIcon sx={{ fontSize: 29 }} />}
-                          value={formatCount(commentTotals[videoKey ?? ''] ?? video.comments)}
+                          value={formatCountW(commentTotals[videoKey ?? ''] ?? video.comments)}
                           onClick={handleCommentClick}
                           activeColor="#fff"
                         />
@@ -981,13 +976,13 @@ export function RecommendVideoFeed() {
                           label="收藏"
                           onClick={(e) => { e.stopPropagation(); handleCollect(); }}
                           icon={collected ? <BookmarkRoundedIcon sx={{ fontSize: 30 }} /> : <BookmarkBorderRoundedIcon sx={{ fontSize: 30 }} />}
-                          value={formatCount(collectedCount)}
+                          value={formatCountW(collectedCount)}
                           activeColor="#FFC300"
                         />
                         <SideAction
                           label="分享"
                           icon={<ReplyRoundedIcon sx={{ fontSize: 30, transform: 'scaleX(-1)' }} />}
-                          value={formatCount(video.shares)}
+                          value={formatCountW(video.shares)}
                           onClick={handleShare}
                         />
                         <SideAction label="更多" icon={<MoreHorizRoundedIcon sx={{ fontSize: 28 }} />} value="" onClick={handleMore} />
@@ -1031,7 +1026,7 @@ export function RecommendVideoFeed() {
                           <Box component="span" sx={{ px: 0.75, borderRadius: 0.75, bgcolor: 'rgba(255,255,255,0.16)', lineHeight: '18px' }}>
                             {video.brand}
                           </Box>
-                          <span>{formatCount(video.views)} 次播放</span>
+                          <span>{formatCountW(video.views)} 次播放</span>
                           <Box
                             component="span"
                             data-no-drag

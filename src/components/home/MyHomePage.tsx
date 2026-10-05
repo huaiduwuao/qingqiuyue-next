@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCount as formatViews, formatDurationLabelLong as formatDuration } from '@/lib/utils/format';
 import { toEntityId } from '@/lib/id';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
@@ -193,13 +194,6 @@ const DATE_RANGES = [
   { key: 'year', label: '最近一年' },
 ];
 
-function formatViews(n: number): string {
-  if (n == null || isNaN(n) || n < 0) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}
-
 function formatRelativeTime(ts?: number): string {
   if (!ts) return '未知时间';
   const diff = Date.now() - ts;
@@ -212,16 +206,6 @@ function formatRelativeTime(ts?: number): string {
   const d = Math.floor(h / 24);
   if (d < 30) return `${d} 天前`;
   return new Date(ts).toLocaleDateString('zh-CN');
-}
-
-function formatDuration(sec: number): string {
-  if (sec == null || isNaN(sec) || sec < 0) return '0:00';
-  if (sec < 60) return `${sec}秒`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  if (m < 60) return `${m}:${s.toString().padStart(2, '0')}`;
-  const h = Math.floor(m / 60);
-  return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 function isMyItem(x: any): x is MyItem {

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountWLocale } from '@/lib/utils/format';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -25,11 +26,6 @@ import { WorkActionsMenu } from '../../_components/WorkActions';
 
 const PAGE_SIZE = 20;
 
-const fmt = (n?: number) => {
-  const v = Number(n) || 0;
-  if (v >= 10000) return `${(v / 10000).toFixed(1)}w`;
-  return v.toLocaleString();
-};
 
 const fmtTime = (s?: string) =>
   s ? new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
@@ -200,7 +196,7 @@ export default function WorksMobile({
                     </Box>
                     {' · '}
                     {CONTENT_TYPE_LABEL[w.contentType] || w.contentType}
-                    {` · 阅读 ${fmt(w.readNum)} · 赞 ${fmt(w.agreeNum)} · 评 ${fmt(w.commentNum)}`}
+                    {` · 阅读 ${formatCountWLocale(w.readNum)} · 赞 ${formatCountWLocale(w.agreeNum)} · 评 ${formatCountWLocale(w.commentNum)}`}
                     {w.publishTime ? ` · ${fmtTime(w.publishTime)}` : ''}
                   </>
                 }

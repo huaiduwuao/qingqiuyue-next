@@ -7,6 +7,7 @@
  * 页面上先选「看哪个语种」,下面的成片、台词表、文案都跟着切。源语种和目标语种走同一套界面。
  */
 
+import { formatDuration } from '@/lib/utils/format';
 import React, { useEffect, useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -39,8 +40,7 @@ import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask }
 const FALLBACK_LANGS: Lang[] = [{ code: 'zh', name: '中文', en: 'Simplified Chinese', cjk: true, dubbing: false }];
 
 function fmtDuration(sec: number): string {
-  const s = Math.round(sec);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return formatDuration(Math.round(sec));
 }
 
 function fmtSize(bytes?: number): string {

@@ -8,6 +8,7 @@
  * 不能每 3 秒触发一次),运行中的阶段 / 分类 / 当前 URL / 页数 / 错误数由 WS 推送叠加到行上。
  */
 
+import { formatDurationHms } from '@/lib/utils/format';
 import React, { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -98,15 +99,6 @@ function mergeLive(row: CrawlTask, live?: CrawlTaskFromWS): CrawlTask {
   };
 }
 
-function fmtDuration(sec?: number): string {
-  if (sec === undefined || sec < 0) return '-';
-  const s = Math.floor(sec);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
-  if (m > 0) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
-  return `${s}s`;
-}
 
 /** 运行中按 startedAt 现算,结束后用后端定格的 elapsedSec */
 function elapsedOf(t: CrawlTask): number | undefined {
@@ -254,7 +246,7 @@ export default function SpiderTasksPage() {
       field: 'errors', headerName: '错误', width: 70, sortable: false,
       renderCell: (p) => { const n = view(p.row).progress?.errors ?? 0; return n > 0 ? <Chip label={n} color="error" size="small" variant="outlined" /> : <span style={{ color: '#999' }}>0</span>; },
     },
-    { field: 'elapsed', headerName: '耗时', width: 80, sortable: false, renderCell: (p) => fmtDuration(elapsedOf(view(p.row))) },
+    { field: 'elapsed', headerName: '耗时', width: 80, sortable: false, renderCell: (p) => formatDurationHms(elapsedOf(view(p.row))) },
     { field: 'createdAt', headerName: '创建时间', width: 160, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
     {
       field: 'actions', headerName: '操作', width: 150, sortable: false,
@@ -443,7 +435,7 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
               <StatCard label="新入库" value={p ? p.itemsNew : t.itemsSaved} color="success.main" />
               {p && <StatCard label="新章节" value={p.chaptersNew} color="success.main" />}
               {p && <StatCard label="错误" value={p.errors} color={p.errors > 0 ? 'error.main' : undefined} />}
-              <StatCard label="耗时" value={fmtDuration(elapsed)} />
+              <StatCard label="耗时" value={formatDurationHms(elapsed)} />
               {rate !== undefined && <StatCard label="速度" value={`${rate} 页/分`} />}
             </Box>
 

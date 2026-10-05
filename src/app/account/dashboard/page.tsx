@@ -10,12 +10,12 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import LinearProgress from '@mui/material/LinearProgress';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { formatCountWanYi } from '@/lib/utils/format';
 import {
   getDashboardOverview,
   getTrendData,
   getContentStats,
   getFanProfile,
-  formatCount,
   type DashboardOverview,
   type TrendData,
   type ContentStats,
@@ -25,11 +25,11 @@ import {
 // 统计卡片行
 function StatRow({ stats }: { stats?: DashboardOverview['stats'] }) {
   const items = [
-    { label: '总阅读', value: formatCount(stats?.totalViews || 0), color: '#5B8DEF' },
-    { label: '总点赞', value: formatCount(stats?.totalLikes || 0), color: '#FE2C55' },
-    { label: '总收藏', value: formatCount(stats?.totalFavorites || 0), color: 'var(--fg-amber)' },
-    { label: '总分享', value: formatCount(stats?.totalShares || 0), color: 'var(--fg-green)' },
-    { label: '总收益', value: `${formatCount(stats?.totalEarnings || 0)} 钻`, color: '#9C27B0' },
+    { label: '总阅读', value: formatCountWanYi(stats?.totalViews || 0), color: '#5B8DEF' },
+    { label: '总点赞', value: formatCountWanYi(stats?.totalLikes || 0), color: '#FE2C55' },
+    { label: '总收藏', value: formatCountWanYi(stats?.totalFavorites || 0), color: 'var(--fg-amber)' },
+    { label: '总分享', value: formatCountWanYi(stats?.totalShares || 0), color: 'var(--fg-green)' },
+    { label: '总收益', value: `${formatCountWanYi(stats?.totalEarnings || 0)} 钻`, color: '#9C27B0' },
   ];
 
   return (
@@ -127,9 +127,9 @@ function ContentRanking({ contents }: { contents: ContentStats[] }) {
                 {c.title || `内容 #${c.contentId}`}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, mt: 0.25 }}>
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>👁 {formatCount(c.views)}</Typography>
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>❤️ {formatCount(c.likes)}</Typography>
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>📤 {formatCount(c.shares)}</Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>👁 {formatCountWanYi(c.views)}</Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>❤️ {formatCountWanYi(c.likes)}</Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>📤 {formatCountWanYi(c.shares)}</Typography>
               </Box>
             </Box>
           </Box>
@@ -154,13 +154,13 @@ function FanPortrait({ profile }: { profile?: FanProfile }) {
       <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 3 }}>
         <Box sx={{ textAlign: 'center' }}>
           <Typography sx={{ fontSize: 28, fontWeight: 700, color: 'primary.main' }}>
-            {formatCount(profile?.totalFans || 0)}
+            {formatCountWanYi(profile?.totalFans || 0)}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总粉丝</Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
           <Typography sx={{ fontSize: 28, fontWeight: 700, color: 'var(--fg-green)' }}>
-            {formatCount(profile?.activeFans || 0)}
+            {formatCountWanYi(profile?.activeFans || 0)}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>活跃粉丝</Typography>
         </Box>
@@ -273,15 +273,15 @@ function TrendTab() {
       {/* 汇总 */}
       <Box sx={{ display: 'flex', gap: 1.5, mt: 2 }}>
         <Box sx={{ flex: 1, p: 2, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main' }}>{formatCount(totalViews)}</Typography>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main' }}>{formatCountWanYi(totalViews)}</Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总阅读</Typography>
         </Box>
         <Box sx={{ flex: 1, p: 2, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FE2C55' }}>{formatCount(totalLikes)}</Typography>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FE2C55' }}>{formatCountWanYi(totalLikes)}</Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总点赞</Typography>
         </Box>
         <Box sx={{ flex: 1, p: 2, borderRadius: 1, bgcolor: 'action.hover', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--fg-green)' }}>{formatCount(totalShares)}</Typography>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--fg-green)' }}>{formatCountWanYi(totalShares)}</Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>总分享</Typography>
         </Box>
       </Box>

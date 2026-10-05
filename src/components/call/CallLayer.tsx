@@ -5,6 +5,7 @@
  * 换页面不断线。只在登录后订阅 call.* 事件(和全站推送共用那一条长连接,见 lib/realtime)。
  */
 
+import { formatDurationPadded } from '@/lib/utils/format';
 import React, { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Avatar from '@mui/material/Avatar';
@@ -21,9 +22,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimeEvent } from '@/lib/realtime';
 import { accept, flipCamera, hangup, onCallEvent, toggleCamera, toggleMute, useCall } from '@/lib/call/controller';
 
-function fmt(sec: number) {
-  return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
-}
 
 function Video({ stream, muted, mirror, sx }: { stream: MediaStream | null; muted?: boolean; mirror?: boolean; sx?: object }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -130,7 +128,7 @@ export default function CallLayer() {
       status = '正在连接…';
       break;
     case 'active':
-      status = fmt(seconds);
+      status = formatDurationPadded(seconds);
       break;
     case 'ended':
       status = st.note;

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountWan, formatDurationLabel } from '@/lib/utils/format';
 import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import HotspotBoard from '@/components/home/HotspotBoard';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -928,7 +929,7 @@ const FeedCard = memo(function FeedCard({ item }: { item: FeedItem }) {
             }}
           >
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
-            {formatDuration(item.durationSec)}
+            {formatDurationLabel(item.durationSec)}
           </Box>
         ) : item.episodeLabel ? (
           <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: '#ffffff', fontSize: 10, fontWeight: 600 }}>
@@ -1023,7 +1024,7 @@ const FeedCard = memo(function FeedCard({ item }: { item: FeedItem }) {
           </Box>
           <Box sx={{ flex: 1 }} />
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-            {formatViews(item.views)} 播放
+            {formatCountWan(item.views)} 播放
           </Typography>
         </Box>
       </Box>
@@ -1038,20 +1039,6 @@ function Stat({ icon, value }: { icon: React.ReactNode; value: number }) {
       <Typography sx={{ fontSize: 11 }}>{value}</Typography>
     </Box>
   );
-}
-
-function formatDuration(sec: number): string {
-  if (sec == null || isNaN(sec) || sec < 0) return '0:00';
-  if (sec < 60) return `${sec}秒`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function formatViews(n: number): string {
-  if (n == null || isNaN(n) || n < 0) return '0';
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-  return n.toString();
 }
 
 // ─── 空态文案(轻量) ───

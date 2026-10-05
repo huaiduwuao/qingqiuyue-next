@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -145,7 +146,7 @@ export default function RecommendBoard({
                   }}
                 >
                   <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
-                  {item.views >= 10000 ? `${(item.views / 10000).toFixed(1)}w` : item.views}
+                  {formatCountW(item.views)}
                 </Box>
               )}
               <Box

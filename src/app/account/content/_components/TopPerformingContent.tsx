@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -25,11 +26,6 @@ const TypeIcon = ({ type }: { type: Item['type'] }) => {
   if (type === 'image') return <ImageIcon sx={{ fontSize: 12 }} />;
   return <MovieIcon sx={{ fontSize: 12 }} />;
 };
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toString();
-}
 
 const typeToContentType = (type: Item['type']): string => {
   if (type === 'video') return 'VIDEO';
@@ -185,15 +181,15 @@ export default function TopPerformingContent() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.secondary' }}>
                     <VisibilityIcon sx={{ fontSize: 11 }} />
-                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCount(item.views)}</Typography>
+                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCountW(item.views)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.secondary' }}>
                     <ThumbUpAltIcon sx={{ fontSize: 11 }} />
-                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCount(item.likes)}</Typography>
+                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCountW(item.likes)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.secondary' }}>
                     <ModeCommentIcon sx={{ fontSize: 11 }} />
-                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCount(item.comments)}</Typography>
+                    <Typography sx={{ fontSize: 10, fontFamily: 'monospace' }}>{formatCountW(item.comments)}</Typography>
                   </Box>
                   <Box sx={{ flex: 1 }} />
                   <Box

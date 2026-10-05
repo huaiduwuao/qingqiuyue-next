@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCount } from '@/lib/utils/format';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorWorks } from '@/apis/creator';
@@ -124,12 +125,6 @@ const TYPE_OPTIONS: { key: 'all' | WorkType; label: string }[] = [
   { key: 'image', label: '图文' },
   { key: 'article', label: '文章' },
 ];
-
-function formatNum(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -524,10 +519,10 @@ export default function WorksManager() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontSize: 11, color: 'text.disabled', flexWrap: 'wrap' }}>
                     {w.status === 'published' && (
                       <>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><VisibilityRoundedIcon sx={{ fontSize: 11 }} />{formatNum(w.views)}</Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><FavoriteRoundedIcon sx={{ fontSize: 11 }} />{formatNum(w.likes)}</Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><ChatBubbleOutlineRoundedIcon sx={{ fontSize: 11 }} />{formatNum(w.comments)}</Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><ShareOutlinedIcon sx={{ fontSize: 11 }} />{formatNum(w.shares)}</Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><VisibilityRoundedIcon sx={{ fontSize: 11 }} />{formatCount(w.views)}</Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><FavoriteRoundedIcon sx={{ fontSize: 11 }} />{formatCount(w.likes)}</Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><ChatBubbleOutlineRoundedIcon sx={{ fontSize: 11 }} />{formatCount(w.comments)}</Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><ShareOutlinedIcon sx={{ fontSize: 11 }} />{formatCount(w.shares)}</Box>
                       </>
                     )}
                     <Typography sx={{ fontSize: 10 }}>

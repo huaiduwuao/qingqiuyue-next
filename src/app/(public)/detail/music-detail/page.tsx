@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDuration } from '@/lib/utils/format';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -43,12 +44,6 @@ import { backfillPending, backfillRefetchInterval } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 
-function fmtTime(s: number) {
-  if (!isFinite(s) || s < 0) return '0:00';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
-}
 
 function MusicDetailContent() {
   const searchParams = useSearchParams();
@@ -326,7 +321,7 @@ function MusicDetailContent() {
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36, textAlign: 'right' }}>
-                {fmtTime(scrub ?? currentTime)}
+                {formatDuration(scrub ?? currentTime)}
               </Typography>
               <Slider
                 size="small"
@@ -342,7 +337,7 @@ function MusicDetailContent() {
                 sx={{ color: 'primary.main' }}
               />
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36 }}>
-                {fmtTime(duration)}
+                {formatDuration(duration)}
               </Typography>
             </Box>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDuration } from '@/lib/utils/format';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -46,10 +47,6 @@ function clamp(p: { x: number; y: number }) {
   };
 }
 
-function fmt(s: number) {
-  if (!isFinite(s) || s < 0) return '0:00';
-  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-}
 
 /**
  * 全站视频小窗。可拖动;悬停出控制条:播放 / 静音 / 画中画 / 回到原位 / 关闭。
@@ -240,7 +237,7 @@ export default function FloatingVideoDock() {
             {muted ? <VolumeOffRoundedIcon sx={{ fontSize: 18 }} /> : <VolumeUpRoundedIcon sx={{ fontSize: 18 }} />}
           </IconButton>
           <Box sx={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontVariantNumeric: 'tabular-nums', ml: 0.5 }}>
-            {fmt(time.t)}{time.d > 0 ? ` / ${fmt(time.d)}` : ''}
+            {formatDuration(time.t)}{time.d > 0 ? ` / ${formatDuration(time.d)}` : ''}
           </Box>
           <Box sx={{ flex: 1 }} />
           {pipSupported(v) && (

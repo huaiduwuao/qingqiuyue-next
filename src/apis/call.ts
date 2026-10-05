@@ -1,3 +1,4 @@
+import { formatDurationPadded } from '@/lib/utils/format';
 import { accountClient } from '@/lib/api/client';
 
 // 一对一语音 / 视频通话(core-api /api/core/call/*,后端 internal/callapp)。
@@ -52,11 +53,8 @@ export interface CallRecord {
 export function callRecordText(r: CallRecord, mine: boolean): string {
   const kind = r.media === 'video' ? '视频通话' : '语音通话';
   switch (r.result) {
-    case 'done': {
-      const m = Math.floor(r.seconds / 60);
-      const s = r.seconds % 60;
-      return `${kind} ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
+    case 'done':
+      return `${kind} ${formatDurationPadded(r.seconds)}`;
     case 'missed':
       return mine ? `${kind} 对方未接听` : `${kind} 未接来电`;
     case 'rejected':

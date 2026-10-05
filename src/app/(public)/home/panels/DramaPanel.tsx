@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountYiW } from '@/lib/utils/format';
 import { useEffect, useRef } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -461,7 +462,7 @@ function RankCard({ item }: { item: DramaSeries }) {
             {item.title}
           </Typography>
           <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {[item.genre || '其他', item.episodeLabel, `${formatViews(item.views)} 播放`].filter(Boolean).join(' · ')}
+            {[item.genre || '其他', item.episodeLabel, `${formatCountYiW(item.views)} 播放`].filter(Boolean).join(' · ')}
           </Typography>
         </Box>
       </Box>
@@ -548,19 +549,13 @@ function DramaCard({ item }: { item: DramaSeries }) {
           <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'var(--bg-hover)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
             {item.genre || '其他'}
           </Box>
-          <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatViews(item.views)} 播放</Typography>
+          <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatCountYiW(item.views)} 播放</Typography>
         </Box>
       </Box>
     </Box>
   );
 }
 
-function formatViews(n?: number | null): string {
-  const num = Number(n) || 0;
-  if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
-  return num.toString();
-}
 /** 题材码 → 展示名。目录里找不到就原样返回,不硬编码任何题材词。 */
 function genreLabelOf(options: FacetOption[], code: string): string {
   if (!code) return '';

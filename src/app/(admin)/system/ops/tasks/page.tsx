@@ -15,6 +15,7 @@
  * 三个码后端都真守着(internal/opstask/handler.go),这里藏按钮只是少让人白点。
  */
 
+import { formatMs } from '@/lib/utils/format';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -50,13 +51,6 @@ import {
 
 const POLL_INTERVAL_MS = 2000;
 const LIST_POLL_INTERVAL_MS = 5000; // 列表弱实时,5s 够用;详情 2s 才及时
-
-function formatDuration(ms?: number): string {
-  if (!ms || ms < 0) return '-';
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
-}
 
 export default function OpsTasksPage() {
   const qc = useQueryClient();
@@ -321,7 +315,7 @@ function Row({
         </Typography>
       </Box>
       <Box sx={{ width: 100 }}>
-        <Typography variant="caption">{formatDuration(run.durationMs)}</Typography>
+        <Typography variant="caption">{formatMs(run.durationMs)}</Typography>
       </Box>
       <Box sx={{ flex: 1, minWidth: 160 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -359,7 +353,7 @@ function DetailView({ run }: { run: OpsTaskRun }) {
       <KV label="triggered_by" value={String(run.triggeredBy)} />
       <KV label="started_at" value={new Date(run.startedAt).toLocaleString('zh-CN')} />
       {run.finishedAt && <KV label="finished_at" value={new Date(run.finishedAt).toLocaleString('zh-CN')} />}
-      <KV label="duration" value={formatDuration(run.durationMs)} />
+      <KV label="duration" value={formatMs(run.durationMs)} />
       <Box>
         <Typography variant="caption" color="text.secondary">progress</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>

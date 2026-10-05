@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountYiW } from '@/lib/utils/format';
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -615,7 +616,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
             {[item.region, item.year || null].filter(Boolean).join(' · ') || ' '}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-            {formatViews(item.views)} 播放
+            {formatCountYiW(item.views)} 播放
           </Typography>
         </Box>
       </Box>
@@ -625,16 +626,10 @@ function TheaterCard({ item }: { item: TheaterItem }) {
 
 /** 榜单卡片的副行。评分/年份缺失时跳过,不拼出"0.0 分"这种假数据。 */
 function subline(item: TheaterItem): string {
-  const parts = [`${formatViews(item.views)} 播放`];
+  const parts = [`${formatCountYiW(item.views)} 播放`];
   if (item.episodeLabel) parts.unshift(item.episodeLabel);
   if (item.rating) parts.push(`评分 ${item.rating.toFixed(1)}`);
   else if (item.year) parts.push(String(item.year));
   return parts.join(' · ');
 }
 
-function formatViews(n?: number | null): string {
-  const num = Number(n) || 0;
-  if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
-  return num.toString();
-}

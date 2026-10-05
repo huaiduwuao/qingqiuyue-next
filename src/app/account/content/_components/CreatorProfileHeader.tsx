@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountWLocale } from '@/lib/utils/format';
 import { toEntityId } from '@/lib/id';
 import React from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,11 +19,6 @@ import { coverBackground } from '@/lib/media';
 import { alpha } from '@mui/material/styles';
 import { DARK_BG } from '@/constants/gradients';
 import { useActiveTab } from '../ActiveTabContext';
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toLocaleString();
-}
 
 // 简单的图标映射(后端存 icon name,前端按名渲染)
 const BadgeIcon = ({ id }: { id: string }) => {
@@ -169,7 +165,7 @@ export default function CreatorProfileHeader() {
         {STATS.map((s, i) => (
           <Box key={s.id} onClick={handleStats} sx={{ textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s ease-in-out', borderRight: { xs: i < 3 ? '1px solid' : 'none', md: i < 3 ? '1px solid' : 'none' }, borderColor: 'divider', '&:hover': { color: 'primary.main' } }}>
             <Typography sx={{ fontSize: { xs: 16, md: 22 }, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
-              {formatCount(s.value)}
+              {formatCountWLocale(s.value)}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>{s.label}</Typography>
           </Box>

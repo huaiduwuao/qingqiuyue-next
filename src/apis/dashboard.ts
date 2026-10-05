@@ -721,13 +721,6 @@ export async function getRankInfo(category: string = 'general'): Promise<RankInf
   return unwrap<RankInfo>(await adminClient('/creator-stats/rank', { params: { category } }));
 }
 
-// 格式化数字
-export function formatCount(n: number): string {
-  if (n >= 100000000) return (n / 100000000).toFixed(1) + '亿';
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
-  return n.toLocaleString();
-}
-
 // 格式化金额（分→元）
 export function formatMoney(fen: number): string {
   return (fen / 100).toFixed(2);

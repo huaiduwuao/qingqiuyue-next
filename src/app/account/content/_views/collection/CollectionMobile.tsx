@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -70,7 +71,7 @@ export default function CollectionMobile({
         search={{ value: keyword, onChange: onKeyword, placeholder: '搜索合集标题' }}
         footer={
           <Box component="span">
-            共 {counts.all} 个合集 · 收录 {totalWorks >= 10000 ? `${(totalWorks / 10000).toFixed(1)}w` : totalWorks} 个作品
+            共 {counts.all} 个合集 · 收录 {formatCountW(totalWorks)} 个作品
           </Box>
         }
       />

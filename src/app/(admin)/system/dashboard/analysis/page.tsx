@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountWanK } from '@/lib/utils/format';
 import React from 'react';
 import {
   Box,
@@ -147,12 +148,6 @@ function useDashboard() {
 }
 
 // ── 数字格式化 ──
-function fmt(n: number): string {
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return String(n);
-}
-
 function fmtMoney(n: number): string {
   if (n >= 10000) return '¥' + (n / 10000).toFixed(1) + '万';
   if (n >= 1000) return '¥' + n.toLocaleString();
@@ -315,7 +310,7 @@ export default function DashboardAnalysisPage() {
             ) : (
               <StatCard
                 label="用户总数"
-                value={fmt(s?.totalUsers || 0)}
+                value={formatCountWanK(s?.totalUsers || 0)}
                 growth={s?.totalUsersGrowth || 0}
                 icon={<PeopleRoundedIcon />}
                 color="#5B8DEF"
@@ -329,7 +324,7 @@ export default function DashboardAnalysisPage() {
             ) : (
               <StatCard
                 label="内容总量"
-                value={fmt(s?.totalContent || 0)}
+                value={formatCountWanK(s?.totalContent || 0)}
                 growth={s?.totalContentGrowth || 0}
                 icon={<ArticleRoundedIcon />}
                 color="#FE2C55"
@@ -357,7 +352,7 @@ export default function DashboardAnalysisPage() {
             ) : (
               <StatCard
                 label="订单总量"
-                value={fmt(s?.totalOrders || 0)}
+                value={formatCountWanK(s?.totalOrders || 0)}
                 growth={s?.totalOrdersGrowth || 0}
                 icon={<ShoppingCartRoundedIcon />}
                 color="#5DDB96"
@@ -373,7 +368,7 @@ export default function DashboardAnalysisPage() {
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">今日新增用户</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#5B8DEF' }}>{loading ? <Skeleton width={60} sx={{ display: 'inline-block' }} /> : fmt(s?.newUsersToday || 0)}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#5B8DEF' }}>{loading ? <Skeleton width={60} sx={{ display: 'inline-block' }} /> : formatCountWanK(s?.newUsersToday || 0)}</Typography>
                 <Typography variant="caption" color="text.secondary">实时</Typography>
               </CardContent>
             </Card>
@@ -382,7 +377,7 @@ export default function DashboardAnalysisPage() {
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">活跃用户</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#FE2C55' }}>{loading ? <Skeleton width={60} sx={{ display: 'inline-block' }} /> : fmt(s?.activeUsersToday || 0)}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#FE2C55' }}>{loading ? <Skeleton width={60} sx={{ display: 'inline-block' }} /> : formatCountWanK(s?.activeUsersToday || 0)}</Typography>
                 <Typography variant="caption" color="text.secondary">今日</Typography>
               </CardContent>
             </Card>
@@ -485,7 +480,7 @@ export default function DashboardAnalysisPage() {
                             '& .MuiLinearProgress-bar': { bgcolor: item.color, borderRadius: 3 },
                           }}
                         />
-                        <Typography variant="caption" color="text.secondary">{fmt(item.count)} 条</Typography>
+                        <Typography variant="caption" color="text.secondary">{formatCountWanK(item.count)} 条</Typography>
                       </Box>
                     ))}
                     <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 1 }}>
@@ -532,11 +527,11 @@ export default function DashboardAnalysisPage() {
                           </ListItemAvatar>
                           <ListItemText
                             primary={c.name}
-                            secondary={`${fmt(c.fans)} 粉丝 · ${c.works} 作品`}
+                            secondary={`${formatCountWanK(c.fans)} 粉丝 · ${c.works} 作品`}
                             slotProps={{ primary: { sx: { fontSize: 14, fontWeight: 500 } }, secondary: { sx: { fontSize: 12 } } }}
                           />
                           <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>{fmt(c.totalViews)} 播放</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>{formatCountWanK(c.totalViews)} 播放</Typography>
                             <Chip
                               icon={<TrendingUpRoundedIcon />}
                               label={`近30天 +${c.recentWorks} 作品`}

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDuration } from '@/lib/utils/format';
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { reportPlay } from '@/lib/playReport';
 import Box from '@mui/material/Box';
@@ -143,12 +144,6 @@ function typingTarget(t: EventTarget | null) {
   return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
 }
 
-function fmt(s: number) {
-  if (!isFinite(s) || s < 0) return '0:00';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
-}
 
 /** 推荐流右上角的圆形玻璃按钮 */
 /** 音量(0–100)记在本机:推荐流每条视频都是新的播放器,不记的话每划一条都回到满音量 */
@@ -276,7 +271,7 @@ const SeekSlider = memo(function SeekSlider({
       onChange={onScrub}
       onChangeCommitted={onScrubEnd}
       valueLabelDisplay={valueLabel ? 'auto' : undefined}
-      valueLabelFormat={valueLabel ? fmt : undefined}
+      valueLabelFormat={valueLabel ? formatDuration : undefined}
       sx={sx}
     />
   );
@@ -288,7 +283,7 @@ const PlayTime = memo(function PlayTime({ time, scrub, duration }: { time: TimeS
   const sec = useSyncExternalStore(time.subscribe, getSec, getSec);
   return (
     <>
-      {fmt(scrub ?? sec)} / {fmt(duration)}
+      {formatDuration(scrub ?? sec)} / {formatDuration(duration)}
     </>
   );
 });
@@ -1558,7 +1553,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               aria-hidden
               sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) + 132px)', zIndex: 6, textAlign: 'center', pointerEvents: 'none', color: '#fff', fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}
             >
-              {fmt(scrub)} <Box component="span" sx={{ opacity: 0.6 }}>/ {fmt(duration)}</Box>
+              {formatDuration(scrub)} <Box component="span" sx={{ opacity: 0.6 }}>/ {formatDuration(duration)}</Box>
             </Box>
           )}
           <Box

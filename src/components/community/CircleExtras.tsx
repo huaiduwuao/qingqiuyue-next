@@ -1,5 +1,6 @@
 'use client';
 
+import { formatCountW } from '@/lib/utils/format';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -127,7 +128,7 @@ function SuggestUserRow({ user, circle, notify }: { user?: SuggestUser; circle: 
           )}
         </Box>
         <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>
-          {compactFollowers(user.followers)} 粉丝
+          {formatCountW(user.followers)} 粉丝
         </Typography>
       </Box>
       <Button
@@ -273,7 +274,7 @@ function FollowedRow({ user, onUnfollow }: { user: FollowedUser; onUnfollow: (u:
             {user.bio || `抖音号: ${user.douyinId}`}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'var(--text-disabled, rgba(255,255,255,0.35))', mt: 0.25 }}>
-            {compactFollowers(user.followers)} 粉丝 · {user.posts} 作品
+            {formatCountW(user.followers)} 粉丝 · {user.posts} 作品
           </Typography>
         </Box>
         <Button
@@ -411,9 +412,6 @@ function outlinedSx(color: string, border: string) {
   } as const;
 }
 
-function compactFollowers(n: number): string {
-  return n >= 10000 ? `${(n / 10000).toFixed(1)}w` : String(n ?? 0);
-}
 
 export const sideCardSx = {
   p: 2,

@@ -144,13 +144,6 @@ const BENEFITS = [
   { icon: <AutoAwesomeRoundedIcon sx={{ fontSize: 18 }} />, title: 'AI 封面', desc: '智能抽取最佳帧作封面', color: '#5B8DEF' },
 ];
 
-function formatDuration(s: number): string {
-  if (s < 60) return `${s} 秒`;
-  if (s < 3600) return `${Math.floor(s / 60)} 分钟`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时`;
-  return `${Math.floor(s / 86400)} 天`;
-}
-
 function formatSize(mb: number): string {
   if (mb < 1024) return `${mb} MB`;
   return `${(mb / 1024).toFixed(1)} GB`;
