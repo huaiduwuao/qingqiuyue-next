@@ -5,7 +5,8 @@
 // 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { getHdVideoList, getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
+import { useHdReviewVideos } from './useHdReviewData';
+import { getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { useActiveTab } from '../../ActiveTabContext';
@@ -37,19 +38,14 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
 import { useQuery } from '@tanstack/react-query';
-import { gradient2 } from '@/constants/gradients';
-import { getReviewQueue, doReview, type ReviewRequest } from '@/apis/review';
 import {
   HdVideo,
   Reviewer,
-  ReviewerVerdict,
   ReviewerDecision,
   REVIEWER_LEVEL_META,
-  REVIEW_CHECK_TEMPLATE,
 } from '../hd-publish/data';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { formatCount } from '@/lib/utils/format';
-import { errMessage } from '@/lib/errMessage';
 
 type ReviewTab = 'pending' | 'reviewed';
 
@@ -117,16 +113,7 @@ const RISK_META: Record<RiskLevel, { label: string; color: string; bg: string }>
 
 export default function HdReviewPage() {
   const { tabParams, setActiveTab } = useActiveTab();
-  // 真接口:HD 视频 + 审核员,tab 切换时强制 refetch
-  const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, pageSize: 50 }), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const apiVideos: HdVideo[] = (hdResp?.list ?? []).map((v) => ({
-    id: v.id, title: v.title, cover: v.cover,
-    resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
-    status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,
-    views: v.views, likes: v.likes, hasCover: v.hasCover,
-    subtitles: [], audioTracks: [],
-  }));
-  const [videos, setVideos] = useState<HdVideo[]>(apiVideos);
+  // 真接口:审核员,tab 切换时强制 refetch
   const { data: reviewerResp } = useQuery({ queryKey: ['creator-hd-reviewers'], queryFn: () => getReviewerList(), staleTime: 5 * 60 * 1000, refetchOnMount: 'always' });
   const apiReviewers: Reviewer[] = (reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
     id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
@@ -144,61 +131,8 @@ export default function HdReviewPage() {
   const [selectedRejectReasons, setSelectedRejectReasons] = useState<string[]>([]);
   const [snack, setSnack] = useState<string | null>(null);
 
-  // 待审队列来自审核系统(content_review_request,仅内容运营可见);结论经 /review/:id/review
-  // 提交,由后端同步上线 / 驳回内容。以前这里拉的是「我的」内容,结论也发到一个不存在的状态接口。
-  const { data: reviewQueue, refetch: refetchQueue } = useQuery({
-    queryKey: ['review-queue', 'pending'],
-    queryFn: async () => {
-      // 新提交(pending)与作者修改后重新提交(resubmit)的审核单都需要处理
-      const [pending, resubmit] = await Promise.all([
-        getReviewQueue({ status: 'pending', pageSize: 100 }),
-        getReviewQueue({ status: 'resubmit', pageSize: 100 }),
-      ]);
-      return [...(resubmit.list ?? []), ...(pending.list ?? [])] as ReviewRequest[];
-    },
-    staleTime: 30_000,
-    refetchOnMount: 'always',
-  });
-  const realReviewing = useMemo(
-    () => (reviewQueue ?? []).map((r) => ({ id: r.contentId, title: r.title, coverUrl: r.coverUrl, createTime: r.createdAt })),
-    [reviewQueue],
-  );
-  // 内容 id → 审核单 id,提交结论时用
-  const reviewIdByContent = useMemo(
-    () => new Map((reviewQueue ?? []).map((r) => [String(r.contentId), r.id])),
-    [reviewQueue],
-  );
-
-  // 把真实内容合并到本地 simulator 列表(去重)
-  useEffect(() => {
-    if (!realReviewing?.length) return;
-    setVideos((prev) => {
-      const existingIds = new Set(prev.map((v) => v.id));
-      const mapped: HdVideo[] = realReviewing
-        .filter((item) => !existingIds.has(String(item.id)))
-        .map((item) => ({
-          id: String(item.id),
-          title: item.title || '(无标题)',
-          cover: item.coverUrl || gradient2('#FE2C55', '#FFB400'),
-          resolution: '1080P',
-          fps: 30,
-          hdr: false,
-          duration: '00:00',
-          sizeMB: 0,
-          status: 'reviewing',
-          uploadedAt: item.createTime ? new Date(item.createTime).getTime() : Date.now(),
-          hasCover: !!item.coverUrl,
-          subtitles: [],
-          audioTracks: [{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }],
-          review: {
-            checks: REVIEW_CHECK_TEMPLATE.map((c) => ({ ...c, status: 'pending' as const })),
-            startedAt: Date.now(),
-            assignedReviewerId: currentReviewerId,
-          },
-        }));
-      return [...mapped, ...prev];
-    });
-  }, [realReviewing, currentReviewerId]);
+  // 视频列表:待审队列 + 我审过的 + 自己的 HD 视频,每次由服务端数据现算,结论是叠在上面的乐观改动
+  const { videos, submitVerdict } = useHdReviewVideos(currentReviewerId, setSnack);
 
   // When hd-publish sends us a pre-selected video via setActiveTab('hd-review',
   // { video }), open that video in the right panel as soon as the data is ready.
@@ -282,69 +216,20 @@ export default function HdReviewPage() {
         : selectedRejectReasons.length > 0
         ? `主要问题:${selectedRejectReasons.join('、')}`
         : '需补充材料后重新提交。');
-    const verdict: ReviewerVerdict = {
-      decision,
-      note,
-      reviewerId: currentReviewerId,
-      timestamp: Date.now(),
-      appealable: decision === 'reject',
-      appealDeadline: decision === 'reject' ? Date.now() + 86400000 * 7 : undefined,
-    };
-    const completedAt = Date.now();
-    const isPass = decision === 'pass';
-
-    // 结论提交给审核系统:通过 → 内容上线,驳回 → 内容标记为未通过,要求修改 → 退回作者
-    const reviewId = reviewIdByContent.get(selectedVideo.id);
-    if (!reviewId) {
-      setSnack('这条内容没有待处理的审核单');
-      return;
-    }
     setSubmittingVerdict(true);
+    let ok = false;
     try {
-      await doReview({
-        id: reviewId,
-        action: isPass ? 'approve' : decision === 'reject' ? 'reject' : 'revise',
+      ok = await submitVerdict({
+        videoId: selectedVideo.id,
+        title: selectedVideo.title,
+        decision,
         note,
         categoryName: selectedRejectReasons.join('、') || undefined,
       });
-      refetchQueue();
-    } catch (e) {
-      setSnack(`提交审核结论失败:${errMessage(e) || '未知错误'}`);
-      return;
     } finally {
       setSubmittingVerdict(false);
     }
-
-    setVideos((p) =>
-      p.map((v) =>
-        v.id === selectedVideo.id && v.review
-          ? {
-              ...v,
-              status: isPass ? 'published' : 'review_failed',
-              failedStage: isPass ? undefined : 'review',
-              publishedAt: isPass ? completedAt : v.publishedAt,
-              views: isPass ? 0 : v.views,
-              likes: isPass ? 0 : v.likes,
-              review: {
-                ...v.review,
-                completedAt,
-                result: isPass ? 'pass' : 'reject',
-                reviewerVerdict: verdict,
-                checks: v.review.checks.map((c) =>
-                  c.id === 'manual_review' ? { ...c, status: isPass ? 'passed' : 'failed', message: note } : c,
-                ),
-              },
-            }
-          : v,
-      ),
-    );
-    setSnack(
-      isPass
-        ? `✅ 已通过《${selectedVideo.title}》`
-        : decision === 'reject'
-        ? `⛔ 已驳回《${selectedVideo.title}》`
-        : `📝 已通知创作者补充材料`,
-    );
+    if (!ok) return;
     setSelectedVideoId(null);
     setVerdictNote('');
     setSelectedRejectReasons([]);

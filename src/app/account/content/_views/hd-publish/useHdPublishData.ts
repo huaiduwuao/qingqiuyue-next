@@ -1,32 +1,20 @@
 'use client';
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { getHdVideoList } from '@/apis/dashboard';
 import { managePage, setContentCover, updateShare, type ModuleContentItem } from '@/apis/module-content';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { gradient3 } from '@/constants/gradients';
 import type { SavedContent } from '../../_components/useContentForm';
 import { REVIEW_CHECK_TEMPLATE, type AudioTrack, type HdResolution, type HdVideo, type SubtitleTrack } from './data';
-import {
-  applyHdOps,
-  dedupeHdVideos,
-  liveHdOps,
-  mergeServerHdVideos,
-  type HdPendingOp,
-  type HdSyncMark,
-  type SnackMsg,
-  type UploadStatus,
-} from './hdPublishModel';
+import { dedupeHdVideos, mergeServerHdVideos, type SnackMsg, type UploadStatus } from './hdPublishModel';
+import { useOptimisticOverlay } from './useOptimisticOverlay';
 
 type SetSnack = (s: string | SnackMsg) => void;
 
 export const HD_VIDEOS_QUERY_KEY = ['creator-hd-videos'] as const;
 export const HD_MANAGE_VIDEOS_QUERY_KEY = ['module-content', 'hd-publish', 'videos'] as const;
-
-type NewHdOp =
-  | { kind: 'remove'; videoId: string }
-  | { kind: 'update'; videoId: string; apply: (v: HdVideo) => HdVideo };
 
 /** 封面图片走现有的文件上传接口(与视频上传同一个),返回图片地址。 */
 export async function uploadCoverImage(image: Blob, fileName: string): Promise<string | undefined> {
@@ -50,7 +38,6 @@ export async function uploadCoverImage(image: Blob, fileName: string): Promise<s
  * 此前本地 state 只在条数变化时才同步,状态变了界面一直停在旧值。
  */
 export function useHdVideos(setSnack: SetSnack) {
-  const queryClient = useQueryClient();
   // 真接口:HD 视频列表(uid 隔离)
   const hdQuery = useQuery({
     queryKey: HD_VIDEOS_QUERY_KEY,
@@ -76,69 +63,14 @@ export function useHdVideos(setSnack: SetSnack) {
     () => mergeServerHdVideos(dedupeHdVideos(hdList), manageList),
     [hdList, manageList],
   );
-  // 两路数据各自落定(拿到数据或失败)过几次;改动确认之后两路都再落定过,才算被服务端覆盖。
-  const settleCount = useCallback(
-    (key: readonly unknown[]) => {
-      const st = queryClient.getQueryState(key);
-      return st ? st.dataUpdateCount + st.errorUpdateCount : 0;
-    },
-    [queryClient],
+  const { overlay, runOptimistic, addConfirmed: addVideo } = useOptimisticOverlay(
+    [
+      { key: HD_VIDEOS_QUERY_KEY, query: hdQuery },
+      { key: HD_MANAGE_VIDEOS_QUERY_KEY, query: manageQuery },
+    ],
+    setSnack,
   );
-  const synced = useMemo<HdSyncMark>(
-    () => ({ hd: settleCount(HD_VIDEOS_QUERY_KEY), manage: settleCount(HD_MANAGE_VIDEOS_QUERY_KEY) }),
-    // 时间戳只当触发器:任一路落定一次(哪怕数据和上次一样、data 引用没变)它们就变,重新数一遍。
-    // 读它们也让 useQuery 订阅这几个字段,重拉到相同数据时组件照样重渲染。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settleCount, hdQuery.dataUpdatedAt, hdQuery.errorUpdatedAt, manageQuery.dataUpdatedAt, manageQuery.errorUpdatedAt],
-  );
-  const markNow = useCallback(
-    (): HdSyncMark => ({ hd: settleCount(HD_VIDEOS_QUERY_KEY), manage: settleCount(HD_MANAGE_VIDEOS_QUERY_KEY) }),
-    [settleCount],
-  );
-
-  const [ops, setOps] = useState<HdPendingOp[]>([]);
-  const opSeqRef = useRef(0);
-  // 已被服务端覆盖的改动不再叠加(落定次数只增不减,排除后不会再回来);state 里的旧条目在下次加改动时顺手清掉
-  const liveOps = useMemo(() => liveHdOps(ops, synced), [ops, synced]);
-  const videos = useMemo(() => applyHdOps(serverVideos, liveOps), [serverVideos, liveOps]);
-
-  const refetchServer = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: HD_VIDEOS_QUERY_KEY });
-    void queryClient.invalidateQueries({ queryKey: HD_MANAGE_VIDEOS_QUERY_KEY });
-  }, [queryClient]);
-
-  /** 先叠上乐观改动再发请求:成功则等服务端刷新后撤掉改动,失败立即撤掉(回滚)。返回是否成功。 */
-  const runOptimistic = useCallback(
-    async <T,>(op: NewHdOp, request: () => Promise<T>, okMsg: string | ((res: T) => string), failMsg: string) => {
-      const opId = ++opSeqRef.current;
-      setOps((p) => [...liveHdOps(p, markNow()), { ...op, opId } as HdPendingOp]);
-      let res: T;
-      try {
-        res = await request();
-      } catch (e) {
-        setOps((p) => p.filter((o) => o.opId !== opId));
-        setSnack(`${failMsg}:${formatApiError(e)}`);
-        return false;
-      }
-      const confirmedAt = markNow();
-      setOps((p) => p.map((o) => (o.opId === opId ? { ...o, confirmedAt } : o)));
-      refetchServer();
-      setSnack(typeof okMsg === 'function' ? okMsg(res) : okMsg);
-      return true;
-    },
-    [markNow, refetchServer, setSnack],
-  );
-
-  /** 刚创建好的视频先放进列表,等服务端列表拉到它为止 */
-  const addVideo = useCallback(
-    (video: HdVideo) => {
-      const opId = ++opSeqRef.current;
-      const confirmedAt = markNow();
-      setOps((p) => [...liveHdOps(p, confirmedAt), { opId, kind: 'add', videoId: video.id, video, confirmedAt }]);
-      refetchServer();
-    },
-    [markNow, refetchServer],
-  );
+  const videos = useMemo(() => overlay(serverVideos), [overlay, serverVideos]);
 
   const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
 

@@ -165,24 +165,24 @@ export function mergeServerHdVideos(hdVideos: HdVideo[], manageItems: ModuleCont
  * - remove:删除 / 立即发布,先从列表拿掉;
  * - update:重新转码 / 送审 / 极速通道 / 换封面,先改界面;
  * - add:刚上传、服务端已建好但列表还没拉到的视频。
- * 请求失败就把这条改动撤掉(露出服务端的真实状态 = 回滚);请求成功记下当时两路数据各自
- * 落定过几次(confirmedAt),等两路都在这之后再落定一次(拿到新数据或拉取失败)才撤掉,
+ * 请求失败就把这条改动撤掉(露出服务端的真实状态 = 回滚);请求成功记下当时各路服务端数据
+ * 各自落定过几次(confirmedAt),等各路都在这之后再落定一次(拿到新数据或拉取失败)才撤掉,
  * 此后以服务端为准。用次数不用时间戳:请求和重拉落在同一毫秒时时间戳分不出先后。
+ * 机制见 useOptimisticOverlay(高清发布、审核员工作台共用)。
  */
-export interface HdSyncMark {
-  hd: number;
-  manage: number;
-}
+/** 各路服务端数据(按来源名)落定过的次数 */
+export type HdSyncMark = Record<string, number>;
 export type HdPendingOp =
   | { opId: number; kind: 'remove'; videoId: string; confirmedAt?: HdSyncMark }
   | { opId: number; kind: 'update'; videoId: string; apply: (v: HdVideo) => HdVideo; confirmedAt?: HdSyncMark }
   | { opId: number; kind: 'add'; videoId: string; video: HdVideo; confirmedAt?: HdSyncMark };
 
-/** 还要叠在服务端数据上的改动:未确认的,或确认后两路数据还没都刷新过的。 */
+/** 还要叠在服务端数据上的改动:未确认的,或确认后还有哪一路数据没再刷新过的。 */
 export function liveHdOps(ops: HdPendingOp[], synced: HdSyncMark): HdPendingOp[] {
-  return ops.filter(
-    (op) => !op.confirmedAt || synced.hd <= op.confirmedAt.hd || synced.manage <= op.confirmedAt.manage,
-  );
+  return ops.filter((op) => {
+    const mark = op.confirmedAt;
+    return !mark || Object.keys(mark).some((k) => (synced[k] ?? 0) <= mark[k]);
+  });
 }
 
 export function applyHdOps(server: HdVideo[], ops: HdPendingOp[]): HdVideo[] {
