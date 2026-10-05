@@ -20,7 +20,7 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { alpha } from '@mui/material/styles';
 import { getBountyDetail } from '@/apis/dashboard';
-import { listTasks, claimTask } from '@/apis/reward-task';
+import { listTasks, claimTask, type TaskPageResp } from '@/apis/reward-task';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { loginHref } from '@/lib/auth/redirect';
@@ -72,8 +72,8 @@ export default function BountyDetailDialog({
   const tasksQuery = useQuery({
     queryKey: ['reward', 'bounty', 'tasks', bountyId],
     queryFn: async () => {
-      const res: any = await listTasks({ demandId: Number(bountyId), pageSize: 100 });
-      return mapRewardTaskListFromBackend(res?.records || []) as RewardTask[];
+      const res = (await listTasks({ demandId: Number(bountyId), pageSize: 100 })) as TaskPageResp | undefined;
+      return mapRewardTaskListFromBackend(res?.records || []);
     },
     enabled: open && !!bountyId,
   });
@@ -94,7 +94,7 @@ export default function BountyDetailDialog({
     }
     setClaimingId(task.id!);
     try {
-      const res: any = await claimTask(task.id!);
+      const res: unknown = await claimTask(task.id!);
       // 拦截器已在 code !== 0 时 reject;这里就是成功路径
       setMessage({ text: '认领成功,完成后在任务里提交交付物', severity: 'success' });
       setActiveTask(mapRewardTaskFromBackend(res));

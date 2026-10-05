@@ -1,4 +1,4 @@
-import type { RewardTaskStatus } from '@/beans/reward';
+import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 
 /**
  * 前后端任务状态枚举不对齐：
@@ -58,9 +58,19 @@ export function denormalizeRewardTaskStatus(status: RewardTaskStatus): string {
  * 映射到前端 bean 命名(assigneeId/assigneeName/assigneeAvatar/deliverable/createdBy)。
  * /task/page 列表与 claim/submit/review 的返回都要经过这里。
  */
-export function mapRewardTaskFromBackend(raw: any): any {
-  if (!raw || typeof raw !== 'object') return raw;
-  const r = { ...raw };
+/** 后端 TaskView 里与前端 bean 命名不同的那几个字段 */
+interface BackendTaskAliases {
+  claimerId?: number | null;
+  claimerName?: string;
+  claimerAvatar?: string;
+  claimerIsBot?: boolean;
+  submission?: string | null;
+  createUser?: number;
+}
+
+export function mapRewardTaskFromBackend(raw: unknown): RewardTask {
+  if (!raw || typeof raw !== 'object') return raw as RewardTask;
+  const r = { ...raw } as RewardTask & BackendTaskAliases;
   if (r.assigneeId == null && r.claimerId != null) r.assigneeId = r.claimerId || null;
   if (r.assigneeName == null && r.claimerName) r.assigneeName = r.claimerName;
   if (r.assigneeAvatar == null && r.claimerAvatar) r.assigneeAvatar = r.claimerAvatar;
@@ -70,7 +80,7 @@ export function mapRewardTaskFromBackend(raw: any): any {
   return r;
 }
 
-export function mapRewardTaskListFromBackend(list: any[]): any[] {
+export function mapRewardTaskListFromBackend(list: unknown): RewardTask[] {
   if (!Array.isArray(list)) return [];
   return list.map(mapRewardTaskFromBackend);
 }

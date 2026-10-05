@@ -21,9 +21,14 @@ export const waitDelete = (p: Page) => p.waitForRequest((r) => match(r, 'DELETE'
 export const waitAction = (p: Page, a: 'claim' | 'submit' | 'review') =>
   p.waitForRequest((r) => match(r, 'POST', RX.taskAction(a)));
 
+/** 列表里的一条记录(只用到这几个字段)。 */
+type Rec = { id?: number; name?: string; title?: string };
+/** 分页响应:{ records } / { list },或直接是数组。 */
+type Paged = { records?: Rec[]; list?: Rec[] };
+
 /** 解包 { code, msg, data }。 */
-export async function unwrap(res: { json(): Promise<any> }) {
-  const j = await res.json();
+export async function unwrap(res: { json(): Promise<unknown> }): Promise<Paged | null | undefined> {
+  const j = (await res.json()) as (Paged & { data?: Paged }) | null | undefined;
   return j?.data ?? j;
 }
 
@@ -31,13 +36,13 @@ export async function unwrap(res: { json(): Promise<any> }) {
 export async function ensureGroup(api: APIRequestContext, name = 'E2E-Group'): Promise<number> {
   const list = await unwrap(await api.get('/api/core/group/client/page', { params: { pageSize: 50 } }));
   const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
-  let found = records.find((g: any) => g?.name === name);
+  let found = records.find((g: Rec) => g?.name === name);
   if (found?.id) return found.id;
   // 触发创建 —— 响应可能只回 {code:0,msg:'创建成功'},创建完用同 name 再查一次
   await (await api.post('/api/core/group', { data: { name } })).json().catch(() => ({}));
   const after = await unwrap(await api.get('/api/core/group/client/page', { params: { pageSize: 50 } }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
-  found = rec2.find((g: any) => g?.name === name) || rec2[0];
+  found = rec2.find((g: Rec) => g?.name === name) || rec2[0];
   if (!found?.id) throw new Error(`ensureGroup 失败，列表中没有 name=${name}: ${JSON.stringify(after)}`);
   return found.id;
 }
@@ -49,15 +54,15 @@ export async function ensureProject(api: APIRequestContext, groupId?: number, na
   if (groupId != null) baseParams.groupId = groupId;
   const list = await unwrap(await api.get('/api/core/project/client/page', { params: baseParams }));
   const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
-  let found = records.find((p: any) => p?.name === name);
+  let found = records.find((p: Rec) => p?.name === name);
   if (found?.id) return found.id;
-  const data: any = { name };
+  const data: Record<string, unknown> = { name };
   if (groupId != null) data.groupId = groupId;
   await (await api.post('/api/core/project', { data })).json().catch(() => ({}));
   // 后端创建可能仅返回 {code:0,msg:'创建成功'} 不带回实体 → 回查列表取 id
   const after = await unwrap(await api.get('/api/core/project/client/page', { params: baseParams }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
-  found = rec2.find((p: any) => p?.name === name) || rec2[0];
+  found = rec2.find((p: Rec) => p?.name === name) || rec2[0];
   if (!found?.id) throw new Error(`ensureProject 失败，列表中没有 name=${name}: ${JSON.stringify(after)}`);
   return found.id;
 }
@@ -69,15 +74,15 @@ export async function seedTask(
 ): Promise<number> {
   const list = await unwrap(await api.get('/api/core/task/page', { params: { pageSize: 100, projectId } }));
   const recs = list?.records || list?.list || (Array.isArray(list) ? list : []);
-  const found = recs.find((t: any) => t?.title === title);
+  const found = recs.find((t: Rec) => t?.title === title);
   if (found?.id) return found.id;
-  const data: any = { projectId, groupId, groupIds: [groupId], title, description: 'e2e seed', priority: 'P1', status };
+  const data: Record<string, unknown> = { projectId, groupId, groupIds: [groupId], title, description: 'e2e seed', priority: 'P1', status };
   const resp = await (await api.post('/api/core/task', { data })).json();
   const ok = resp?.code === 200 || resp?.code === '200' || resp?.code === 0 || resp?.code === '0';
   if (!ok) throw new Error(`createTask 失败：${JSON.stringify(resp)}`);
   const after = await unwrap(await api.get('/api/core/task/page', { params: { pageSize: 100, projectId } }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
-  const created = rec2.find((t: any) => t?.title === title);
+  const created = rec2.find((t: Rec) => t?.title === title);
   if (!created?.id) throw new Error(`createTask 成功但回查未拿到 id`);
   return created.id;
 }
@@ -89,16 +94,16 @@ export async function seedDemand(
 ): Promise<number> {
   const list = await unwrap(await api.get('/api/core/demand/client/page', { params: { pageSize: 50, groupId } }));
   const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
-  const found = records.find((d: any) => d?.title === title);
+  const found = records.find((d: Rec) => d?.title === title);
   if (found?.id) return found.id;
-  const data: any = { groupId, title, content: 'e2e seed demand', pay: 0, status };
+  const data: Record<string, unknown> = { groupId, title, content: 'e2e seed demand', pay: 0, status };
   if (projectId) data.projectId = projectId;
-  const resp = await (await api.post('/api/core/demand', { data })).json().catch((e: any) => ({ error: String(e) }));
+  const resp = await (await api.post('/api/core/demand', { data })).json().catch((e: unknown) => ({ error: String(e) }));
   const ok = resp?.code === 200 || resp?.code === '200' || resp?.code === 0 || resp?.code === '0';
   if (!ok) throw new Error(`createDemand 失败：${JSON.stringify(resp)}`);
   const after = await unwrap(await api.get('/api/core/demand/client/page', { params: { pageSize: 50, groupId } }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
-  const created = rec2.find((d: any) => d?.title === title);
+  const created = rec2.find((d: Rec) => d?.title === title);
   if (!created?.id) throw new Error(`createDemand 成功但回查未拿到 id`);
   return created.id;
 }

@@ -59,7 +59,7 @@ test.describe('悬赏中心 · 协作看板', () => {
       page.waitForResponse((r) => /\/api\/core\/task\/\d+\/claim/.test(r.url())),
       claimBtn.click(),
     ]);
-    const claimBody = await claimResp.json().catch(() => ({} as any));
+    const claimBody = await claimResp.json().catch(() => ({}));
     console.log('[diag] claim resp', claimResp.status(), JSON.stringify(claimBody));
     await expect(page.getByText(S.opSuccess)).toBeVisible({ timeout: 5000 });
     // 后端响应后 handleTaskChanged → invalidateQueries 触发列表 refetch；在窗口内必到，故容忍竞争

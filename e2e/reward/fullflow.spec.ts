@@ -135,7 +135,7 @@ async function selectOption(page: Page, dialog: ReturnType<Page['getByRole']>, f
 /** API context(读 storageState 里的 token,走 next dev 代理)。 */
 async function apiCtx(): Promise<APIRequestContext> {
   const state = JSON.parse(fs.readFileSync('e2e/.auth/storageState.json', 'utf-8'));
-  const token = state?.origins?.[0]?.localStorage?.find((kv: any) => kv.name === 'token')?.value;
+  const token = state?.origins?.[0]?.localStorage?.find((kv: { name?: string; value?: string }) => kv.name === 'token')?.value;
   return pwRequest.newContext({
     baseURL: 'http://localhost:3000',
     extraHTTPHeaders: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -146,7 +146,7 @@ async function fetchRecords(api: APIRequestContext, path: string, params: Record
   const res = await api.get(path, { params });
   const j = await res.json();
   const d = j?.data ?? j;
-  return (d?.records || d?.list || (Array.isArray(d) ? d : [])) as any[];
+  return (d?.records || d?.list || (Array.isArray(d) ? d : [])) as Record<string, unknown>[];
 }
 
 // ---------- 各模块 UI 操作 ----------
@@ -499,7 +499,7 @@ test.describe.serial('悬赏中心 · 全流程真实交互(保留数据)', () =
       const conceptions = await fetchRecords(api, '/api/core/conception/client/page');
       const realizations = await fetchRecords(api, '/api/core/realization/list');
 
-      const pick = (arr: any[], field: string, value: string) => arr.find((x) => x?.[field] === value) || null;
+      const pick = (arr: Record<string, unknown>[], field: string, value: string) => arr.find((x) => x?.[field] === value) || null;
 
       const result = {
         ts: TS,

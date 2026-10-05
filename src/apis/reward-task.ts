@@ -20,7 +20,7 @@ import type { PageParams } from '@/beans/pagination';
 
 export interface TaskQuery extends PageParams {
   /** 以这个团队名义认领的任务 */
-  teamId?: number;
+  teamId?: number | null;
   /** 我发布的任务 */
   ownerId?: number;
   claimerId?: number;

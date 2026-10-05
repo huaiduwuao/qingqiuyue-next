@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { Box, Chip, Typography, Stack } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import {
   EXPRESSION_PRESETS,
   EXPRESSION_PRESET_LABELS,
@@ -73,7 +74,7 @@ export default function ExpressionPreview({ active, onChange, onEmotionChange }:
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{
         width: '100%', height: 220, borderRadius: 2, overflow: 'hidden',
-        background: (t: any) =>
+        background: (t: Theme) =>
           t.palette.mode === 'dark'
             ? 'radial-gradient(ellipse at center, #2a1e3f 0%, #0a0815 100%)'
             : 'radial-gradient(ellipse at center, #f3eefb 0%, #e7e9f3 100%)',

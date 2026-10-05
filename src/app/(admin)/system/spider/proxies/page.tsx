@@ -126,7 +126,7 @@ export default function SpiderProxiesPage() {
 
   const testProviderMutation = useMutation({
     mutationFn: (id: string) => testProxyProvider(id),
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       if (data.ok) showMsg(`连接成功,IP=${data.ip},延迟=${data.latency_ms}ms`, 'success');
       else showMsg(`失败:${data.error || 'empty ip'}`, 'error');
     },
@@ -384,7 +384,7 @@ export default function SpiderProxiesPage() {
           <TextField
             select label="类型"
             value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value as any })}
+            onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })}
             fullWidth size="small"
           >
             <MenuItem value="http">HTTP</MenuItem>

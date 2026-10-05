@@ -9,12 +9,12 @@ import RewardHero from './RewardHero';
 import RewardCategoryRow from './RewardCategoryRow';
 import RewardHotGrid from './RewardHotGrid';
 import BountyDetailDialog from './BountyDetailDialog';
-import RewardSquareMobile from './RewardSquareMobile';
+import RewardSquareMobile, { type RewardPointMe } from './RewardSquareMobile';
 import { useResponsive } from '@/hooks/useResponsive';
 
 interface DashboardProps {
-  groupId?: any;
-  groupData?: any;
+  groupId?: unknown;
+  groupData?: unknown;
   /** 切到奖励中心的其它子页(手机版猎人卡 → 我的工作台、「发悬赏」→ 我的需求) */
   onOpenTab?: (tab: string) => void;
 }
@@ -37,10 +37,10 @@ export default function DashboardPage({ onOpenTab }: DashboardProps) {
 
   const pointQuery = useQuery({
     queryKey: ['user-point', 'me', 'reward'],
-    queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r || {}),
-    placeholderData: {},
+    queryFn: () => userPointMe({ type: 'reward' }).then((r: RewardPointMe | null) => r || ({} as RewardPointMe)),
+    placeholderData: {} as RewardPointMe,
   });
-  const myPoint: any = pointQuery.data || {};
+  const myPoint: RewardPointMe = pointQuery.data || ({} as RewardPointMe);
 
   // 我的赏金统计(真实数据,替代硬编码)
   const myStatsQuery = useQuery({

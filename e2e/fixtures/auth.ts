@@ -14,7 +14,7 @@ export interface Creds {
  */
 export async function loginViaApi(request: APIRequestContext, { name, password }: Creds): Promise<string> {
   const res = await request.post('/api/core/login', { data: { name, password } });
-  const json = await res.json().catch(() => ({} as any));
+  const json = await res.json().catch(() => ({}));
   // 后端 code 0 或 200 均表成功（与 client.ts 拦截器一致）；msg 可能是 'success'
   const code = json?.code;
   const ok = !!json?.data?.token && (code === 200 || code === '200' || code === 0 || code === '0');

@@ -34,6 +34,9 @@
  *   pray     — 双手合十 (感谢 / 求好运)
  */
 
+import type * as THREE from 'three';
+import type { VRM, VRMHumanBoneName, VRMMeta } from '@pixiv/three-vrm';
+
 export type ActionName =
   | 'idle' | 'wave' | 'bow' | 'nod' | 'shake'
   | 'clap' | 'cheer' | 'jump' | 'walk' | 'run'
@@ -121,7 +124,7 @@ export interface ActionController {
   getCurrent: () => { name: ActionName; t: number; speed: number };
   stopToIdle: () => void;
   /** 主循环调用 */
-  tick: (dt: number, vrm: any) => void;
+  tick: (dt: number, vrm: VRM | null | undefined) => void;
 }
 
 export function createActionController(): ActionController {
@@ -149,12 +152,12 @@ export function createActionController(): ActionController {
     playAction('idle');
   }
 
-  function tick(dt: number, vrm: any) {
+  function tick(dt: number, vrm: VRM | null | undefined) {
     if (!vrm?.humanoid) return;
     const { bones } = getBones(vrm);
 
     // 复位 bone 然后应用自然姿态
-    for (const node of Object.values<any>(bones)) {
+    for (const node of Object.values(bones)) {
       node.rotation.set(0, 0, 0);
     }
     setNaturalPose(bones);
@@ -187,26 +190,26 @@ const ALL_BONE_NAMES_VRM1: string[] = [
   'leftEye', 'rightEye', 'jaw',
 ];
 
-export function getVRMVersion(v: any): 0 | 1 {
+export function getVRMVersion(v: { meta?: VRMMeta | null } | null | undefined): 0 | 1 {
   const ver = (v?.meta?.metaVersion || '').toString();
   return (ver.startsWith('1') || ver.startsWith('2')) ? 1 : 0;
 }
 
-export function getBones(v: any): { bones: Record<string, any>; vrmVer: 0 | 1 } {
+export function getBones(v: VRM): { bones: Record<string, THREE.Object3D>; vrmVer: 0 | 1 } {
   const vrmVer = getVRMVersion(v);
   const useV1 = vrmVer === 1;
   const names = useV1
     ? ALL_BONE_NAMES_VRM1
     : Object.keys(v?.humanoid?.humanBones || {});
-  const bones: Record<string, any> = {};
+  const bones: Record<string, THREE.Object3D> = {};
   for (const name of names) {
-    const b = v.humanoid.getNormalizedBoneNode?.(name);
+    const b = v.humanoid.getNormalizedBoneNode?.(name as VRMHumanBoneName);
     if (b) bones[name] = b;
   }
   return { bones, vrmVer };
 }
 
-function setNaturalPose(bones: Record<string, any>) {
+function setNaturalPose(bones: Record<string, THREE.Object3D>) {
   const lu = bones.leftUpperArm || bones.LeftUpperArm;
   const ru = bones.rightUpperArm || bones.RightUpperArm;
   const ll = bones.leftLowerArm || bones.LeftLowerArm;
@@ -232,7 +235,7 @@ import { safeEvalFormula } from '../vrm/config/loader';
 const _actionBundle = loadConfigBundle();
 const _actionsByName = new Map(_actionBundle.actions.map((a) => [a.name, a]));
 
-type ActionUpdater = (t: number, blend: number, scene: any, bones: Record<string, any>) => void;
+type ActionUpdater = (t: number, blend: number, scene: THREE.Object3D | null | undefined, bones: Record<string, THREE.Object3D>) => void;
 
 /** 公式版 updater：用 safeEvalFormula 执行 formula，结果应用到 scene/bones */
 function makeFormulaUpdater(formula: string | undefined): ActionUpdater {

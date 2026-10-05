@@ -19,6 +19,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { acquireAvatar, releaseAvatar, type Cached } from '@/digital-human/vrm/loadAvatar';
 import { getBone, detectVrmVersion } from '@/digital-human/vrm/vrmCompat';
 import { errMessage } from '@/lib/errMessage';
+import type { VRM, VRMHumanoid } from '@pixiv/three-vrm';
 
 export interface VrmBoneEditorHandle {
   applyBoneRotations: (rotations: Record<string, [number, number, number]>) => void;
@@ -56,8 +57,8 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const orbitControlsRef = useRef<OrbitControls | null>(null);
     const transformControlsRef = useRef<TransformControls | null>(null);
-    const vrmRef = useRef<any>(null);
-    const humanoidRef = useRef<any>(null);
+    const vrmRef = useRef<VRM | null>(null);
+    const humanoidRef = useRef<VRMHumanoid | null>(null);
     const rafRef = useRef<number | null>(null);
     const boneVisualsRef = useRef<Map<string, THREE.Mesh>>(new Map());
     const selectedBoneNameRef = useRef<string | null>(null);
@@ -81,7 +82,7 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
     }));
 
     // 设置自然姿态
-    const setNaturalPose = useCallback((vrm: any) => {
+    const setNaturalPose = useCallback((vrm: VRM) => {
       if (!vrm?.humanoid) return;
       const bones: [string, [number, number, number]][] = [
         ['leftUpperArm', [0, 0, -1.4]], ['rightUpperArm', [0, 0, 1.4]],
@@ -183,7 +184,7 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
     }, [onBoneSelect]);
 
     // 创建骨骼可视化球体
-    const createBoneVisuals = useCallback((humanoid: any) => {
+    const createBoneVisuals = useCallback((humanoid: VRMHumanoid) => {
       const visuals = new Map<string, THREE.Mesh>();
 
       for (const boneName of ALL_BONES) {
@@ -274,7 +275,7 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
       transformControls.setMode('rotate');
       transformControls.setSpace('local');
       transformControls.setSize(0.8);
-      (scene as any).add(transformControls);
+      scene.add(transformControls as unknown as THREE.Object3D);
       transformControlsRef.current = transformControls;
 
       // 基础灯光
@@ -379,7 +380,7 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
           humanoidRef.current = cached.humanoid;
 
           // 设置场景
-          cached.scene.traverse((o: any) => { o.frustumCulled = false; });
+          cached.scene.traverse((o: THREE.Object3D) => { o.frustumCulled = false; });
           scene.add(cached.scene);
 
           // 计算 Y 偏移

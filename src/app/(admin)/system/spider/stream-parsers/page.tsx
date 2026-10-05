@@ -178,8 +178,8 @@ export default function StreamParsersPage() {
             onChange: setFilterValues,
             onReset: () => setFilterValues({}),
           }}
-          onEdit={(r: any) => openEdit(r as StreamParserDTO)}
-          onDelete={(r: any) => deleteMutation.mutate(r.id)}
+          onEdit={(r: StreamParserDTO) => openEdit(r)}
+          onDelete={(r: StreamParserDTO) => deleteMutation.mutate(r.id)}
         />
       </Paper>
 
@@ -227,7 +227,7 @@ function StreamParserEditor({ open, initial, onClose, onSave }: EditorProps) {
   }, [open, initial]);
 
   const submit = async () => {
-    let bcParsed: any = null;
+    let bcParsed: unknown = null;
     try { bcParsed = JSON.parse(browserConfig); } catch (e) { setErr(`browser_config 不是合法 JSON:${errMessage(e) ?? e}`); return; }
     if (!name.trim()) { setErr('name 必填'); return; }
     await onSave({

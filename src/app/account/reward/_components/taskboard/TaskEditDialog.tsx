@@ -67,7 +67,7 @@ export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved
     // 只能把任务挂到自己发布、仍在进行中的需求下(myPage 只返回当前用户发布的需求)
     let alive = true;
     listMyDemands({ pageSize: 100 })
-      .then((res: any) => {
+      .then((res) => {
         if (!alive) return;
         const records: DemandItem[] = res?.records || res?.list || [];
         setDemands(records.filter((d) => d.status === 'PENDING' || d.status === 'PUBLISHED' || d.id === record?.demandId));

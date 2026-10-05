@@ -36,7 +36,7 @@ import { TaskCard } from './TaskCard';
 import { TaskDetailDialog } from './TaskDetailDialog';
 import { TaskEditDialog } from './TaskEditDialog';
 import { normalizeRewardTaskStatus, mapRewardTaskListFromBackend, mapRewardTaskFromBackend } from './status';
-import { listTasks, claimTask, submitTask, reviewTask, getTask } from '@/apis/reward-task';
+import { listTasks, claimTask, submitTask, reviewTask, getTask, type TaskPageResp, type TaskQuery } from '@/apis/reward-task';
 import { myTeams } from '@/apis/team';
 import { myPage as listDemands } from '@/apis/reward-demand';
 import { useApp } from '@/contexts/AppContext';
@@ -97,8 +97,8 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     url.searchParams.delete('task');
     window.history.replaceState(window.history.state, '', url.toString());
     getTask(taskId)
-      .then((res: any) => {
-        if (res) setDetailTask(mapRewardTaskFromBackend(res) as RewardTask);
+      .then((res) => {
+        if (res) setDetailTask(mapRewardTaskFromBackend(res));
         else showMessage('任务不存在或已删除', 'error');
       })
       .catch((e: unknown) => showMessage(errMessage(e) || '任务加载失败', 'error'));
@@ -116,7 +116,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
   // 需求列表
   const demandsQuery = useQuery({
     queryKey: ['taskboard', 'demands'],
-    queryFn: () => listDemands({ pageSize: 100 }).then((r: any) => (r?.records || r?.list || []) as DemandItem[]),
+    queryFn: () => listDemands({ pageSize: 100 }).then((r) => (r?.records || r?.list || []) as DemandItem[]),
     placeholderData: [],
   });
   const demands: DemandItem[] = demandsQuery.data || [];
@@ -125,7 +125,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
   const tasksQuery = useQuery({
     queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId],
     queryFn: async () => {
-      const params: any = { pageSize: 100 };
+      const params: TaskQuery = { pageSize: 100 };
       if (viewMode === 'mine') {
         // 后端 handler 用 `claimerId` 读 query,前端 beans 叫 assigneeId —— 两边都发,丢一也能命中
         params.assigneeId = currentUserId;
@@ -137,7 +137,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
         params.ownerId = currentUserId;
       }
       if (initialDemandId) params.demandId = initialDemandId;
-      const res: any = await listTasks(params);
+      const res = (await listTasks(params)) as TaskPageResp | undefined;
       // 后端 json tag 是 claimerId/reviewerId/ownerId,与前端 bean 的 assigneeId/reviewerId/ownerId 一对一映射需要补齐
       return mapRewardTaskListFromBackend(res?.records || []);
     },
@@ -299,7 +299,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
   };
 
   const handleTaskChanged = (updated: RewardTask) => {
-    setDetailTask(mapRewardTaskFromBackend(updated) as RewardTask);
+    setDetailTask(mapRewardTaskFromBackend(updated));
     showMessage('操作成功');
     qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
@@ -456,7 +456,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
 
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel shrink>优先级</InputLabel>
-          <Select displayEmpty notched value={priorityFilter} label="优先级" onChange={(e) => setPriorityFilter(e.target.value as any)}>
+          <Select displayEmpty notched value={priorityFilter} label="优先级" onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}>
             <MenuItem value="">全部</MenuItem>
             {(['P0', 'P1', 'P2'] as TaskPriority[]).map((p) => (
               <MenuItem key={p} value={p}>{PRIORITY_LABEL[p]}</MenuItem>

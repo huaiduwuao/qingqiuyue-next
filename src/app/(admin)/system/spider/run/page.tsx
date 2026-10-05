@@ -25,6 +25,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { listSources } from '@/apis/spider';
+import { errMessage } from '@/lib/errMessage';
 import { RunCrawlerDialog } from '@/components/spider/RunCrawlerDialog';
 
 const LIST_KEY = ['spider', 'run', 'sources'];
@@ -88,7 +89,7 @@ export default function SpiderRunPage() {
         {sourcesQuery.isLoading ? (
           <Typography variant="body2" color="text.secondary">加载中…</Typography>
         ) : sourcesQuery.isError ? (
-          <Alert severity="error">加载源列表失败:{(sourcesQuery.error as any)?.message}</Alert>
+          <Alert severity="error">加载源列表失败:{errMessage(sourcesQuery.error)}</Alert>
         ) : sources.length === 0 ? (
           <Alert severity="warning">
             还没有任何已注册的模块源。请通过 源管理 页面添加,或在 sql/postgresql/seed_sources.sql 里追加 INSERT。

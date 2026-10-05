@@ -20,6 +20,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import type { DemandQuery } from '@/apis/reward-demand';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { coverBackground } from '@/lib/media';
 import BountyDetailDialog from './BountyDetailDialog';
@@ -69,7 +70,7 @@ export default function BountyListDialog({
         pageSize: PAGE_SIZE,
         keyword: search || undefined,
         category: category || undefined,
-        order: order as any,
+        order: order as DemandQuery['order'],
       }),
     staleTime: 30 * 1000,
     enabled: open,

@@ -378,7 +378,7 @@ function TimeseriesChart({ hourly, loading }: { hourly?: CrawlTimeseriesPoint[];
         <Chip label={`合计 ${fmt(total)}`} size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'action.hover' }} />
         <Box sx={{ flex: 1 }} />
         {(['pages', 'items', 'links', 'errors'] as Metric[]).map((m) => (
-          <Chip key={m} icon={METRIC_META[m].icon as any} label={METRIC_META[m].label} size="small" clickable onClick={() => setMetric(m)} variant={metric === m ? 'filled' : 'outlined'}
+          <Chip key={m} icon={METRIC_META[m].icon as React.ReactElement} label={METRIC_META[m].label} size="small" clickable onClick={() => setMetric(m)} variant={metric === m ? 'filled' : 'outlined'}
             sx={{ height: 24, fontSize: 11, ...(metric === m ? { bgcolor: METRIC_META[m].color, color: '#fff', '& .MuiChip-icon': { color: '#fff' } } : {}) }} />
         ))}
       </Box>

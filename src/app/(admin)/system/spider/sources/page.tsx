@@ -49,6 +49,8 @@ interface SourceFormData {
   type: string;
 }
 
+type SourceRow = SourceFormData & { id: number };
+
 // module_source 里实际在用的 type / category(category 可能是逗号拼的多值,后端按包含匹配)
 const TYPE_OPTIONS = ['auto', 'crawl_text', 'copyright_only'].map((v) => ({ label: v, value: v }));
 const CATEGORY_OPTIONS = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'SHORT_DRAMA', 'VSHOW', 'NOVEL', 'COMICS', 'MUSIC', 'NEWS', 'ARTICLE', 'LIVE', 'WALLPAPER'].map((v) => ({ label: v, value: v }));
@@ -56,7 +58,7 @@ const CATEGORY_OPTIONS = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'SHORT_DRAMA
 export default function SpiderSourcesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<SourceRow | null>(null);
   const [formValues, setFormValues] = useState<SourceFormData>({ name: '', domain: '', url: '', type: 'html' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
@@ -84,7 +86,7 @@ export default function SpiderSourcesPage() {
     onError: (err: unknown) => showMessage(errMessage(err) || '删除失败', 'error'),
   });
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: SourceRow) => {
     setSelectedRecord(record);
     setFormValues({ name: record.name, domain: record.domain, url: record.url, type: record.type });
     setWriteVisible(true);
@@ -98,7 +100,7 @@ export default function SpiderSourcesPage() {
     }
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: SourceRow) => {
     if (!confirm(`确定要删除源 "${record.name}" 吗？`)) return;
     deleteMutation.mutate(record.id);
   };

@@ -30,7 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   system: '#9fa8da',
 };
 
-const DEMO_PARAMS: Record<string, any> = {
+const DEMO_PARAMS: Record<string, Record<string, unknown>> = {
   'face.setExpression': { template: 'happy', intensity: 0.8 },
   'face.mouthOpen': { value: 0.5 },
   'mouth.setViseme': { shape: 'aa', weight: 1 },
@@ -44,7 +44,7 @@ const DEMO_CATEGORIES_ORDER = ['face', 'mouth', 'body', 'camera', 'system'];
 
 export default function ToolCatalog({
   onDemoToolCall,
-}: { onDemoToolCall?: (tool: { name: string; params: any }) => void }) {
+}: { onDemoToolCall?: (tool: { name: string; params: Record<string, unknown> }) => void }) {
   const toolsQuery = useQuery({ queryKey: ['digital-human', 'tools'], queryFn: () => digitalHumanApi.listTools() });
   const [expanded, setExpanded] = React.useState<string | null>('face.setExpression');
 

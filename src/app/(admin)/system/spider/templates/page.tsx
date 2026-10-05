@@ -47,6 +47,13 @@ const TEMPLATE_TYPE_FILTER = ['detail', 'list', 'book', 'video', 'category', 'ch
 const ATTR_TYPES = ['text', 'link', 'image', 'element', 'meta'];
 const ATTR_CODES = ['title', 'link', 'cover', 'content', 'description', 'date', 'container', 'item'];
 
+interface TemplateRow {
+  id: number;
+  name: string;
+  type: string;
+  source_id?: number | string | null;
+}
+
 interface TemplateFormData {
   name: string;
   type: string;
@@ -57,7 +64,7 @@ interface TemplateFormData {
 export default function SpiderTemplatesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<TemplateRow | null>(null);
   const [formValues, setFormValues] = useState<TemplateFormData>({ name: '', type: 'novel', sourceId: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [autoOpen, setAutoOpen] = useState(false);
@@ -69,7 +76,7 @@ export default function SpiderTemplatesPage() {
 
   // 来源下拉 / 列表里的源名称
   const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources({ page: 1, pageSize: 200 }).then((r) => r.list || []) });
-  const sourceOptions = (sourcesQuery.data ?? []).map((src: any) => ({ id: String(src.id), name: String(src.name || src.domain || src.id) }));
+  const sourceOptions = (sourcesQuery.data ?? []).map((src: { id: number | string; name?: string; domain?: string }) => ({ id: String(src.id), name: String(src.name || src.domain || src.id) }));
   const sourceNames = new Map(sourceOptions.map((o) => [o.id, o.name]));
 
   const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity }), []);
@@ -98,7 +105,7 @@ export default function SpiderTemplatesPage() {
 
   const autoGenMutation = useMutation({
     mutationFn: (url: string) => autoGenerateTemplate({ url }),
-    onSuccess: (res: any) => setAutoResult(res),
+    onSuccess: (res) => setAutoResult(res),
     onError: (err: unknown) => showMessage(errMessage(err) || '生成失败', 'error'),
   });
 
@@ -125,7 +132,7 @@ export default function SpiderTemplatesPage() {
     setWriteVisible(true);
   };
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: TemplateRow) => {
     setEditingTemplate(record);
     setFormValues({ name: record.name, type: record.type, sourceId: record.source_id ? String(record.source_id) : '' });
     setWriteVisible(true);
@@ -139,7 +146,7 @@ export default function SpiderTemplatesPage() {
     }
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: TemplateRow) => {
     if (!confirm(`确定要删除模板 "${record.name}" 吗？`)) return;
     deleteMutation.mutate(record.id);
   };

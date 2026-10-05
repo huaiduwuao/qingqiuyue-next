@@ -8,10 +8,10 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from './TaskCard';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
-import { alpha } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 
 // 状态色 — REJECTED 用 primary.main(跟主题色),其余是平台视觉色(青/黄/绿)
-const STATUS_META: Record<RewardTaskStatus, { label: string; color: string; bg: (t: any) => string }> = {
+const STATUS_META: Record<RewardTaskStatus, { label: string; color: string; bg: (t: Theme) => string }> = {
   OPEN: { label: '待领', color: 'success.main', bg: (t) => alpha(t.palette.success.main, 0.12) },
   CLAIMED: { label: '进行中', color: 'secondary.main', bg: (t) => alpha(t.palette.secondary.main, 0.12) },
   SUBMITTED: { label: '待验收', color: 'warning.main', bg: (t) => alpha(t.palette.warning.main, 0.12) },

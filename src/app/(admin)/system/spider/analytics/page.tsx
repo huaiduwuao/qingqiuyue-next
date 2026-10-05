@@ -164,7 +164,7 @@ export default function SpiderAnalyticsPage() {
             <SourcesTable sources={shownSources} />
           )
         ) : (
-          <SourceDetail loading={sourceHealthQ.isLoading} data={sourceHealthQ.data as any} error={sourceHealthQ.isError} />
+          <SourceDetail loading={sourceHealthQ.isLoading} data={sourceHealthQ.data as HourlySourceHealth | null} error={sourceHealthQ.isError} />
         )}
       </Paper>
 

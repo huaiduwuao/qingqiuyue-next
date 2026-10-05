@@ -250,7 +250,7 @@ export default function SpiderBatchPage() {
               isOptionEqualToValue={(a, b) => a.domain === b.domain}
               groupBy={(s) => s.category || '未分类'}
               renderOption={(props, s, { selected }) => {
-                const { key, ...rest } = props as any;
+                const { key, ...rest } = props;
                 return (
                   <li key={key} {...rest}>
                     <Checkbox size="small" checked={selected} sx={{ mr: 1 }} />

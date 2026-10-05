@@ -40,7 +40,7 @@ import { listTasks, createTask, createRuleTask, stopTask as apiStopTask, deleteT
 import ReplayIcon from '@mui/icons-material/Replay';
 import { useSpiderWebSocket, type CrawlTaskFromWS } from '@/hooks/useSpiderWebSocket';
 import type { GridColDef } from '@mui/x-data-grid';
-import type { CrawlTask, SpiderSource } from '@/beans/spider';
+import type { CrawlTask, CrawlTaskItem, CrawlTaskLink, SpiderSource } from '@/beans/spider';
 import { errMessage } from '@/lib/errMessage';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
@@ -68,7 +68,13 @@ const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100',
 const isActive = (status?: string) => status === 'running' || status === 'stopping' || status === 'pending' || status === 'queued';
 
 /** 后端 REST 是 snake_case(CrawlTask json),GetTask 另加了 camelCase 字段 —— 两种都认 */
-function normalizeTask(raw: any): CrawlTask {
+type RawTask = Partial<CrawlTask> & {
+  source_id?: number; source_name?: string; start_url?: string; max_depth?: number; max_pages?: number;
+  pages_crawled?: number; links_found?: number; items_saved?: number; error_msg?: string;
+  created_at?: string; updated_at?: string; worker_id?: string;
+};
+
+function normalizeTask(raw: RawTask): CrawlTask {
   return {
     ...raw,
     sourceName: raw.sourceName ?? raw.source_name,
@@ -83,7 +89,7 @@ function normalizeTask(raw: any): CrawlTask {
     createdAt: raw.createdAt ?? raw.created_at,
     updatedAt: raw.updatedAt ?? raw.updated_at,
     workerId: raw.workerId ?? raw.worker_id,
-  };
+  } as CrawlTask;
 }
 
 /** 行数据叠加 WS 实时推送 */
@@ -182,13 +188,13 @@ export default function SpiderTasksPage() {
   const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources().then((r) => r.list || []) });
 
   const createMutation = useMutation({
-    mutationFn: (vals: any) => createTask(vals),
+    mutationFn: (vals: Parameters<typeof createTask>[0]) => createTask(vals),
     onSuccess: () => { showMsg('任务已创建'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
     onError: (err: unknown) => showMsg(errMessage(err) || '创建失败', 'error'),
   });
 
   const createRuleMutation = useMutation({
-    mutationFn: (vals: any) => createRuleTask(vals),
+    mutationFn: (vals: Parameters<typeof createRuleTask>[0]) => createRuleTask(vals),
     onSuccess: () => { showMsg('规则任务已入队,空闲 Worker 会马上认领(站点调度里可看并发/暂停)'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
     onError: (err: unknown) => showMsg(errMessage(err) || '创建规则任务失败', 'error'),
   });
@@ -318,8 +324,8 @@ export default function SpiderTasksPage() {
               status: statusFilter || undefined,
               keyword: keyword.trim() || undefined,
             });
-            const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
-            const list = (res.list || []).map((raw: any) => {
+            const sourceMap = new Map<number | undefined, string | undefined>((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
+            const list = (res.list || []).map((raw: RawTask) => {
               const task = normalizeTask(raw);
               return { ...task, sourceName: task.sourceName || sourceMap.get(raw.source_id) || '-' };
             });
@@ -392,19 +398,19 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
 
   const detailQ = useQuery({
     queryKey: ['spider', 'task-detail', taskId],
-    queryFn: () => getTaskDetail(taskId!).then((r: any) => normalizeTask(r)),
+    queryFn: () => getTaskDetail(taskId!).then((r) => normalizeTask(r)),
     enabled: open,
     // WS 断开时兜底轮询;WS 在线时进度直接叠加 live
     refetchInterval: liveActive ? 5000 : false,
   });
   const itemsQ = useQuery({
     queryKey: ['spider', 'task-items', taskId],
-    queryFn: () => getTaskItems(taskId!).then((r) => r.list || []),
+    queryFn: () => getTaskItems(taskId!).then((r) => (r.list || []) as CrawlTaskItem[]),
     enabled: open && tab === 0,
   });
   const linksQ = useQuery({
     queryKey: ['spider', 'task-links', taskId],
-    queryFn: () => getTaskLinks(taskId!).then((r) => r.list || []),
+    queryFn: () => getTaskLinks(taskId!).then((r) => (r.list || []) as CrawlTaskLink[]),
     enabled: open && tab === 1,
   });
 
@@ -484,7 +490,7 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
                   : itemsQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无抓取项</Typography>
                   : (
                     <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                      {itemsQ.data!.map((it: any) => (
+                      {itemsQ.data!.map((it) => (
                         <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                           {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
                           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -505,7 +511,7 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
                   : linksQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无链接</Typography>
                   : (
                     <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                      {linksQ.data!.map((l: any) => (
+                      {linksQ.data!.map((l) => (
                         <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                           <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
                           <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>

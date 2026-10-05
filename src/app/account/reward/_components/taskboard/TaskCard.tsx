@@ -13,11 +13,11 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { RewardTask, TaskPriority } from '@/beans/reward';
-import { alpha } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 import { BotBadge } from '@/components/community/UserLine';
 
 // 优先级色 — 全部跟随主题:P0 用 primary.main,P1 用 warning.main,P2 用 text.secondary
-const PRIORITY_COLOR: Record<TaskPriority, { bgcolor: (t: any) => string; color: string; borderLeftColor: string; borderLeftWidth: number }> = {
+const PRIORITY_COLOR: Record<TaskPriority, { bgcolor: (t: Theme) => string; color: string; borderLeftColor: string; borderLeftWidth: number }> = {
   P0: { bgcolor: (t) => alpha(t.palette.primary.main, 0.18), color: 'primary.main', borderLeftColor: 'primary.main', borderLeftWidth: 3 },
   P1: { bgcolor: (t) => alpha(t.palette.warning.main, 0.18), color: 'warning.main', borderLeftColor: 'warning.main', borderLeftWidth: 3 },
   P2: { bgcolor: (t) => alpha(t.palette.text.secondary, 0.18), color: 'text.secondary', borderLeftColor: 'divider', borderLeftWidth: 3 },

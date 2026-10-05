@@ -284,9 +284,9 @@ export default function SourceSetupPage() {
 }
 
 /** 试跑报告分步展示:book 走 search/resolved/catalog/chapter,video 走 search/resolved/episodes。 */
-function DraftReport({ report, kind }: { report: any; kind: string }) {
+function DraftReport({ report, kind }: { report: Record<string, unknown> | null | undefined; kind: string }) {
   if (!report) return <Typography variant="caption" sx={{ color: 'var(--text)', opacity: 0.6 }}>无试跑报告</Typography>;
-  const step = (label: string, node: any) => {
+  const step = (label: string, node: unknown) => {
     if (!node) return null;
     return (
       <Box sx={{ mb: 1 }}>

@@ -19,6 +19,7 @@ import { coverBackground } from '@/lib/media';
 import { fallbackCoverDataUri } from '@/lib/bountyCover';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import type { DemandQuery } from '@/apis/reward-demand';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import BountyDetailDialog from './BountyDetailDialog';
 import { formatDiamonds } from '@/apis/wallet';
@@ -97,7 +98,7 @@ export default function RewardHotGrid({
         pageSize: isAll ? PAGE_SIZE : 6,
         keyword: effectiveSearch || undefined,
         category: effectiveFilter || undefined,
-        order: effectiveOrder as any,
+        order: effectiveOrder as DemandQuery['order'],
       }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
@@ -105,7 +106,7 @@ export default function RewardHotGrid({
     refetchOnMount: 'always',
   });
   const allItems = query.data?.pages.flatMap((p) => p.list) ?? [];
-  const list: Bounty[] = (allItems as any[]).map((b) => ({
+  const list: Bounty[] = allItems.map((b) => ({
     id: b.id,
     title: b.title,
     category: (b.category as Bounty['category']) ?? 'video',

@@ -49,6 +49,14 @@ const ORDERS = [
   { id: 'newest', label: '最新发布' },
 ] as const;
 type Order = (typeof ORDERS)[number]['id'];
+
+/** /point/user?type=reward 的返回(赏金猎人等级);电脑版 dashboard/page.tsx 共用同一个 queryKey */
+export interface RewardPointMe {
+  totalPoint: number;
+  level: number;
+  levelName: string;
+  needPoint: number;
+}
 const PAGE_SIZE = 12;
 
 /**
@@ -69,8 +77,8 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
   // 与电脑版同 queryKey,共用缓存
   const pointQ = useQuery({
     queryKey: ['user-point', 'me', 'reward'],
-    queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r || {}),
-    placeholderData: {},
+    queryFn: () => userPointMe({ type: 'reward' }).then((r: RewardPointMe | null) => r || ({} as RewardPointMe)),
+    placeholderData: {} as RewardPointMe,
   });
   const statsQ = useQuery({
     queryKey: ['reward', 'my-stats', 'dashboard'],
@@ -78,7 +86,7 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
     placeholderData: {} as MyStats,
     staleTime: 30_000,
   });
-  const pt: any = pointQ.data || {};
+  const pt: Partial<RewardPointMe> = pointQ.data || {};
   const st: Partial<MyStats> = statsQ.data || {};
   const need = Number(pt.needPoint);
   const hasNext = Number.isFinite(need) && need > 0;
@@ -87,12 +95,12 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
   const listQ = useInfiniteQuery({
     queryKey: ['reward-bounty-grid', 'all', { search: keyword, order, filter: category }],
     queryFn: ({ pageParam }) =>
-      getHotBounties({ page: pageParam, pageSize: PAGE_SIZE, keyword: keyword || undefined, category: category || undefined, order: order as any }),
+      getHotBounties({ page: pageParam, pageSize: PAGE_SIZE, keyword: keyword || undefined, category: category || undefined, order }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     staleTime: 30_000,
   });
-  const items = (listQ.data?.pages.flatMap((p) => p.list) ?? []) as any[];
+  const items = listQ.data?.pages.flatMap((p) => p.list) ?? [];
   const count = (listQ.data?.pages[0]?.total as number) ?? items.length;
 
   // 滚到底自动加载下一页

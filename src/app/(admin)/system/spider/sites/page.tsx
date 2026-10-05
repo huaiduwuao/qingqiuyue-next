@@ -86,7 +86,7 @@ export default function SpiderSitesPage() {
 
   const updateM = useMutation({
     mutationFn: ({ domain, data }: { domain: string; data: { paused?: boolean; max_concurrent?: number; priority?: number } }) => updateSite(domain, data),
-    onSuccess: (r: any, vars) => {
+    onSuccess: (r: { requeued?: number } | undefined, vars) => {
       if (vars.data.paused === true) showMsg(r?.requeued ? `已暂停,${r.requeued} 个在跑任务放回队列` : '已暂停');
       else if (vars.data.paused === false) showMsg('已恢复调度');
       else showMsg('已保存');
