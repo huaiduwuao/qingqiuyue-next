@@ -23,7 +23,7 @@ export interface DictDataFormDialogProps {
   /** 父项 label 用于展示(若 parent 给的是 dict_data 子项,显示 name;若父是 dict_type,显示 name) */
   parentLabel?: string;
   onClose: () => void;
-  onSubmit: (values: Partial<DictDataItem> & Record<string, any>) => Promise<void> | void;
+  onSubmit: (values: Partial<DictDataItem> & Record<string, unknown>) => Promise<void> | void;
   submitting?: boolean;
 }
 
@@ -45,10 +45,10 @@ export function DictDataFormDialog(props: DictDataFormDialogProps) {
     if (open) {
       if (record) {
         setForm({
-          label: (record as any).label ?? record.name ?? '',
+          label: record.label ?? record.name ?? '',
           value: record.value ?? '',
           sort: record.sort?.toString() ?? '0',
-          info: (record as any).info ?? record.remark ?? '',
+          info: record.info ?? record.remark ?? '',
           status: record.status === 'DISABLED' || record.status === 0 ? false : true,
         });
       } else {
@@ -62,10 +62,10 @@ export function DictDataFormDialog(props: DictDataFormDialogProps) {
 
   const handleSubmit = async () => {
     if (!form.label.trim() && !form.value.trim()) return;
-    const payload: Partial<DictDataItem> & Record<string, any> = {
+    const payload: Partial<DictDataItem> & Record<string, unknown> = {
       id: record?.id,
       typeName: dictType,
-      typeId: (record as any)?.typeId,
+      typeId: record?.typeId,
       label: form.label,
       name: form.label || form.value,
       value: form.value,
@@ -81,7 +81,7 @@ export function DictDataFormDialog(props: DictDataFormDialogProps) {
 
   return (
     <Dialog open={open} onClose={submitting ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{isEdit ? '编辑字典数据' : parent ? `新建子项 — ${parentLabel || parent.name || (parent as any).label || ''}` : '新建字典数据'}</DialogTitle>
+      <DialogTitle>{isEdit ? '编辑字典数据' : parent ? `新建子项 — ${parentLabel || parent.name || parent.label || ''}` : '新建字典数据'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
@@ -137,7 +137,7 @@ export function DictDataFormDialog(props: DictDataFormDialogProps) {
             />
             {parent ? (
               <Box sx={{ fontSize: 12, color: 'text.secondary' }}>
-                父节点:{parentLabel || parent.name || (parent as any).label || `#${parentId}`}
+                父节点:{parentLabel || parent.name || parent.label || `#${parentId}`}
               </Box>
             ) : null}
           </Box>

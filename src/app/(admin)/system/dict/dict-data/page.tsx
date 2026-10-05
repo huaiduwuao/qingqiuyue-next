@@ -29,6 +29,9 @@ import { listDictTypes } from '@/apis/system-dict-type';
 import { DictDataFormDialog } from '@/components/dict/DictDataFormDialog';
 import { errMessage } from '@/lib/errMessage';
 
+/** 字典类型下拉项:新接口给 type,旧接口给 code */
+type DictTypeOption = { id?: number; name?: string; type?: string; code?: string };
+
 interface TreeItem {
   id: string;
   label: string;
@@ -43,22 +46,22 @@ interface TreeItem {
 function buildTree(records: DictDataItem[]): TreeItem[] {
   if (!records?.length) return [];
   // 后端已经返回嵌套 children 时的情形
-  const hasNested = records.some((r) => Array.isArray((r as any).children) && (r as any).children.length > 0);
+  const hasNested = records.some((r) => Array.isArray(r.children) && r.children.length > 0);
   if (hasNested) {
     const map = (list: DictDataItem[]): TreeItem[] =>
       list.map((r) => ({
         id: String(r.id),
-        label: (r as any).label || r.name || r.value || `#${r.id}`,
+        label: r.label || r.name || r.value || `#${r.id}`,
         data: r,
-        children: Array.isArray((r as any).children) ? map((r as any).children) : undefined,
+        children: Array.isArray(r.children) ? map(r.children) : undefined,
       }));
     return map(records);
   }
   // 扁平 → 自己组装
-  const items = records.filter((r) => !(r as any).children || (Array.isArray((r as any).children) && (r as any).children.length === 0));
-  const byId = new Map<number, DictDataItem & { children: any[] }>();
+  const items = records.filter((r) => !r.children || (Array.isArray(r.children) && r.children.length === 0));
+  const byId = new Map<number, DictDataItem & { children: DictDataItem[] }>();
   items.forEach((r) => byId.set(r.id!, { ...r, children: [] }));
-  const roots: (DictDataItem & { children: any[] })[] = [];
+  const roots: (DictDataItem & { children: DictDataItem[] })[] = [];
   items.forEach((r) => {
     const pid = r.parentId ?? r.pid ?? 0;
     if (pid && byId.has(pid)) {
@@ -67,10 +70,10 @@ function buildTree(records: DictDataItem[]): TreeItem[] {
       roots.push(byId.get(r.id!)!);
     }
   });
-  const map = (list: any[]): TreeItem[] =>
+  const map = (list: DictDataItem[]): TreeItem[] =>
     list.map((r) => ({
       id: String(r.id),
-      label: (r as any).label || r.name || r.value || `#${r.id}`,
+      label: r.label || r.name || r.value || `#${r.id}`,
       data: r,
       children: r.children?.length ? map(r.children) : undefined,
     }));
@@ -103,8 +106,8 @@ function collectIds(items: TreeItem[], acc: string[] = []): string[] {
 }
 
 function countDescendants(item: DictDataItem): number {
-  if (!Array.isArray((item as any).children) || (item as any).children.length === 0) return 0;
-  return (item as any).children.reduce(
+  if (!Array.isArray(item.children) || item.children.length === 0) return 0;
+  return item.children.reduce(
     (sum: number, c: DictDataItem) => sum + 1 + countDescendants(c),
     0,
   );
@@ -130,7 +133,7 @@ export default function SystemDictDataPage() {
   const typeQuery = useQuery({
     queryKey: ['system', 'dict-type', 'all-for-select'],
     queryFn: async () => {
-      const res: any = await listDictTypes({ pageSize: 999 });
+      const res = (await listDictTypes({ pageSize: 999 })) as { list?: DictTypeOption[]; records?: DictTypeOption[] } | null | undefined;
       return res?.list || res?.records || [];
     },
   });
@@ -149,8 +152,8 @@ export default function SystemDictDataPage() {
     queryKey: ['dict-data-tree', selectedType],
     queryFn: async () => {
       if (!selectedType) return [];
-      const res: any = await tree(selectedType);
-      const list = Array.isArray(res) ? res : res?.list || res?.records || [];
+      const res: unknown = await tree(selectedType);
+      const list = Array.isArray(res) ? res : (res as { list?: DictDataItem[]; records?: DictDataItem[] } | null)?.list || (res as { records?: DictDataItem[] } | null)?.records || [];
       return list as DictDataItem[];
     },
     enabled: !!selectedType,
@@ -179,7 +182,7 @@ export default function SystemDictDataPage() {
       if (vals.id) {
         return update(vals as DictDataItem);
       }
-      return save({ ...vals, type: selectedType, typeName: selectedType } as any);
+      return save({ ...vals, type: selectedType, typeName: selectedType } as DictDataItem);
     },
     onSuccess: () => {
       showMsg(editing ? '更新成功' : '创建成功');
@@ -204,7 +207,7 @@ export default function SystemDictDataPage() {
       showMsg(`该节点有 ${childrenCount} 个子项,请先删除子项`, 'error');
       return;
     }
-    if (!confirm(`确认删除 “${(item as any).label || item.name || item.value}” ?`)) return;
+    if (!confirm(`确认删除 “${item.label || item.name || item.value}” ?`)) return;
     deleteMut.mutate(item.id!);
   };
 
@@ -297,7 +300,7 @@ export default function SystemDictDataPage() {
               '& fieldset': { borderColor: 'var(--border-color, transparent)' },
             }}
           >
-            {types.map((t: any) => (
+            {types.map((t) => (
               <MenuItem key={t.id ?? t.type} value={t.type || t.code || String(t.id)}>
                 {t.name} ({t.type || t.code})
               </MenuItem>
@@ -419,8 +422,8 @@ export default function SystemDictDataPage() {
               },
             }}
             slots={{
-              item: (props: any) => {
-                const itemId: string = props.itemId ?? props.id;
+              item: (props: { itemId?: string; id?: string; label?: React.ReactNode }) => {
+                const itemId = props.itemId ?? props.id;
                 const node = itemLookup.get(String(itemId));
                 if (!node) {
                   return <Box sx={{ fontSize: 13 }}>{props.label}</Box>;
@@ -534,7 +537,7 @@ export default function SystemDictDataPage() {
         record={editing}
         dictType={selectedType}
         parent={parentForCreate}
-        parentLabel={parentForCreate ? (parentForCreate as any).label || parentForCreate.name || parentForCreate.value : undefined}
+        parentLabel={parentForCreate ? parentForCreate.label || parentForCreate.name || parentForCreate.value : undefined}
         submitting={saveMut.isPending}
         onClose={() => setDialogOpen(false)}
         onSubmit={async (vals) => {

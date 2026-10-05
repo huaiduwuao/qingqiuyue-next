@@ -120,6 +120,10 @@ export interface DictDataItem extends TableListItem {
   /** @deprecated 用 parentId;保留以兼容旧接口 */
   pid?: number;
   children?: DictDataItem[];
+  /** 新接口的显示名(旧接口用 name) */
+  label?: string;
+  /** 新接口的备注(旧接口用 remark) */
+  info?: string;
 }
 
 export interface DictTypeItem extends TableListItem {
