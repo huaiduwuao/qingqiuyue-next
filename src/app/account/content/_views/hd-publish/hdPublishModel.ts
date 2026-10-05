@@ -38,6 +38,8 @@ export function mapContentStatusToHd(status?: string): HdStatus {
   if (s === 'publish' || s === 'published' || s === 'online') return 'published';
   if (s === 'un_publish' || s === 'offline' || s === 'reject' || s === 'rejected' || s === 'review_failed') return 'review_failed';
   if (s === 'failed' || s === 'error') return 'failed';
+  if (s === 'scheduled' || s === 'schedule') return 'scheduled';
+  if (s === 'transcoding') return 'transcoding';
   // 默认放在转码中,符合 HD 发布流程
   return 'transcoding';
 }
@@ -57,7 +59,9 @@ export function dedupeHdVideos(list: any[] | undefined): HdVideo[] {
   ).map((v: any) => ({
     id: String(v.id), title: v.title, cover: v.cover,
     resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
-    status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,
+    // 后端给的是库里的原始状态(REVIEWING / REJECTED / 历史小写值),归到 HD 流程状态,
+    // 否则「转码中」统计和状态标签都对不上
+    status: mapContentStatusToHd(v.status), progress: v.progress, uploadedAt: v.uploadedAt,
     views: v.views, likes: v.likes, hasCover: v.hasCover,
     subtitles: [], audioTracks: [],
   }));
@@ -82,6 +86,62 @@ export function moduleContentToHdVideo(item: ModuleContentItem): HdVideo {
     views: item.readNum ?? 0,
     likes: item.agreeNum ?? 0,
   };
+}
+
+/**
+ * 两路服务端数据合成一份列表:HD 视频接口(/creator/hd/videos,未上线的视频,带分辨率等)为主,
+ * 管理列表里的 VIDEO 内容(含已上线的)补上 HD 接口里没有的 id,排在前面。
+ */
+export function mergeServerHdVideos(hdVideos: HdVideo[], manageItems: ModuleContentItem[] | undefined): HdVideo[] {
+  const ids = new Set(hdVideos.map((v) => v.id));
+  const extra: HdVideo[] = [];
+  for (const item of manageItems ?? []) {
+    if (!item || item.id === undefined || item.id === null) continue;
+    const id = String(item.id);
+    if (ids.has(id)) continue;
+    ids.add(id);
+    extra.push(moduleContentToHdVideo(item));
+  }
+  return [...extra, ...hdVideos];
+}
+
+/**
+ * 还没被服务端数据覆盖到的本地乐观改动。列表 = 服务端数据 + 这些改动按顺序叠上去:
+ * - remove:删除 / 立即发布,先从列表拿掉;
+ * - update:重新转码 / 送审 / 极速通道 / 换封面,先改界面;
+ * - add:刚上传、服务端已建好但列表还没拉到的视频。
+ * 请求失败就把这条改动撤掉(露出服务端的真实状态 = 回滚);请求成功记下当时两路数据各自
+ * 落定过几次(confirmedAt),等两路都在这之后再落定一次(拿到新数据或拉取失败)才撤掉,
+ * 此后以服务端为准。用次数不用时间戳:请求和重拉落在同一毫秒时时间戳分不出先后。
+ */
+export interface HdSyncMark {
+  hd: number;
+  manage: number;
+}
+export type HdPendingOp =
+  | { opId: number; kind: 'remove'; videoId: string; confirmedAt?: HdSyncMark }
+  | { opId: number; kind: 'update'; videoId: string; apply: (v: HdVideo) => HdVideo; confirmedAt?: HdSyncMark }
+  | { opId: number; kind: 'add'; videoId: string; video: HdVideo; confirmedAt?: HdSyncMark };
+
+/** 还要叠在服务端数据上的改动:未确认的,或确认后两路数据还没都刷新过的。 */
+export function liveHdOps(ops: HdPendingOp[], synced: HdSyncMark): HdPendingOp[] {
+  return ops.filter(
+    (op) => !op.confirmedAt || synced.hd <= op.confirmedAt.hd || synced.manage <= op.confirmedAt.manage,
+  );
+}
+
+export function applyHdOps(server: HdVideo[], ops: HdPendingOp[]): HdVideo[] {
+  let list = server;
+  for (const op of ops) {
+    if (op.kind === 'remove') {
+      list = list.filter((v) => v.id !== op.videoId);
+    } else if (op.kind === 'update') {
+      list = list.map((v) => (v.id === op.videoId ? op.apply(v) : v));
+    } else if (!list.some((v) => v.id === op.videoId)) {
+      list = [op.video, ...list];
+    }
+  }
+  return list;
 }
 
 /** 审核员接口 → 页面用的 Reviewer(平均审核时长后端没给,固定 300 秒)。 */

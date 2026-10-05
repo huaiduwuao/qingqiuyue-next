@@ -4,7 +4,7 @@
 // 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
 // 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { getReviewerList } from '@/apis/dashboard';
 import { useActiveTab } from '../../ActiveTabContext';
 import { PUBLISH_HUB_TYPE_LABEL, type PublishHubType } from '@/lib/contentRoute';
@@ -31,7 +31,7 @@ import type { SavedContent } from '../../_components/useContentForm';
 import { PUBLISH_TYPES } from '../../_components/publishTypes';
 import { rewardTaskHref, takeTaskDeliveryParams, type TaskDeliveryContext } from '@/lib/bountyDelivery';
 import { PublishStepper } from './PublishStepper';
-import { CoverPickerDialog, AppealDialog, ReviewHistoryDialog } from './HdPublishDialogs';
+import { AppealDialog, ReviewHistoryDialog } from './HdPublishDialogs';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -41,7 +41,6 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { submitReview } from '@/apis/review';
-import { fileUpload } from '@/apis/global';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError } from '@/lib/api/client';
 import { toEntityId } from '@/lib/id';
@@ -99,13 +98,10 @@ export default function HdPublishPage() {
     handleTypeClick(type);
   }, [handleTypeClick]);
 
-  const { videos, setVideos, fastChannelQuota, handleDelete, handleRetry, handlePublishNow, handleFastTrackReview, handleResubmitReview } =
+  const { videos, addVideo, fastChannelQuota, handleDelete, handleRetry, handlePublishNow, handleFastTrackReview, handleResubmitReview } =
     useHdVideos(setSnack);
-  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
   const closeReviewHistory = useCallback(() => setReviewHistoryOpen(false), []);
-  const coverInputRef = useRef<HTMLInputElement>(null);
-  const [coverTargetId, setCoverTargetId] = useState<string | null>(null);
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealReason, setAppealReason] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
@@ -221,40 +217,7 @@ export default function HdPublishPage() {
     }
   };
 
-  const handleOpenCoverPicker = (id: string) => {
-    setCoverTargetId(id);
-    setCoverPickerOpen(true);
-  };
-
-  const handlePickCoverFile = () => {
-    coverInputRef.current?.click();
-  };
-
-  const handleCoverFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !coverTargetId) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { url?: string };
-      const url = res?.url;
-      if (url) {
-        setVideos((p) =>
-          p.map((v) => (v.id === coverTargetId ? { ...v, cover: url, hasCover: true } : v)),
-        );
-        setSnack('封面已更新');
-      } else {
-        setSnack('上传成功但未返回封面地址');
-      }
-    } catch (e) {
-      setSnack(`封面上传失败:${formatApiError(e)}`);
-    }
-    setCoverPickerOpen(false);
-    setCoverTargetId(null);
-    e.target.value = '';
-  };
-
-  const upload = useHdUpload({ setSnack, setVideos, onPublished: handlePublished });
+  const upload = useHdUpload({ setSnack, addVideo, onPublished: handlePublished });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -356,19 +319,6 @@ export default function HdPublishPage() {
         onPublishNow={handlePublishNow}
         onDelete={handleDelete}
         onOpenAppeal={handleOpenAppeal}
-      />
-
-      {/* Cover picker dialog */}
-      <CoverPickerDialog
-        open={coverPickerOpen}
-        onClose={() => setCoverPickerOpen(false)}
-        onPickPreset={() => {
-          setSnack('封面已设置');
-          setCoverPickerOpen(false);
-        }}
-        onPickFile={handlePickCoverFile}
-        inputRef={coverInputRef}
-        onFileChange={handleCoverFileChange}
       />
 
       {/* 申诉 Dialog */}

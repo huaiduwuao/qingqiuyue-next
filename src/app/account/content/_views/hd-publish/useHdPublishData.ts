@@ -1,189 +1,225 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getHdVideoList } from '@/apis/dashboard';
 import { managePage, updateShare, type ModuleContentItem } from '@/apis/module-content';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { gradient3 } from '@/constants/gradients';
 import type { SavedContent } from '../../_components/useContentForm';
 import { REVIEW_CHECK_TEMPLATE, type AudioTrack, type HdResolution, type HdVideo, type SubtitleTrack } from './data';
-import { dedupeHdVideos, moduleContentToHdVideo, type SnackMsg, type UploadStatus } from './hdPublishModel';
+import {
+  applyHdOps,
+  dedupeHdVideos,
+  liveHdOps,
+  mergeServerHdVideos,
+  type HdPendingOp,
+  type HdSyncMark,
+  type SnackMsg,
+  type UploadStatus,
+} from './hdPublishModel';
 
 type SetSnack = (s: string | SnackMsg) => void;
 
+export const HD_VIDEOS_QUERY_KEY = ['creator-hd-videos'] as const;
+export const HD_MANAGE_VIDEOS_QUERY_KEY = ['module-content', 'hd-publish', 'videos'] as const;
+
+type NewHdOp =
+  | { kind: 'remove'; videoId: string }
+  | { kind: 'update'; videoId: string; apply: (v: HdVideo) => HdVideo };
+
 /**
- * 视频列表:HD 视频接口 + 管理列表里的 VIDEO 内容合并去重,外加删除 / 重新转码 / 立即发布 /
- * 极速送审 / 重新送审这些乐观更新的操作(失败回滚)。
+ * 视频列表:HD 视频接口 + 管理列表里的 VIDEO 内容合并去重(mergeServerHdVideos),外加删除 /
+ * 重新转码 / 立即发布 / 极速送审 / 重新送审这些乐观更新的操作(失败回滚)。
+ *
+ * 列表每次都由「服务端数据 + 未落定的本地改动」现算(见 HdPendingOp):服务端数据一变
+ * (哪怕条数没变、只是审核状态变了)统计卡片和打开着的详情抽屉都跟着变;进行中的乐观改动
+ * 叠在上面不会被重新拉到的旧数据冲掉;失败时撤掉改动就露出服务端的真实状态。
+ * 此前本地 state 只在条数变化时才同步,状态变了界面一直停在旧值。
  */
 export function useHdVideos(setSnack: SetSnack) {
+  const queryClient = useQueryClient();
   // 真接口:HD 视频列表(uid 隔离)
-  const { data: hdResp } = useQuery({
-    queryKey: ['creator-hd-videos'],
+  const hdQuery = useQuery({
+    queryKey: HD_VIDEOS_QUERY_KEY,
     queryFn: () => getHdVideoList({ page: 1, pageSize: 50 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  // 按 id 去重:后端 /creator/hd/videos 在 stale cache 命中或后端测试数据偶发会
-  // 返回两条同 id 的记录(react-query staleTime 30s 内复用 cache + 后端 raw 数据
-  // 重复),触发 React duplicate key 警告,严重时导致 fiber 错位渲染(用户反馈
-  // 「界面下部分黑色遮罩 + 点哪都出现视频详情」)。Map 去重即可消除该现象。
-  const apiVideos: HdVideo[] = dedupeHdVideos(hdResp?.list);
-  const [videos, setVideos] = useState<HdVideo[]>(apiVideos);
-  React.useEffect(() => {
-    if (apiVideos.length) setVideos(apiVideos);
-  }, [apiVideos.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
-
-  // 拉取真实 VIDEO 内容并合并到本地列表(去重)
-  const { data: realVideos } = useQuery({
-    queryKey: ['module-content', 'hd-publish', 'videos'],
+  // 管理列表:按数据权限过滤(默认只看自己的),含待审/驳回/已上线的视频
+  const manageQuery = useQuery({
+    queryKey: HD_MANAGE_VIDEOS_QUERY_KEY,
     queryFn: async () => {
-      // 管理列表:按数据权限过滤(默认只看自己的),含待审/驳回的视频
       const res = await managePage({ contentType: 'VIDEO', pageSize: 100 });
       return (res.list || []) as ModuleContentItem[];
     },
     staleTime: 30_000,
     refetchOnMount: 'always',
   });
+  const hdList = hdQuery.data?.list;
+  const manageList = manageQuery.data;
+  // 按 id 去重:后端 /creator/hd/videos 偶发返回两条同 id 的记录,会触发 React duplicate key
+  // 警告,严重时 fiber 错位渲染(见 dedupeHdVideos)。
+  const serverVideos = useMemo(
+    () => mergeServerHdVideos(dedupeHdVideos(hdList), manageList),
+    [hdList, manageList],
+  );
+  // 两路数据各自落定(拿到数据或失败)过几次;改动确认之后两路都再落定过,才算被服务端覆盖。
+  const settleCount = useCallback(
+    (key: readonly unknown[]) => {
+      const st = queryClient.getQueryState(key);
+      return st ? st.dataUpdateCount + st.errorUpdateCount : 0;
+    },
+    [queryClient],
+  );
+  const synced = useMemo<HdSyncMark>(
+    () => ({ hd: settleCount(HD_VIDEOS_QUERY_KEY), manage: settleCount(HD_MANAGE_VIDEOS_QUERY_KEY) }),
+    // 时间戳只当触发器:任一路落定一次(哪怕数据和上次一样、data 引用没变)它们就变,重新数一遍。
+    // 读它们也让 useQuery 订阅这几个字段,重拉到相同数据时组件照样重渲染。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settleCount, hdQuery.dataUpdatedAt, hdQuery.errorUpdatedAt, manageQuery.dataUpdatedAt, manageQuery.errorUpdatedAt],
+  );
+  const markNow = useCallback(
+    (): HdSyncMark => ({ hd: settleCount(HD_VIDEOS_QUERY_KEY), manage: settleCount(HD_MANAGE_VIDEOS_QUERY_KEY) }),
+    [settleCount],
+  );
 
-  useEffect(() => {
-    if (!realVideos?.length) return;
-    setVideos((prev) => {
-      const existingIds = new Set(prev.map((v) => v.id));
-      const mapped: HdVideo[] = realVideos
-        .filter((item) => !existingIds.has(String(item.id)))
-        .map(moduleContentToHdVideo);
-      return [...mapped, ...prev];
-    });
-  }, [realVideos]);
+  const [ops, setOps] = useState<HdPendingOp[]>([]);
+  const opSeqRef = useRef(0);
+  // 已被服务端覆盖的改动不再叠加(落定次数只增不减,排除后不会再回来);state 里的旧条目在下次加改动时顺手清掉
+  const liveOps = useMemo(() => liveHdOps(ops, synced), [ops, synced]);
+  const videos = useMemo(() => applyHdOps(serverVideos, liveOps), [serverVideos, liveOps]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    // 乐观更新:先从本地移除,失败时回滚
-    const previous = videos.find((v) => v.id === id);
-    setVideos((p) => p.filter((v) => v.id !== id));
-    try {
-      await accountClient.delete(`/account/content/${id}`);
-      setSnack('已删除');
-    } catch (e) {
-      // 回滚本地 state
-      if (previous) {
-        setVideos((p) => (p.some((v) => v.id === id) ? p : [previous, ...p]));
+  const refetchServer = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: HD_VIDEOS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: HD_MANAGE_VIDEOS_QUERY_KEY });
+  }, [queryClient]);
+
+  /** 先叠上乐观改动再发请求:成功则等服务端刷新后撤掉改动,失败立即撤掉(回滚)。返回是否成功。 */
+  const runOptimistic = useCallback(
+    async (op: NewHdOp, request: () => Promise<unknown>, okMsg: string, failMsg: string) => {
+      const opId = ++opSeqRef.current;
+      setOps((p) => [...liveHdOps(p, markNow()), { ...op, opId } as HdPendingOp]);
+      try {
+        await request();
+      } catch (e) {
+        setOps((p) => p.filter((o) => o.opId !== opId));
+        setSnack(`${failMsg}:${formatApiError(e)}`);
+        return false;
       }
-      setSnack(`删除失败:${formatApiError(e)}`);
-    }
-  }, [videos, setSnack]);
-  const handleRetry = useCallback(async (id: string) => {
-    // 乐观更新
-    setVideos((p) =>
-      p.map((v) => (v.id === id ? { ...v, status: 'transcoding', progress: 0, failedReason: undefined } : v)),
-    );
-    try {
-      await accountClient.post(`/account/content/${id}/transcode`);
-      setSnack('已重新提交转码');
-    } catch (e) {
-      // 转码任务 API 失败时回滚状态
-      setVideos((p) =>
-        p.map((v) => (v.id === id ? { ...v, status: 'failed' } : v)),
-      );
-      setSnack(`重新转码失败:${formatApiError(e)}`);
-    }
-  }, [setSnack]);
-  const handlePublishNow = useCallback(async (id: string) => {
-    // 乐观更新
-    setVideos((p) => p.filter((v) => v.id !== id));
-    try {
-      await accountClient.post(`/account/content/${id}/publish`);
-      setSnack('已立即发布');
-    } catch (e) {
-      // 回滚:刷新列表数据由后台 useQuery 重拉;此处提示失败
-      setSnack(`发布失败:${formatApiError(e)}`);
-    }
-  }, [setSnack]);
+      const confirmedAt = markNow();
+      setOps((p) => p.map((o) => (o.opId === opId ? { ...o, confirmedAt } : o)));
+      refetchServer();
+      setSnack(okMsg);
+      return true;
+    },
+    [markNow, refetchServer, setSnack],
+  );
 
-  const handleFastTrackReview = useCallback(async (id: string) => {
-    if (fastChannelQuota <= 0) {
-      setSnack('本月极速通道已用完,下月 1 日恢复');
-      return;
-    }
-    // 乐观更新
-    setVideos((p) =>
-      p.map((v) =>
-        v.id === id && v.review
-          ? {
-              ...v,
-              review: {
-                ...v.review,
-                useFastChannel: true,
-                fastChannelChargedAt: Date.now(),
-              },
-            }
-          : v,
-      ),
-    );
-    setFastChannelQuota((q) => q - 1);
-    try {
-      await accountClient.post(`/account/content/${id}/fasttrack`);
-      setSnack('已启用极速通道,审核将优先处理');
-    } catch (e) {
-      // 回滚
-      setVideos((p) =>
-        p.map((v) =>
-          v.id === id && v.review
-            ? {
-                ...v,
-                review: {
-                  ...v.review,
-                  useFastChannel: false,
-                  fastChannelChargedAt: undefined,
-                },
-              }
-            : v,
-        ),
-      );
-      setFastChannelQuota((q) => q + 1);
-      setSnack(`极速送审失败:${formatApiError(e)}`);
-    }
-  }, [fastChannelQuota, setSnack]);
+  /** 刚创建好的视频先放进列表,等服务端列表拉到它为止 */
+  const addVideo = useCallback(
+    (video: HdVideo) => {
+      const opId = ++opSeqRef.current;
+      const confirmedAt = markNow();
+      setOps((p) => [...liveHdOps(p, confirmedAt), { opId, kind: 'add', videoId: video.id, video, confirmedAt }]);
+      refetchServer();
+    },
+    [markNow, refetchServer],
+  );
 
-  const handleResubmitReview = useCallback(async (id: string) => {
-    // 乐观更新
-    setVideos((p) =>
-      p.map((v) =>
-        v.id === id
-          ? {
-              ...v,
-              status: 'reviewing',
-              failedStage: undefined,
-              failedReason: undefined,
-              review: {
-                ...v.review,
-                checks: REVIEW_CHECK_TEMPLATE.map((c) => ({ ...c, status: 'pending' as const })),
-                startedAt: Date.now(),
-              },
-            }
-          : v,
+  const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
+
+  const handleDelete = useCallback(
+    (id: string) =>
+      runOptimistic(
+        { kind: 'remove', videoId: id },
+        () => accountClient.delete(`/account/content/${id}`),
+        '已删除',
+        '删除失败',
       ),
-    );
-    try {
-      await accountClient.post(`/account/content/${id}/review`);
-      setSnack('已重新提交审核');
-    } catch (e) {
-      // 回滚
-      setVideos((p) =>
-        p.map((v) =>
-          v.id === id
-            ? { ...v, status: 'review_failed' }
-            : v,
-        ),
+    [runOptimistic],
+  );
+  const handleRetry = useCallback(
+    (id: string) =>
+      runOptimistic(
+        {
+          kind: 'update',
+          videoId: id,
+          apply: (v) => ({ ...v, status: 'transcoding', progress: 0, failedReason: undefined }),
+        },
+        () => accountClient.post(`/account/content/${id}/transcode`),
+        '已重新提交转码',
+        '重新转码失败',
+      ),
+    [runOptimistic],
+  );
+  const handlePublishNow = useCallback(
+    (id: string) =>
+      runOptimistic(
+        { kind: 'remove', videoId: id },
+        () => accountClient.post(`/account/content/${id}/publish`),
+        '已立即发布',
+        '发布失败',
+      ),
+    [runOptimistic],
+  );
+
+  const handleFastTrackReview = useCallback(
+    async (id: string) => {
+      if (fastChannelQuota <= 0) {
+        setSnack('本月极速通道已用完,下月 1 日恢复');
+        return false;
+      }
+      setFastChannelQuota((q) => q - 1);
+      const ok = await runOptimistic(
+        {
+          kind: 'update',
+          videoId: id,
+          apply: (v) =>
+            v.review
+              ? { ...v, review: { ...v.review, useFastChannel: true, fastChannelChargedAt: Date.now() } }
+              : v,
+        },
+        () => accountClient.post(`/account/content/${id}/fasttrack`),
+        '已启用极速通道,审核将优先处理',
+        '极速送审失败',
       );
-      setSnack(`重新送审失败:${formatApiError(e)}`);
-    }
-  }, [setSnack]);
+      if (!ok) setFastChannelQuota((q) => q + 1);
+      return ok;
+    },
+    [fastChannelQuota, runOptimistic, setSnack],
+  );
+
+  const handleResubmitReview = useCallback(
+    (id: string) => {
+      const startedAt = Date.now();
+      return runOptimistic(
+        {
+          kind: 'update',
+          videoId: id,
+          apply: (v) => ({
+            ...v,
+            status: 'reviewing',
+            failedStage: undefined,
+            failedReason: undefined,
+            review: {
+              ...v.review,
+              checks: REVIEW_CHECK_TEMPLATE.map((c) => ({ ...c, status: 'pending' as const })),
+              startedAt,
+            },
+          }),
+        },
+        () => accountClient.post(`/account/content/${id}/review`),
+        '已重新提交审核',
+        '重新送审失败',
+      );
+    },
+    [runOptimistic],
+  );
 
   return {
     videos,
-    setVideos,
+    addVideo,
     fastChannelQuota,
     handleDelete,
     handleRetry,
@@ -200,11 +236,12 @@ export function useHdVideos(setSnack: SetSnack) {
  */
 export function useHdUpload({
   setSnack,
-  setVideos,
+  addVideo,
   onPublished: handlePublished,
 }: {
   setSnack: SetSnack;
-  setVideos: React.Dispatch<React.SetStateAction<HdVideo[]>>;
+  /** 新建好的视频先放进列表(useHdVideos().addVideo) */
+  addVideo: (video: HdVideo) => void;
   onPublished: (saved?: SavedContent) => void;
 }) {
   // 上传文件状态机(用于提交按钮 disabled + 失败保护)。
@@ -353,8 +390,10 @@ export function useHdUpload({
       setSnack({ msg: `内容创建失败:${e.message || '未知错误'}`, severity: 'error' });
       return;
     }
+    // 用服务端返回的作品 id,列表重新拉到这条时自然合并,不会出现一真一假两条
+    const savedId = saved && typeof saved === 'object' && saved.id !== undefined && saved.id !== null ? String(saved.id) : '';
     const newItem: HdVideo = {
-      id: `hd-${Date.now()}`,
+      id: /^[1-9]d*$/.test(savedId) ? savedId : `hd-${Date.now()}`,
       title: uploadTitle.trim(),
       cover: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'),
       resolution: uploadResolution,
@@ -370,7 +409,7 @@ export function useHdUpload({
       subtitles: uploadSubtitles,
       audioTracks: uploadAudios,
     };
-    setVideos((p) => [newItem, ...p]);
+    addVideo(newItem);
     setSnack({ msg: `《${newItem.title}》已加入转码队列`, severity: 'success' });
     // reset
     setUploadTitle('');
@@ -381,7 +420,7 @@ export function useHdUpload({
     setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
     resetUpload();
     handlePublished(saved && typeof saved === 'object' ? saved : undefined);
-  }, [uploadTitle, uploadStatus, uploadFileUrl, createUpload, uploadResolution, uploadHdr, uploadFileSizeMB, uploadAutoCover, uploadSubtitles, uploadAudios, setSnack, setVideos, resetUpload, handlePublished]);
+  }, [uploadTitle, uploadStatus, uploadFileUrl, createUpload, uploadResolution, uploadHdr, uploadFileSizeMB, uploadAutoCover, uploadSubtitles, uploadAudios, setSnack, addVideo, resetUpload, handlePublished]);
 
   return useMemo(
     () => ({

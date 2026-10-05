@@ -2,13 +2,17 @@ import { describe, it, expect } from 'vitest';
 import type { ModuleContentItem } from '@/apis/module-content';
 import type { HdVideo } from './data';
 import {
+  applyHdOps,
   buildReviewHistory,
   computeHdStats,
   dedupeHdVideos,
   formatSize,
+  liveHdOps,
   mapApiReviewers,
   mapContentStatusToHd,
+  mergeServerHdVideos,
   moduleContentToHdVideo,
+  type HdPendingOp,
 } from './hdPublishModel';
 
 const NOW = 1_800_000_000_000;
@@ -44,6 +48,59 @@ describe('hdPublishModel', () => {
     expect(mapContentStatusToHd('error')).toBe('failed');
     expect(mapContentStatusToHd(undefined)).toBe('transcoding');
     expect(mapContentStatusToHd('active')).toBe('transcoding');
+    expect(mapContentStatusToHd('scheduled')).toBe('scheduled');
+    expect(mapContentStatusToHd('SCHEDULED')).toBe('scheduled');
+    expect(mapContentStatusToHd('review_failed')).toBe('review_failed');
+  });
+
+  it('dedupeHdVideos 把库里的原始状态归到 HD 流程状态', () => {
+    const out = dedupeHdVideos([
+      { id: 1, status: 'REVIEWING' },
+      { id: 2, status: 'REJECTED' },
+      { id: 3, status: 'transcoding' },
+      { id: 4, status: 'failed' },
+    ]);
+    expect(out.map((v) => v.status)).toEqual(['reviewing', 'review_failed', 'transcoding', 'failed']);
+  });
+
+  it('mergeServerHdVideos 以 HD 接口为准,管理列表只补没有的 id', () => {
+    const merged = mergeServerHdVideos(
+      [video({ id: '1', title: 'hd' })],
+      [{ id: '1', title: 'manage' }, { id: 2, title: 'm2' }, { id: 2, title: 'dup' }] as ModuleContentItem[],
+    );
+    expect(merged.map((v) => [v.id, v.title])).toEqual([
+      ['2', 'm2'],
+      ['1', 'hd'],
+    ]);
+    expect(mergeServerHdVideos([], undefined)).toEqual([]);
+  });
+
+  it('applyHdOps 按顺序叠加删除 / 修改 / 新增,新增遇到服务端已有同 id 时不重复', () => {
+    const server = [video({ id: '1', status: 'failed' }), video({ id: '2' })];
+    const ops: HdPendingOp[] = [
+      { opId: 1, kind: 'update', videoId: '1', apply: (v) => ({ ...v, status: 'transcoding' }) },
+      { opId: 2, kind: 'remove', videoId: '2' },
+      { opId: 3, kind: 'add', videoId: '3', video: video({ id: '3' }) },
+      { opId: 4, kind: 'add', videoId: '1', video: video({ id: '1', title: '本地' }) },
+    ];
+    const out = applyHdOps(server, ops);
+    expect(out.map((v) => [v.id, v.status])).toEqual([
+      ['3', 'published'],
+      ['1', 'transcoding'],
+    ]);
+    expect(out.find((v) => v.id === '1')?.title).toBe('t');
+    // 不改入参
+    expect(server.map((v) => v.status)).toEqual(['failed', 'published']);
+  });
+
+  it('liveHdOps 未确认的一直保留,确认后两路数据都刷新过才撤掉', () => {
+    const ops: HdPendingOp[] = [
+      { opId: 1, kind: 'remove', videoId: 'a' },
+      { opId: 2, kind: 'remove', videoId: 'b', confirmedAt: { hd: 3, manage: 5 } },
+    ];
+    expect(liveHdOps(ops, { hd: 3, manage: 5 }).map((o) => o.opId)).toEqual([1, 2]);
+    expect(liveHdOps(ops, { hd: 4, manage: 5 }).map((o) => o.opId)).toEqual([1, 2]);
+    expect(liveHdOps(ops, { hd: 4, manage: 6 }).map((o) => o.opId)).toEqual([1]);
   });
 
   it('dedupeHdVideos 按 id 去重、丢掉没 id 的,并补空字幕/音轨', () => {
