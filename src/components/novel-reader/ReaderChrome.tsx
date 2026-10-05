@@ -29,6 +29,10 @@ import {
   READER_FONTS,
   READER_THEMES,
   READER_WIDTHS,
+  NIGHT_THEMES,
+  CUSTOM_NIGHT_ID,
+  DEFAULT_CUSTOM_NIGHT,
+  customNightTheme,
   noiseLayer,
   type ReaderPrefs,
   type ReaderTheme,
@@ -280,36 +284,77 @@ function Row({ theme, label, children }: { theme: ReaderTheme; label: string; ch
   );
 }
 
+/** 主题色块:日间只显示纸色,夜间在纸色上写个「文」,字色一眼能看出来 */
+function ThemeSwatch({ theme, t, on, onClick }: { theme: ReaderTheme; t: ReaderTheme; on: boolean; onClick: () => void }) {
+  return (
+    <ButtonBase
+      title={t.label}
+      aria-label={t.label}
+      aria-pressed={on}
+      onClick={onClick}
+      sx={{
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        backgroundColor: t.paper,
+        backgroundImage: noiseLayer(t.dark),
+        border: `${on ? 2 : 1}px solid ${on ? accentOf(theme) : t.dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)'}`,
+        color: on ? accentOf(theme) : t.text,
+        fontSize: 14,
+      }}
+    >
+      {on ? <CheckIcon sx={{ fontSize: 18 }} /> : t.dark ? '文' : null}
+    </ButtonBase>
+  );
+}
+
+/** 原生取色器(手机上弹系统调色盘),外面包一层圆角标签 */
+function ColorField({ theme, label, value, onChange }: { theme: ReaderTheme; label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <Box
+      component="label"
+      sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, height: 32, px: 1.25, borderRadius: '16px', border: `1px solid ${theme.line}`, bgcolor: theme.fill, fontSize: 13, color: theme.text, cursor: 'pointer' }}
+    >
+      <Box
+        component="input"
+        type="color"
+        value={value}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+        sx={{ width: 22, height: 22, p: 0, border: 'none', borderRadius: '50%', bgcolor: 'transparent', cursor: 'pointer', '&::-webkit-color-swatch-wrapper': { p: 0 }, '&::-webkit-color-swatch': { border: `1px solid ${theme.line}`, borderRadius: '50%' }, '&::-moz-color-swatch': { border: `1px solid ${theme.line}`, borderRadius: '50%' } }}
+      />
+      {label}
+    </Box>
+  );
+}
+
 function SettingsPanel({ theme, prefs, onPrefs, onPanel, isMobile }: ReaderChromeProps) {
   return (
     <>
       <PanelHeader theme={theme} title="阅读设置" onClose={() => onPanel(null)} />
       <Box sx={{ px: 3, py: 1.5, overflowY: 'auto' }}>
-        <Row theme={theme} label="阅读主题">
-          {READER_THEMES.map((t) => {
-            const on = prefs.theme === t.id;
-            return (
-              <ButtonBase
-                key={t.id}
-                title={t.label}
-                aria-label={t.label}
-                aria-pressed={on}
-                onClick={() => onPrefs({ theme: t.id })}
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  backgroundColor: t.paper,
-                  backgroundImage: noiseLayer(t.dark),
-                  border: `1px solid ${on ? accentOf(theme) : 'rgba(0,0,0,.08)'}`,
-                  color: on ? accentOf(theme) : 'rgba(255,255,255,.4)',
-                }}
-              >
-                {on ? <CheckIcon sx={{ fontSize: 18 }} /> : t.dark ? <DarkModeOutlinedIcon sx={{ fontSize: 16 }} /> : null}
-              </ButtonBase>
-            );
-          })}
+        <Row theme={theme} label="日间">
+          {READER_THEMES.map((t) => (
+            <ThemeSwatch key={t.id} theme={theme} t={t} on={prefs.theme === t.id} onClick={() => onPrefs({ theme: t.id })} />
+          ))}
         </Row>
+        <Row theme={theme} label="夜间">
+          {NIGHT_THEMES.map((t) => (
+            <ThemeSwatch key={t.id} theme={theme} t={t} on={prefs.theme === t.id} onClick={() => onPrefs({ theme: t.id })} />
+          ))}
+          <ThemeSwatch
+            theme={theme}
+            t={customNightTheme(prefs.customNight)}
+            on={prefs.theme === CUSTOM_NIGHT_ID}
+            onClick={() => onPrefs({ theme: CUSTOM_NIGHT_ID })}
+          />
+        </Row>
+        {prefs.theme === CUSTOM_NIGHT_ID && (
+          <Row theme={theme} label="自定义">
+            <ColorField theme={theme} label="底色" value={prefs.customNight.paper} onChange={(paper) => onPrefs({ customNight: { ...prefs.customNight, paper } })} />
+            <ColorField theme={theme} label="文字" value={prefs.customNight.text} onChange={(text) => onPrefs({ customNight: { ...prefs.customNight, text } })} />
+            <Pill theme={theme} active={false} onClick={() => onPrefs({ customNight: DEFAULT_CUSTOM_NIGHT })}>重置</Pill>
+          </Row>
+        )}
         <Row theme={theme} label="正文字体">
           {READER_FONTS.map((f) => (
             <Pill key={f.id} theme={theme} grow active={prefs.font === f.id} onClick={() => onPrefs({ font: f.id })}>

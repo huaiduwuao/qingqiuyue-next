@@ -249,7 +249,7 @@ function NovelDetailContent() {
   const { status: authStatus } = useAuth();
 
   const { prefs, update: updatePrefs, toggleNight } = useReaderPrefs();
-  const rt = themeOf(prefs.theme);
+  const rt = themeOf(prefs.theme, prefs.customNight);
   const fontFamily = fontOf(prefs.font);
   const outerTheme = useTheme();
   const isMobile = useMediaQuery(outerTheme.breakpoints.down('md'));

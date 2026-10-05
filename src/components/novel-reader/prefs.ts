@@ -33,9 +33,59 @@ export const READER_THEMES: ReaderTheme[] = [
   { id: 'yellow', label: '米黄', paper: '#F4ECD1', page: '#E9DFBF', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
   { id: 'green', label: '护眼', paper: '#DAF2DA', page: '#CBE5CB', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
   { id: 'blue', label: '天青', paper: '#DCEAEE', page: '#CDDDE2', text: 'rgba(0,0,0,.9)', sub: 'rgba(0,0,0,.5)', line: 'rgba(0,0,0,.08)', fill: 'rgba(0,0,0,.04)', dark: false },
-  // 夜间:暖色深底 + 暖灰字,对比度压到 6:1 左右(纯黑底配亮白字在暗处刺眼);强调色也调暗
-  { id: 'night', label: '夜间', paper: '#1C1B19', page: '#151412', text: '#9E998F', sub: '#6B675F', line: 'rgba(255,245,230,.07)', fill: 'rgba(255,245,230,.05)', dark: true, accent: '#B0564E' },
 ];
+
+/**
+ * 夜间配色,用户自己挑。都是深底 + 压低亮度的字(对比度 5~7:1,纯黑底配亮白字在暗处刺眼),
+ * 强调色也调暗。'night' 是第一版的暖夜,id 不能改(老用户存的就是它)。
+ */
+export const NIGHT_THEMES: ReaderTheme[] = [
+  { id: 'night', label: '暖夜', paper: '#1C1B19', page: '#151412', text: '#9E998F', sub: '#6B675F', line: 'rgba(255,245,230,.07)', fill: 'rgba(255,245,230,.05)', dark: true, accent: '#B0564E' },
+  { id: 'night-ink', label: '墨黑', paper: '#0D0D0D', page: '#000000', text: '#858585', sub: '#555555', line: 'rgba(255,255,255,.06)', fill: 'rgba(255,255,255,.04)', dark: true, accent: '#A04A44' },
+  { id: 'night-gray', label: '夜灰', paper: '#2A2A2A', page: '#222222', text: '#A6A6A6', sub: '#707070', line: 'rgba(255,255,255,.08)', fill: 'rgba(255,255,255,.05)', dark: true, accent: '#B85C54' },
+  { id: 'night-blue', label: '夜蓝', paper: '#192029', page: '#131820', text: '#8D9AAA', sub: '#5D6876', line: 'rgba(200,220,255,.07)', fill: 'rgba(200,220,255,.05)', dark: true, accent: '#6F8FB8' },
+  { id: 'night-green', label: '夜绿', paper: '#18211B', page: '#121914', text: '#8FA393', sub: '#5E6E62', line: 'rgba(210,255,220,.07)', fill: 'rgba(210,255,220,.05)', dark: true, accent: '#7A9F78' },
+  { id: 'night-brown', label: '夜褐', paper: '#29221C', page: '#201A15', text: '#B09F8A', sub: '#786B5C', line: 'rgba(255,230,200,.07)', fill: 'rgba(255,230,200,.05)', dark: true, accent: '#B5714A' },
+];
+
+/** 自定义夜间配色的 id:底色 / 字色取 prefs.customNight */
+export const CUSTOM_NIGHT_ID = 'night-custom';
+export const DEFAULT_CUSTOM_NIGHT = { paper: '#1C1B19', text: '#9E998F' };
+
+function hexRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function mixHex(a: [number, number, number], b: [number, number, number], t: number): string {
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+
+/** 由用户挑的底色 + 字色推出整套主题:页面底色比纸再暗一点,次要字取两者之间 */
+export function customNightTheme(c: { paper: string; text: string }): ReaderTheme {
+  const paper = hexRgb(c.paper) ?? hexRgb(DEFAULT_CUSTOM_NIGHT.paper)!;
+  const text = hexRgb(c.text) ?? hexRgb(DEFAULT_CUSTOM_NIGHT.text)!;
+  const [r, g, b] = text;
+  return {
+    id: CUSTOM_NIGHT_ID,
+    label: '自定义',
+    paper: mixHex(paper, paper, 0), // 规整成 #rrggbb
+    page: mixHex(paper, [0, 0, 0], 0.25),
+    text: mixHex(text, text, 0),
+    sub: mixHex(paper, text, 0.55),
+    line: `rgba(${r},${g},${b},.1)`,
+    fill: `rgba(${r},${g},${b},.07)`,
+    // 用户把底色挑成了浅色就按日间处理(噪点、MUI 明暗跟着走)
+    dark: paper[0] * 0.299 + paper[1] * 0.587 + paper[2] * 0.114 < 128,
+    accent: mixHex(paper, [200, 90, 80], 0.75),
+  };
+}
+
+export function isNightTheme(id: string): boolean {
+  return id === CUSTOM_NIGHT_ID || NIGHT_THEMES.some((t) => t.id === id);
+}
 
 export const READER_ACCENT = '#E5353E';
 
@@ -59,6 +109,10 @@ export interface ReaderPrefs {
   theme: string;
   /** 切到夜间前的日间主题,夜间按钮切回用 */
   dayTheme: string;
+  /** 上次选的夜间配色,夜间按钮切过去用 */
+  nightTheme: string;
+  /** 自定义夜间配色 */
+  customNight: { paper: string; text: string };
   font: string;
   fontSize: number;
   width: number;
@@ -71,6 +125,8 @@ export interface ReaderPrefs {
 export const DEFAULT_PREFS: ReaderPrefs = {
   theme: 'default',
   dayTheme: 'default',
+  nightTheme: 'night',
+  customNight: DEFAULT_CUSTOM_NIGHT,
   font: 'hei',
   fontSize: 18,
   width: 0,
@@ -79,8 +135,9 @@ export const DEFAULT_PREFS: ReaderPrefs = {
 
 const PREFS_KEY = 'qq-novel-reader-prefs';
 
-export function themeOf(id: string): ReaderTheme {
-  return READER_THEMES.find((t) => t.id === id) ?? READER_THEMES[0];
+export function themeOf(id: string, customNight: { paper: string; text: string } = DEFAULT_CUSTOM_NIGHT): ReaderTheme {
+  if (id === CUSTOM_NIGHT_ID) return customNightTheme(customNight);
+  return READER_THEMES.find((t) => t.id === id) ?? NIGHT_THEMES.find((t) => t.id === id) ?? READER_THEMES[0];
 }
 
 export function fontOf(id: string): string {
@@ -106,6 +163,7 @@ export function useReaderPrefs() {
         const merged = { ...DEFAULT_PREFS, ...saved };
         // 老版本存的 mode:'page'(一章一页)已下线,落到默认分页模式
         if (!['scroll', 'overlay', 'swipe'].includes(merged.mode)) merged.mode = DEFAULT_PREFS.mode;
+        if (!merged.customNight || typeof merged.customNight.paper !== 'string' || typeof merged.customNight.text !== 'string') merged.customNight = DEFAULT_CUSTOM_NIGHT;
         setPrefs(merged);
       }
     } catch {
@@ -116,7 +174,10 @@ export function useReaderPrefs() {
   const update = useCallback((patch: Partial<ReaderPrefs>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...patch };
-      if (patch.theme && patch.theme !== 'night') next.dayTheme = patch.theme;
+      if (patch.theme) {
+        if (isNightTheme(patch.theme)) next.nightTheme = patch.theme;
+        else next.dayTheme = patch.theme;
+      }
       next.fontSize = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, next.fontSize));
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(next));
@@ -129,7 +190,7 @@ export function useReaderPrefs() {
 
   const toggleNight = useCallback(() => {
     setPrefs((prev) => {
-      const next = { ...prev, theme: prev.theme === 'night' ? prev.dayTheme || 'default' : 'night' };
+      const next = { ...prev, theme: isNightTheme(prev.theme) ? prev.dayTheme || 'default' : prev.nightTheme || 'night' };
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(next));
       } catch {
