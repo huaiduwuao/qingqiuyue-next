@@ -1,4 +1,4 @@
-export default {
+const messages = {
   'component.globalHeader.search': 'Search',
   'component.globalHeader.search.example1': 'Search example 1',
   'component.globalHeader.search.example2': 'Search example 2',
@@ -15,3 +15,5 @@ export default {
   'component.noticeIcon.empty': 'No notifications',
   'component.noticeIcon.view-more': 'View more',
 };
+
+export default messages;

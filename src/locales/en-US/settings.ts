@@ -1,4 +1,4 @@
-export default {
+const messages = {
   'app.settings.menuMap.basic': 'Basic Settings',
   'app.settings.menuMap.security': 'Security Settings',
   'app.settings.menuMap.binding': 'Account Binding',
@@ -58,3 +58,5 @@ export default {
   'app.settings.open': 'Open',
   'app.settings.close': 'Close',
 };
+
+export default messages;

@@ -164,7 +164,7 @@ export async function safeAsync<T>(
   }
 }
 
-export default {
+const errorHandler = {
   safeErrorLog,
   reportClientError,
   silentCatch,
@@ -172,3 +172,5 @@ export default {
   createErrorHandler,
   safeAsync,
 }
+
+export default errorHandler

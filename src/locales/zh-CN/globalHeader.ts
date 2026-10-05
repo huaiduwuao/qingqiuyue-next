@@ -1,4 +1,4 @@
-export default {
+const messages = {
   'component.globalHeader.search': '站内搜索',
   'component.globalHeader.search.example1': '搜索提示一',
   'component.globalHeader.search.example2': '搜索提示二',
@@ -15,3 +15,5 @@ export default {
   'component.noticeIcon.empty': '暂无数据',
   'component.noticeIcon.view-more': '查看更多',
 };
+
+export default messages;

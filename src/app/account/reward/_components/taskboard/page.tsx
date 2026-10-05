@@ -102,7 +102,6 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
         else showMessage('任务不存在或已删除', 'error');
       })
       .catch((e: any) => showMessage(e?.message || '任务加载失败', 'error'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 我所在的团队

@@ -1,4 +1,4 @@
-export default {
+const messages = {
   'app.setting.pagestyle': 'Page style setting',
   'app.setting.pagestyle.dark': 'Dark style',
   'app.setting.pagestyle.light': 'Light style',
@@ -29,3 +29,5 @@ export default {
   'app.setting.production.hint':
     'Setting panel shows in development environment only, please manually modify',
 };
+
+export default messages;

@@ -106,7 +106,6 @@ export default function SystemLogPage() {
   };
   useEffect(() => {
     if (live && stickRef.current) scrollToBottom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linesKey, live]);
 
   const toggleLevel = (lv: LogLevel) => {

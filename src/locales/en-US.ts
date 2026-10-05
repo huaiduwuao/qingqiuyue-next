@@ -6,7 +6,7 @@ import pwa from './en-US/pwa';
 import settingDrawer from './en-US/settingDrawer';
 import settings from './en-US/settings';
 
-export default {
+const messages = {
   'navBar.lang': 'Languages',
   'layout.user.link.help': 'Help',
   'layout.user.link.privacy': 'Privacy',
@@ -23,3 +23,5 @@ export default {
   ...component,
   ...pages,
 };
+
+export default messages;

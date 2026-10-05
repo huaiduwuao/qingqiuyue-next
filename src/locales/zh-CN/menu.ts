@@ -1,4 +1,4 @@
-export default {
+const messages = {
   'menu.welcome': '欢迎',
   'menu.more-blocks': '更多区块',
   'menu.module-content-detail': '内容详情',
@@ -144,3 +144,5 @@ export default {
   'menu.system.module.module-content-toplist': '模块榜单',
   'menu.system.module.module-content-toplist-item': '模块榜单条目',
 };
+
+export default messages;

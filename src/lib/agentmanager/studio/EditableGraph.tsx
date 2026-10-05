@@ -153,7 +153,6 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
         })),
       )
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [setNodes, setEdges, dark, theme],
   )
 

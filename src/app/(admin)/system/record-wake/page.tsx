@@ -410,9 +410,9 @@ export default function RecordWakePage() {
       <Box sx={{  display: "flex", flexDirection: "row", alignItems: "center", gap: 2, mb: 3  }}>
         <SmartToyRoundedIcon sx={{ fontSize: 40, color: 'primary.main' }} />
         <Box>
-          <Typography component="h5" variant="h5" sx={{ fontWeight: 600,  }}>训练 "小月" 唤醒词</Typography>
+          <Typography component="h5" variant="h5" sx={{ fontWeight: 600,  }}>训练 &quot;小月&quot; 唤醒词</Typography>
           <Typography component="p" variant="body2" color="text.secondary">
-            录你的真人声替换合成数据, 数字人才能真正识别"小月"
+            录你的真人声替换合成数据, 数字人才能真正识别&quot;小月&quot;
           </Typography>
         </Box>
       </Box>
@@ -568,11 +568,11 @@ export default function RecordWakePage() {
       <Alert severity="info" sx={{ mt: 2 }}>
         <Typography component="p" variant="body2" sx={{ fontWeight: 600, mb: 0.5 }} >使用提示</Typography>
         <Typography component="p" variant="caption" >
-          • 录音时说"小月"两字(自然语速, 不要刻意慢或快)<br />
+          • 录音时说&quot;小月&quot;两字(自然语速, 不要刻意慢或快)<br />
           • 变化语调/距离/角度, 让模型更鲁棒<br />
           • 至少 10 条可训练, 30+ 条显著提升, 50+ 条接近产品级<br />
-          • 训练在服务器沙盒里跑(约 15-30 分钟),会自动合成多音色"小月"和大量非唤醒语音做对照,<br />
-          &nbsp;&nbsp;按"每小时误唤醒 ≤0.5 次"自动选阈值;完成后数字人页刷新即生效
+          • 训练在服务器沙盒里跑(约 15-30 分钟),会自动合成多音色&quot;小月&quot;和大量非唤醒语音做对照,<br />
+          &nbsp;&nbsp;按&quot;每小时误唤醒 ≤0.5 次&quot;自动选阈值;完成后数字人页刷新即生效
         </Typography>
       </Alert>
     </Box>

@@ -607,7 +607,7 @@ function MyWorkTabContent({ activity }: { activity: Activity }) {
       <Box sx={{ textAlign: 'center', py: 6 }}>
         <UploadFileRoundedIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          还没有作品参赛 — 点击下方"投稿作品"开始
+          还没有作品参赛 — 点击下方&quot;投稿作品&quot;开始
         </Typography>
       </Box>
     );

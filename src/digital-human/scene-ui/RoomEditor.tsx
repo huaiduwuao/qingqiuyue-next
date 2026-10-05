@@ -168,7 +168,6 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
     const ok = await objectsRef.current.patchItem(id, { x: after.x, y: after.y, z: after.z, rotY: after.rotY, scale: after.scale });
     if (ok && record) push({ t: 'pose', id, before, after });
     return ok;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── gizmo:选中的那件挂一个 TransformControls

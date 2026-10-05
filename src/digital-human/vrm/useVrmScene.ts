@@ -47,7 +47,6 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
   useEffect(() => {
     if (!rendererState) return;
     applyBackground(rendererState.THREE_NS, rendererState.scene);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.transparent, rendererState]);
 
   // 跟 VRM scene 保持同步（用 ref 避免 useEffect 重跑）

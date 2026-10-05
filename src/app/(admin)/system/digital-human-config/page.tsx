@@ -1027,7 +1027,7 @@ function MenusTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
       {isLoading ? (
         <Typography sx={{ p: 2, color: 'text.secondary' }}>加载中...</Typography>
       ) : menus.length === 0 ? (
-        <Typography sx={{ p: 2, color: 'text.secondary' }}>暂无菜单配置，点击"新建菜单"添加</Typography>
+        <Typography sx={{ p: 2, color: 'text.secondary' }}>暂无菜单配置，点击&quot;新建菜单&quot;添加</Typography>
       ) : (
         <Box sx={{ maxHeight: 600, overflow: 'auto' }}>
           {treeData.map(menu => renderMenuItem(menu))}

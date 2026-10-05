@@ -64,7 +64,7 @@ export function useVrmLipSync(opts: UseVrmLipSyncOptions) {
     setSongOn(true);
   }, [audio]);
   const stopSong = useCallback(() => { audio.stopSong(); setSongOn(false); }, [audio]);
-  const toggleSong = useCallback(() => { songOn ? stopSong() : startSong(); }, [songOn, startSong, stopSong]);
+  const toggleSong = useCallback(() => { if (songOn) stopSong(); else startSong(); }, [songOn, startSong, stopSong]);
 
   const startMic = useCallback(async () => {
     const ok = await audio.startMic();
@@ -72,7 +72,7 @@ export function useVrmLipSync(opts: UseVrmLipSyncOptions) {
     return ok;
   }, [audio]);
   const stopMic = useCallback(() => { audio.stopMic(); setMicOn(false); }, [audio]);
-  const toggleMic = useCallback(async () => { micOn ? stopMic() : await startMic(); }, [micOn, startMic, stopMic]);
+  const toggleMic = useCallback(async () => { if (micOn) stopMic(); else await startMic(); }, [micOn, startMic, stopMic]);
 
   const connectElement = useCallback((el: HTMLAudioElement) => { audio.connectElement(el); }, [audio]);
 

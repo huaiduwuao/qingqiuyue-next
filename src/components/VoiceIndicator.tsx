@@ -157,7 +157,7 @@ export function VoiceIndicator({
       </div>
       {showTranscript && transcript && (
         <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85, fontStyle: 'italic' }}>
-          "{transcript}"
+          &quot;{transcript}&quot;
         </div>
       )}
       {error && (
