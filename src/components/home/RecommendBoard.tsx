@@ -122,7 +122,7 @@ export default function RecommendBoard({
                 variant="overlay"
                 id={item.id}
                 contentType={item.category}
-                status={(item as any).playbackStatus}
+                status={(item as { playbackStatus?: string | null }).playbackStatus}
                 top={4}
                 left={4}
                 sx={{ maxWidth: 'calc(100% - 8px)' }}

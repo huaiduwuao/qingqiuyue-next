@@ -68,6 +68,8 @@ interface ModuleContentDetailProps {
     collects?: number;
     collectNum?: number;
     tags?: string[];
+    desc?: string;
+    intro?: string;
   };
   onClose?: () => void;
 }
@@ -402,12 +404,12 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
 
         <Box sx={{ mt: 2 }}>
           <ShareButtons
-            contentType={(detail as any)?.contentType || 'work'}
-            contentId={toEntityId((detail as any)?.id) ?? 0}
+            contentType={detail?.contentType || 'work'}
+            contentId={toEntityId(detail?.id) ?? 0}
             title={contentName || '清秋月内容'}
             url={typeof window !== 'undefined' ? window.location.href : ''}
-            cover={(detail as any)?.cover}
-            desc={(detail as any)?.desc || (detail as any)?.intro}
+            cover={detail?.cover}
+            desc={detail?.desc || detail?.intro}
           />
         </Box>
 

@@ -114,6 +114,12 @@ function httpUrl(...candidates: (string | undefined)[]): string {
 
 type Severity = 'success' | 'error' | 'info';
 
+/** 详情回包里可能出现的简介字段(各内容类型字段名不一) */
+const descOf = (d: unknown): string | undefined => {
+  const o = d as { desc?: string; intro?: string; description?: string } | null | undefined;
+  return o?.desc || o?.intro || o?.description;
+};
+
 export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -244,7 +250,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
               title={query.data?.title || `${config.typeLabel}详情`}
               url={typeof window !== 'undefined' ? window.location.href : ''}
               cover={query.data?.cover}
-              desc={(query.data as any)?.desc || (query.data as any)?.intro || (query.data as any)?.description}
+              desc={descOf(query.data)}
             />
           </Box>
         }

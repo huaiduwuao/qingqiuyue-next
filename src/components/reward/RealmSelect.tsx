@@ -16,9 +16,9 @@ interface Props {
   size?: 'small' | 'medium';
 }
 
-const rows = (r: any): Topic[] => {
-  const p = r;
-  return p?.list || p?.records || (Array.isArray(p) ? p : []);
+const rows = (r: unknown): Topic[] => {
+  const p = r as { list?: Topic[]; records?: Topic[] } | null | undefined;
+  return p?.list || p?.records || (Array.isArray(p) ? (p as Topic[]) : []);
 };
 
 /**
