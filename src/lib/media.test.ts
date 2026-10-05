@@ -25,6 +25,15 @@ describe('mediaUrl', () => {
       .toBe('/api/proxy?url=' + encodeURIComponent('http://i2.hdslb.com/bfs/archive/x.jpg'));
   });
 
+  it('不校验 Referer 的境外 https 图床直连,不经 /api/proxy', () => {
+    expect(mediaUrl('https://lain.bgm.tv/pic/cover/l/dc/1f/156815_fx0x3.jpg'))
+      .toBe('https://lain.bgm.tv/pic/cover/l/dc/1f/156815_fx0x3.jpg');
+    expect(mediaUrl('https://static.tvmaze.com/uploads/images/a.jpg')).toBe('https://static.tvmaze.com/uploads/images/a.jpg');
+    // http 的仍走代理(混合内容)
+    expect(mediaUrl('http://lain.bgm.tv/pic/a.jpg'))
+      .toBe('/api/proxy?url=' + encodeURIComponent('http://lain.bgm.tv/pic/a.jpg'));
+  });
+
   it('协议相对地址按 https 外站图片处理(虎牙直播封面)', () => {
     expect(mediaUrl('//live-cover.msstatic.com/huyalive/a.jpg?x=1'))
       .toBe('/api/proxy?url=' + encodeURIComponent('https://live-cover.msstatic.com/huyalive/a.jpg?x=1'));

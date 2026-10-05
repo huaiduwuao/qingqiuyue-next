@@ -77,9 +77,21 @@ export function mediaUrl(raw?: string | null): string {
   // public bucket 直链（任意 host）：只保留 /<bucket>/<key>，交给网关。
   if (PUBLIC_BUCKETS.includes(bucket)) return GATEWAY + parsed.pathname + parsed.search;
 
+  // 不校验 Referer 的境外 https 图床:浏览器直连(<img> 默认 no-referrer)。
+  if (parsed.protocol === 'https:' && DIRECT_HOSTS.has(parsed.hostname)) return url;
+
   // 其余外站资源：走后端代理（补 Referer + 消除混合内容）。
   return `${GATEWAY}/api/proxy?url=${encodeURIComponent(url)}`;
 }
+
+/**
+ * 不经 /api/proxy、让浏览器直连的图床(只认 https)。
+ *
+ * 2026-10-05 线上 48 小时统计:服务器出口连不上 lain.bgm.tv(328 次全部等满 10 s 后 502),
+ * static.tvmaze.com 中位 5.3 s、最长 48 s,upload.wikimedia.org 同样超时。三家都不校验
+ * Referer、本身就是 https,代理只是多绕一圈境外线路;用户浏览器直连反而快。
+ */
+const DIRECT_HOSTS = new Set(['lain.bgm.tv', 'static.tvmaze.com', 'upload.wikimedia.org']);
 
 /**
  * proxyMediaUrl —— 把"需要后端代理才能播"的地址(防盗链视频流/外站图)包成
