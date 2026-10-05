@@ -5,23 +5,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCreatorWipList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import LinearProgress from '@mui/material/LinearProgress';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Snackbar from '@mui/material/Snackbar';
-import IconButton from '@mui/material/IconButton';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
+import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
-import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import EditCalendarRoundedIcon from '@mui/icons-material/EditCalendarRounded';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -35,7 +30,8 @@ import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { scheduleContent, SCHEDULE_CONTENT_SUPPORTED } from '@/apis/review';
 
-type WipKind = 'draft' | 'uploading' | 'scheduled';
+// 「上传中」和「暂停/继续」已去掉:视频在浏览器里直传、传完才建作品,服务端没有上传/转码任务可显示进度或暂停。
+type WipKind = 'draft' | 'reviewing' | 'scheduled';
 type WipType = 'video' | 'image' | 'article';
 
 interface WipItem {
@@ -44,16 +40,28 @@ interface WipItem {
   type: WipType;
   title: string;
   cover: string;
-  // draft
   updatedAt?: number;
-  wordCount?: number;
-  // uploading
-  progress?: number;
-  speedKB?: number;
-  paused?: boolean;
-  // scheduled
+  /** 定好的上线时刻;审核中的作品也可能有,过审后按它定时 */
   scheduleAt?: number;
-  tags?: string[];
+}
+
+/** 毫秒时间 → datetime-local 输入框要的本地时间串(toISOString 是 UTC,会差 8 小时) */
+function toLocalInput(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 发布/改时间接口返回的落定状态 → 提示语 */
+function statusSnack(status: string | undefined, fallback: string): string {
+  switch (String(status ?? '').toUpperCase()) {
+    case 'PUBLISH':
+      return '已发布';
+    case 'REVIEWING':
+      return '已提交审核,通过后自动上线';
+    default:
+      return fallback;
+  }
 }
 
 // SSR 阶段不计算 Date.now()——返回 fallback 字符串避免 hydration mismatch。
@@ -68,7 +76,7 @@ const TYPE_ICON: Record<WipType, React.ReactNode> = {
 
 const KIND_META: Record<WipKind, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover', icon: <EditRoundedIcon sx={{ fontSize: 13 }} /> },
-  uploading: { label: '上传中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', icon: <CloudUploadRoundedIcon sx={{ fontSize: 13 }} /> },
+  reviewing: { label: '审核中', color: 'var(--fg-cyan)', bg: 'rgba(37, 244, 238, 0.12)', icon: <HourglassTopRoundedIcon sx={{ fontSize: 13 }} /> },
   scheduled: { label: '已定时', color: 'var(--fg-amber)', bg: 'rgba(255, 180, 0, 0.12)', icon: <ScheduleRoundedIcon sx={{ fontSize: 13 }} /> },
 };
 
@@ -77,7 +85,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
   const [snack, setSnack] = useState<string | null>(null);
   const { setActiveTab } = useActiveTab();
 
-  // 真接口拉创作中作品(draft/uploading/scheduled 在后端 wip 中一并返回,前端按 stage 字段映射 kind)
+  // 真接口拉进行中的作品(后端把状态归一成 stage:draft / reviewing / scheduled)
   const qc = useQueryClient();
   const { data: wipResp } = useQuery({
     queryKey: ['creator-wip'],
@@ -87,21 +95,20 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
   });
   const wip: WipItem[] = (wipResp?.list ?? []).map((w) => ({
     id: w.id,
-    kind: w.stage === 'draft' ? 'draft' : w.stage === 'transcoding' || w.stage === 'reviewing' ? 'uploading' : 'scheduled',
+    kind: w.stage === 'scheduled' ? 'scheduled' : w.stage === 'reviewing' ? 'reviewing' : 'draft',
     type: (w.type as WipItem['type']) ?? 'video',
     title: w.title,
     cover: w.cover || gradient2('#5B8DEF', '#8B5CF6'),
     updatedAt: w.updatedAt,
-    progress: w.progress,
-    tags: [],
+    scheduleAt: w.scheduleAt || undefined,
   }));
-  // 操作后(取消/暂停等)通过 invalidate 触发重新拉
-  const setWip = (_updater: (prev: WipItem[]) => WipItem[]) => {
+  // 操作后(删除/发布/改时间)重新拉列表,以服务端状态为准
+  const refreshWip = () => {
     qc.invalidateQueries({ queryKey: ['creator-wip'] });
   };
 
   const drafts = wip.filter((w) => w.kind === 'draft');
-  const uploading = wip.filter((w) => w.kind === 'uploading');
+  const reviewing = wip.filter((w) => w.kind === 'reviewing');
   const scheduled = wip.filter((w) => w.kind === 'scheduled');
 
   const handleResume = (item: WipItem) => {
@@ -110,8 +117,8 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
   const handleCancel = async (item: WipItem) => {
     try {
       await accountClient.post('/account/content/wip/cancel', { id: item.id });
-      setWip((p) => p.filter((w) => w.id !== item.id));
-      setSnack('已取消');
+      refreshWip();
+      setSnack('已删除');
     } catch (err) {
       // 失败就是失败:以前网络错时本地把条目删掉并提示「已取消(离线模式)」,服务端其实没动
       if (isAuthError(err)) {
@@ -122,9 +129,15 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
     }
   };
 
-  // B1:重新定时 — 给已定时但还没到点的草稿换个时间。
+  // B1:重新定时 — 已定时(已过审)或审核中带着定时的作品换个上线时间。
   const [rescheduleOpen, setRescheduleOpen] = useState<WipItem | null>(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
+  const openReschedule = (item: WipItem) => {
+    // 默认原定时刻;没有或已过就当前时间 + 1 小时
+    const base = item.scheduleAt && item.scheduleAt > Date.now() ? item.scheduleAt : Date.now() + 60 * 60 * 1000;
+    setRescheduleAt(toLocalInput(base));
+    setRescheduleOpen(item);
+  };
   const handleRescheduleSubmit = async () => {
     if (!rescheduleOpen) return;
     const ts = new Date(rescheduleAt).getTime();
@@ -133,32 +146,21 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
       return;
     }
     try {
-      await scheduleContent(rescheduleOpen.id, ts);
-      setSnack(`已重新定时到 ${new Date(ts).toLocaleString('zh-CN')}`);
+      const res = await scheduleContent(rescheduleOpen.id, ts);
+      setSnack(res?.status === 'PUBLISH' ? '已发布' : `已重新定时到 ${new Date(ts).toLocaleString('zh-CN')}`);
       setRescheduleOpen(null);
       setRescheduleAt('');
-      setWip((_p) => []);
+      refreshWip();
     } catch (err) {
       setSnack(formatApiError(err));
     }
   };
-  const handlePauseToggle = async (item: WipItem) => {
-    try {
-      await accountClient.post('/account/content/wip/pause', { id: item.id, paused: !item.paused });
-      setWip((p) => p.map((w) => (w.id === item.id ? { ...w, paused: !w.paused } : w)));
-    } catch (err) {
-      if (isAuthError(err)) {
-        setSnack('请重新登录');
-      } else {
-        setSnack(formatApiError(err));
-      }
-    }
-  };
+  // 立即发布:已定时(已过审)的直接上线;草稿要先过审,接口返回 REVIEWING,提示「已提交审核」
   const handlePublishNow = async (item: WipItem) => {
     try {
-      await accountClient.post('/account/content/wip/publish', { id: item.id });
-      setWip((p) => p.filter((w) => w.id !== item.id));
-      setSnack('已发布');
+      const res = (await accountClient.post('/account/content/wip/publish', { id: item.id })) as { status?: string } | undefined;
+      refreshWip();
+      setSnack(statusSnack(res?.status, '已提交'));
     } catch (err) {
       if (isAuthError(err)) {
         setSnack('请重新登录');
@@ -202,7 +204,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
             }}
           />
           <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-            草稿 {drafts.length} · 上传中 {uploading.length} · 已定时 {scheduled.length}
+            草稿 {drafts.length} · 审核中 {reviewing.length} · 已定时 {scheduled.length}
           </Typography>
           <Box sx={{ flex: 1 }} />
           {!compact && (
@@ -313,7 +315,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                     {item.kind === 'draft' && (
                       <>
                         <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }} suppressHydrationWarning>
-                          {item.wordCount ? `${item.wordCount} 字 · ` : ''}最后编辑 {item.updatedAt && <RelativeTime ts={item.updatedAt} fallback="" />}
+                          最后编辑 {item.updatedAt && <RelativeTime ts={item.updatedAt} fallback="" />}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, mt: 'auto', pt: 0.75 }}>
                           <Button
@@ -336,6 +338,15 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                           >
                             继续编辑
                           </Button>
+                          {/* 作者的草稿要先过审:接口返回「已提交审核」,不会直接上线 */}
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => handlePublishNow(item)}
+                            sx={{ textTransform: 'none', fontSize: 10, borderRadius: 1, minWidth: 0, py: 0.25, px: 1, borderColor: 'divider', color: 'var(--fg-amber)' }}
+                          >
+                            立即发布
+                          </Button>
                           <Button variant="text"
                             size="small"
                             onClick={() => handleCancel(item)}
@@ -347,48 +358,33 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                       </>
                     )}
 
-                    {item.kind === 'uploading' && (
+                    {item.kind === 'reviewing' && (
                       <>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                          <LinearProgress
-                            variant="determinate"
-                            value={item.progress ?? 0}
-                            sx={{
-                              flex: 1,
-                              height: 4,
-                              borderRadius: 1,
-                              bgcolor: 'action.hover',
-                              '& .MuiLinearProgress-bar': {
-                                bgcolor: item.paused
-                                  ? (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')
-                                  : '#25F4EE',
-                              },
-                            }}
-                          />
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled', fontVariantNumeric: 'tabular-nums', minWidth: 28 }}>
-                            {item.progress}%
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }}>
-                          {item.paused ? '已暂停' : `${((item.speedKB ?? 0) / 1024).toFixed(1)} MB/s`}
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }} suppressHydrationWarning>
+                          {item.scheduleAt ? (
+                            <>审核通过后于 <RelativeTime ts={item.scheduleAt} showFuture fallback="" /> 发布</>
+                          ) : (
+                            '审核通过后自动发布'
+                          )}
                         </Typography>
-                        <Box sx={{ display: 'flex', gap: 0.25, mt: 'auto', pt: 0.5 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => handlePauseToggle(item)}
-                            sx={{ p: 0.25 }}
-                            aria-label={item.paused ? '继续' : '暂停'}
-                          >
-                            {item.paused ? <PlayArrowRoundedIcon sx={{ fontSize: 14 }} /> : <PauseRoundedIcon sx={{ fontSize: 14 }} />}
-                          </IconButton>
-                          <IconButton
+                        <Box sx={{ display: 'flex', gap: 0.5, mt: 'auto', pt: 0.5 }}>
+                          {SCHEDULE_CONTENT_SUPPORTED && item.scheduleAt && (
+                            <Button variant="text"
+                              size="small"
+                              startIcon={<EditCalendarRoundedIcon sx={{ fontSize: 12 }} />}
+                              onClick={() => openReschedule(item)}
+                              sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
+                            >
+                              改时间
+                            </Button>
+                          )}
+                          <Button variant="text"
                             size="small"
                             onClick={() => handleCancel(item)}
-                            sx={{ p: 0.25 }}
-                            aria-label="取消上传"
+                            sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
-                            <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                          </IconButton>
+                            删除
+                          </Button>
                         </Box>
                       </>
                     )}
@@ -398,25 +394,6 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                         <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }} suppressHydrationWarning>
                           预定 {item.scheduleAt && <RelativeTime ts={item.scheduleAt} showFuture fallback="" />} 发布
                         </Typography>
-                        {item.tags && item.tags.length > 0 && (
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25 }}>
-                            {item.tags.map((t) => (
-                              <Box
-                                key={t}
-                                sx={{
-                                  px: 0.5,
-                                  py: 0.05,
-                                  borderRadius: 0.5,
-                                  bgcolor: 'action.hover',
-                                  color: 'text.secondary',
-                                  fontSize: 9,
-                                }}
-                              >
-                                #{t}
-                              </Box>
-                            ))}
-                          </Box>
-                        )}
                         <Box sx={{ display: 'flex', gap: 0.5, mt: 'auto', pt: 0.5 }}>
                           <Button
                             size="small"
@@ -426,28 +403,23 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
                           >
                             立即发布
                           </Button>
-                          {/* 后端还没有改定时接口,先隐藏「改时间」 */}
                           {SCHEDULE_CONTENT_SUPPORTED && (
                           <Button variant="text"
                             size="small"
                             startIcon={<EditCalendarRoundedIcon sx={{ fontSize: 12 }} />}
-                            onClick={() => {
-                              // 默认当前时间 + 1 小时
-                              const def = new Date(Date.now() + 60 * 60 * 1000);
-                              setRescheduleAt(def.toISOString().slice(0, 16));
-                              setRescheduleOpen(item);
-                            }}
+                            onClick={() => openReschedule(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
                             改时间
                           </Button>
                           )}
+                          {/* 删除作品本身(以前叫「取消定时」,点了其实是删除) */}
                           <Button variant="text"
                             size="small"
                             onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
-                            取消定时
+                            删除
                           </Button>
                         </Box>
                       </>

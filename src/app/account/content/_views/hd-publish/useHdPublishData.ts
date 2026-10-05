@@ -7,7 +7,7 @@ import { managePage, setContentCover, updateShare, type ModuleContentItem } from
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { gradient3 } from '@/constants/gradients';
 import type { SavedContent } from '../../_components/useContentForm';
-import { REVIEW_CHECK_TEMPLATE, type AudioTrack, type HdResolution, type HdVideo, type SubtitleTrack } from './data';
+import { FAST_CHANNEL_MONTHLY, REVIEW_CHECK_TEMPLATE, type AudioTrack, type HdResolution, type HdVideo, type SubtitleTrack } from './data';
 import { dedupeHdVideos, mergeServerHdVideos, type SnackMsg, type UploadStatus } from './hdPublishModel';
 import { useOptimisticOverlay } from './useOptimisticOverlay';
 
@@ -15,6 +15,20 @@ type SetSnack = (s: string | SnackMsg) => void;
 
 export const HD_VIDEOS_QUERY_KEY = ['creator-hd-videos'] as const;
 export const HD_MANAGE_VIDEOS_QUERY_KEY = ['module-content', 'hd-publish', 'videos'] as const;
+export const FAST_CHANNEL_QUOTA_QUERY_KEY = ['creator-fast-channel-quota'] as const;
+
+/** GET /account/content/fasttrack/quota:本月极速通道用量 */
+interface FastChannelQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+/** POST /account/content/:id/fasttrack:already = 本来就在优先队列,没扣次数 */
+interface FastTrackResult {
+  already?: boolean;
+  quota?: FastChannelQuota;
+}
 
 /** 封面图片走现有的文件上传接口(与视频上传同一个),返回图片地址。 */
 export async function uploadCoverImage(image: Blob, fileName: string): Promise<string | undefined> {
@@ -72,7 +86,16 @@ export function useHdVideos(setSnack: SetSnack) {
   );
   const videos = useMemo(() => overlay(serverVideos), [overlay, serverVideos]);
 
-  const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
+  // 极速通道:后端把未结审核单提到优先队列,每月次数由服务端记账(reviewapp.FastTrack),这里只显示。
+  // 接口没拉到时先按满额显示,真用完了点按钮会收到服务端的「本月已用完」。
+  const quotaQuery = useQuery({
+    queryKey: FAST_CHANNEL_QUOTA_QUERY_KEY,
+    queryFn: async () => (await accountClient.get('/account/content/fasttrack/quota')) as FastChannelQuota,
+    staleTime: 60_000,
+  });
+  // 开通成功后用接口回包里的剩余次数覆盖,不必再拉一次
+  const [quotaOverride, setQuotaOverride] = useState<number | null>(null);
+  const fastChannelQuota = quotaOverride ?? quotaQuery.data?.remaining ?? FAST_CHANNEL_MONTHLY;
 
   const handleDelete = useCallback(
     (id: string) =>
@@ -102,8 +125,9 @@ export function useHdVideos(setSnack: SetSnack) {
     (id: string) =>
       runOptimistic(
         { kind: 'remove', videoId: id },
-        () => accountClient.post(`/account/content/${id}/publish`),
-        '已立即发布',
+        () => accountClient.post(`/account/content/${id}/publish`) as Promise<{ status?: string } | undefined>,
+        // 已定时(已过审)的直接上线;其余要先过审,接口返回 REVIEWING
+        (res) => (String(res?.status ?? '').toUpperCase() === 'PUBLISH' ? '已发布' : '已提交审核,通过后自动上线'),
         '发布失败',
       ),
     [runOptimistic],
@@ -115,8 +139,7 @@ export function useHdVideos(setSnack: SetSnack) {
         setSnack('本月极速通道已用完,下月 1 日恢复');
         return false;
       }
-      setFastChannelQuota((q) => q - 1);
-      const ok = await runOptimistic(
+      return runOptimistic(
         {
           kind: 'update',
           videoId: id,
@@ -125,12 +148,14 @@ export function useHdVideos(setSnack: SetSnack) {
               ? { ...v, review: { ...v.review, useFastChannel: true, fastChannelChargedAt: Date.now() } }
               : v,
         },
-        () => accountClient.post(`/account/content/${id}/fasttrack`),
-        '已启用极速通道,审核将优先处理',
+        async () => {
+          const res = (await accountClient.post(`/account/content/${id}/fasttrack`)) as FastTrackResult | undefined;
+          if (typeof res?.quota?.remaining === 'number') setQuotaOverride(res.quota.remaining);
+          return res;
+        },
+        (res) => (res?.already ? '这条已在优先审核队列里,没有扣次数' : '已启用极速通道,审核员会优先处理'),
         '极速送审失败',
       );
-      if (!ok) setFastChannelQuota((q) => q + 1);
-      return ok;
     },
     [fastChannelQuota, runOptimistic, setSnack],
   );

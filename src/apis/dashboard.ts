@@ -27,7 +27,10 @@ export interface WipItem {
   title: string;
   type: string;
   progress: number;
-  stage: 'draft' | 'transcoding' | 'reviewing';
+  /** draft 草稿(从没上线过) / reviewing 审核中 / scheduled 已过审、等定时上线 */
+  stage: 'draft' | 'reviewing' | 'scheduled';
+  /** 定好的上线时刻(毫秒),没定时为 0;审核中的作品也可能带着,过审后按它定时 */
+  scheduleAt?: number;
   updatedAt: number;
   cover: string;
 }

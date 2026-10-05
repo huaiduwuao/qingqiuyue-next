@@ -21,7 +21,11 @@ vi.mock('@/apis/module-content', () => ({
   setContentCover: (...a: unknown[]) => api.setCover(...a),
 }));
 vi.mock('@/lib/api/client', () => ({
-  accountClient: { delete: (...a: unknown[]) => api.del(...a), post: (...a: unknown[]) => api.post(...a) },
+  accountClient: {
+    delete: (...a: unknown[]) => api.del(...a),
+    post: (...a: unknown[]) => api.post(...a),
+    get: async () => ({ limit: 10, used: 0, remaining: 10 }),
+  },
   formatApiError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
 }));
 

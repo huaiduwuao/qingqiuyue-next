@@ -24,7 +24,7 @@ export const STATUS_META: Record<HdStatus, { label: string; color: string; bg: s
 };
 
 export const BENEFITS = [
-  { icon: <RocketLaunchRoundedIcon sx={{ fontSize: 18 }} />, title: '极速审核', desc: '10 分钟内完成审核上架', color: '#FE2C55' },
+  { icon: <RocketLaunchRoundedIcon sx={{ fontSize: 18 }} />, title: '极速审核', desc: '每月 10 次,审核单优先处理', color: '#FE2C55' },
   { icon: <BoltRoundedIcon sx={{ fontSize: 18 }} />, title: '智能转码', desc: '云端并行转码,4K ≤ 5 分钟', color: '#FFB400' },
   { icon: <HighQualityRoundedIcon sx={{ fontSize: 18 }} />, title: 'HDR 增强', desc: 'SDR 视频一键 HDR 化', color: '#8B5CF6' },
   { icon: <SubtitlesRoundedIcon sx={{ fontSize: 18 }} />, title: '字幕/音轨', desc: '多语言字幕 + 多音轨支持', color: '#25F4EE' },

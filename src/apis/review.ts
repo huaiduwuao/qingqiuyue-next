@@ -80,16 +80,20 @@ export async function getReviewStats(): Promise<ReviewStats> {
 }
 
 // ─── B1:定时发布 ───
-// ⚠️ 后端没有 POST /account/content/:id/schedule(creator_dashboard_write.go 的 RegisterCreatorWriteRoutes
-// 只有 delete / transcode / publish / fasttrack / review / wip/*),以前每次调用都是 404,
-// 页面报一句看不懂的错。后端补上接口前直接给出明确提示,不再请求不存在的路由。
-export const SCHEDULE_CONTENT_SUPPORTED = false;
+// POST /api/core/account/content/:id/schedule(core-api creator_dashboard_write.go):
+// 审核中 / 已定时的作品只改上线时刻;已定时的传 0 或过去的时刻 = 立即发布。
+export const SCHEDULE_CONTENT_SUPPORTED = true;
 
-export async function scheduleContent(contentId: EntityId, publishAt: number): Promise<{ ok: boolean; publishAt: number }> {
-  if (!SCHEDULE_CONTENT_SUPPORTED) {
-    throw new Error('暂不支持修改定时发布时间,请取消后重新发布');
-  }
-  return adminClient<{ ok: boolean; publishAt: number }>(`/account/content/${contentId}/schedule`, {
+/** 内容落库状态(大写):PUBLISH 已上线 / REVIEWING 审核中 / SCHEDULED 已定时 */
+export interface ContentStatusResult {
+  id: string;
+  status: string;
+  /** 新的上线时刻(毫秒),已上线时为 0 */
+  publishAt?: number;
+}
+
+export async function scheduleContent(contentId: EntityId, publishAt: number): Promise<ContentStatusResult> {
+  return adminClient<ContentStatusResult>(`/account/content/${contentId}/schedule`, {
     method: 'POST',
     data: { publishAt },
   });
