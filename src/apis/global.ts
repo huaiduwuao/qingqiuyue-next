@@ -52,12 +52,28 @@ export async function listDataPermission(params: Record<string, unknown>) {
 }
 
 // 合集解锁。有副作用的操作走 POST;单条内容的付费解锁见 @/apis/paywall。
-export async function payUnlock(data: { moduleId: number }) {
-  return contentClient("/module/payUnlock", { method: "POST", data });
+
+/** 合集钻石买断的结果(后端 moduleshare.PurchaseResult) */
+export interface ModulePayResult {
+  unlocked: boolean;
+  /** 之前已买过 / 合集主本人,本次没有扣款 */
+  alreadyUnlocked: boolean;
+  /** 买断价(钻) */
+  price: number;
+  /** 本次实际扣款(钻) */
+  paid: number;
+  /** 解锁后的余额(钻) */
+  balance: number;
 }
 
+/** 付费合集:用钻石买断(需登录;已买过不重复扣) */
+export async function payUnlock(data: { moduleId: number }) {
+  return contentClient<ModulePayResult>("/module/payUnlock", { method: "POST", data });
+}
+
+/** 口令合集:校验口令,返回通行证 pass(24 小时有效),之后读合集内容时以 modulePass 参数带上 */
 export async function passwordUnlock(data: { moduleId: number; password: string }) {
-  return contentClient("/module/passwordUnlock", { method: "POST", data });
+  return contentClient<{ unlocked: boolean; pass?: string; expiresAt?: number }>("/module/passwordUnlock", { method: "POST", data });
 }
 
 export async function userPointMe(params: Record<string, unknown>) {

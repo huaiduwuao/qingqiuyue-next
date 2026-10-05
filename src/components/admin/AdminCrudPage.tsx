@@ -40,6 +40,8 @@ export interface CrudFormField {
   helperText?: string;
   /** 新建时的初始值 */
   defaultValue?: string;
+  /** 按当前表单值决定是否显示(如「付费」才显示价格);隐藏的字段不校验必填 */
+  hidden?: (values: Record<string, string>) => boolean;
 }
 
 type Row = Record<string, any>;
@@ -64,6 +66,10 @@ interface AdminCrudPageProps {
   filters?: FilterField[];
   /** 提交前的业务校验,返回错误文案则中止 */
   validate?: (body: Row) => string | undefined;
+  /** 打开编辑弹窗前把记录换成表单形态(如把存储格式拆成多个表单字段) */
+  toForm?: (record: Row) => Row;
+  /** 校验通过后、提交前把表单 body 换回接口形态 */
+  toSubmit?: (body: Row) => Row;
   permissions?: { create?: string; update?: string; delete?: string };
   labels?: { add?: string; create?: string; edit?: string; deleteConfirm?: string };
 }
@@ -130,7 +136,7 @@ const updateTimeColumn: GridColDef = {
   valueFormatter: (value) => formatDateTime(value),
 };
 
-export function AdminCrudPage({ title, entity, api, columns, fields, filters, validate, permissions, labels }: AdminCrudPageProps) {
+export function AdminCrudPage({ title, entity, api, columns, fields, filters, validate, toForm, toSubmit, permissions, labels }: AdminCrudPageProps) {
   const { can } = useAuthority();
   const [editing, setEditing] = useState<Row | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -159,7 +165,7 @@ export function AdminCrudPage({ title, entity, api, columns, fields, filters, va
 
   const openEditor = (record: Row) => {
     setEditing(record);
-    setValues(initialValues(fields, record));
+    setValues(initialValues(fields, toForm ? toForm(record) : record));
   };
 
   const handleDelete = (record: Row) => {
@@ -167,12 +173,13 @@ export function AdminCrudPage({ title, entity, api, columns, fields, filters, va
   };
 
   const handleSubmit = () => {
-    const missing = fields.find((f) => f.required && !(values[f.key] ?? '').trim());
+    const missing = fields.find((f) => f.required && !f.hidden?.(values) && !(values[f.key] ?? '').trim());
     if (missing) return notify(`${missing.label}不能为空`, 'error');
     const body = toBody(fields, values);
     const invalid = validate?.(body);
     if (invalid) return notify(invalid, 'error');
-    saveMutation.mutate(editing?.id ? { ...body, id: editing.id } : body);
+    const payload = toSubmit ? toSubmit(body) : body;
+    saveMutation.mutate(editing?.id ? { ...payload, id: editing.id } : payload);
   };
 
   const busy = saveMutation.isPending;
@@ -206,7 +213,7 @@ export function AdminCrudPage({ title, entity, api, columns, fields, filters, va
         <DialogTitle>{editing?.id ? (labels?.edit ?? `编辑${entity}`) : (labels?.create ?? `新建${entity}`)}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            {fields.map((f) => (
+            {fields.filter((f) => !f.hidden?.(values)).map((f) => (
               <TextField
                 key={f.key}
                 label={f.label}

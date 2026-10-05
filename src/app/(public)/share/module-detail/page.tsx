@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useMemo, useState, Suspense } from 'react';
+import Link from 'next/link';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -15,18 +16,20 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import QrCode2Icon from '@mui/icons-material/QrCode2';
+import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import FolderIcon from '@mui/icons-material/Folder';
 import ArticleIcon from '@mui/icons-material/Article';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { clientTree } from '@/apis/system-module-menu';
 import { detail as contentDetailApi } from '@/apis/system-module-content';
 import { detail as moduleDetail } from '@/apis/system-module-list';
 import { passwordUnlock, payUnlock } from '@/apis/global';
+import { formatDiamonds, getWalletBalance } from '@/apis/wallet';
 import { formatApiError } from '@/lib/api/client';
+import { loginHref } from '@/lib/auth/redirect';
+import { useAuth } from '@/contexts/AuthContext';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
-import { CoverImage } from '@/components/common/CoverImage';
 
 interface MenuItem {
   id: number;
@@ -36,100 +39,164 @@ interface MenuItem {
   children?: MenuItem[];
 }
 
+/** 模块详情(后端 /module/:id):口令 / 付费合集带上对当前访问者的解锁状态 */
+interface ShareModuleInfo {
+  id: number;
+  title?: string;
+  name?: string;
+  shareType?: string;
+  /** 对当前访问者仍上锁 */
+  locked?: boolean;
+  needPay?: boolean;
+  needPassword?: boolean;
+  /** 买断价(钻) */
+  price?: number;
+}
+
+// 口令合集的通行证存在 sessionStorage:关掉标签页就忘,刷新页面不用重输口令。
+const passKey = (moduleId: string) => `module-pass:${moduleId}`;
+
+function readPass(moduleId: string | null): string {
+  if (!moduleId || typeof window === 'undefined') return '';
+  try {
+    return window.sessionStorage.getItem(passKey(moduleId)) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writePass(moduleId: string, pass: string) {
+  try {
+    window.sessionStorage.setItem(passKey(moduleId), pass);
+  } catch {
+    // 隐私模式等存不了:本次页面内仍然有效
+  }
+}
+
+function findMenu(list: MenuItem[], id: number | null): MenuItem | undefined {
+  if (id == null) return undefined;
+  for (const m of list) {
+    if (m.id === id) return m;
+    const hit = m.children ? findMenu(m.children, id) : undefined;
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+const gradient = 'linear-gradient(135deg, #FE2C55 0%, #FF6B8A 100%)';
+
 function ShareModuleDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const moduleId = searchParams.get('moduleId');
+  const { user } = useAuth();
+  const qc = useQueryClient();
 
-  const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
-  const [activeContentId, setActiveContentId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [password, setPassword] = useState('');
+  const [modulePass, setModulePass] = useState(() => readPass(moduleId));
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState('');
-  const [payInfo, setPayInfo] = useState<{ qrCode?: string; payUrl?: string; amount?: number } | null>(null);
-  const [payError, setPayError] = useState('');
 
-  const treeAndModuleQuery = useQuery({
-    queryKey: ['share-module', moduleId],
-    queryFn: async () => {
-      const [treeRes, moduleRes] = await Promise.all([
-        clientTree({ moduleId: Number(moduleId) }),
-        moduleDetail({ id: Number(moduleId) }),
-      ]);
-      return { tree: treeRes || [], module: moduleRes };
-    },
+  // 模块详情和菜单都按通行证区分缓存:解锁后换了通行证,自然重新取一遍
+  const moduleQuery = useQuery({
+    queryKey: ['share-module', moduleId, modulePass],
+    queryFn: () => moduleDetail({ id: Number(moduleId), ...(modulePass ? { modulePass } : {}) }) as Promise<ShareModuleInfo>,
     enabled: !!moduleId,
   });
-  const treeData = treeAndModuleQuery.data?.tree || [];
-  const moduleInfo = treeAndModuleQuery.data?.module;
-  const loading = treeAndModuleQuery.isLoading;
+  const moduleInfo = moduleQuery.data;
+  const locked = !!(moduleInfo?.locked || moduleInfo?.needPay || moduleInfo?.needPassword);
+  const isPay = moduleInfo?.shareType === 'pay';
+  const isPassword = moduleInfo?.shareType === 'password';
+  const price = moduleInfo?.price ?? 0;
+
+  const treeQuery = useQuery({
+    queryKey: ['share-module-tree', moduleId, modulePass, locked],
+    queryFn: async () => ((await clientTree({ moduleId: Number(moduleId), ...(modulePass ? { modulePass } : {}) })) || []) as MenuItem[],
+    enabled: !!moduleId && !!moduleInfo,
+  });
+  const treeData = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
+  const loading = moduleQuery.isLoading || treeQuery.isLoading;
+
+  // 没手动选过就默认第一项;合集上锁时菜单不带 contentId,解锁后同一项就能打开
+  const activeMenu = findMenu(treeData, selectedId) ?? treeData[0];
+  const activeContentId = !locked && activeMenu?.contentId ? activeMenu.contentId : null;
 
   const contentDetailQuery = useQuery({
-    queryKey: ['share-module-content', activeContentId],
-    queryFn: () => contentDetailApi({ id: activeContentId! }).then((r) => r),
+    queryKey: ['share-module-content', activeContentId, modulePass],
+    queryFn: () => contentDetailApi({ id: activeContentId!, ...(modulePass ? { modulePass } : {}) }),
     enabled: !!activeContentId,
   });
   const contentDetail = contentDetailQuery.data;
 
-  useEffect(() => {
-    if (treeAndModuleQuery.data && selectedKeys.length === 0 && treeAndModuleQuery.data.tree.length > 0) {
-      const first = treeAndModuleQuery.data.tree[0];
-      setSelectedKeys([first.id]);
-      if (first.contentId) setActiveContentId(first.contentId);
+  const walletQuery = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: getWalletBalance,
+    enabled: !!user && locked && isPay,
+  });
+  const balance = walletQuery.data?.balance;
+  const insufficient = balance != null && price > 0 && balance < price;
+
+  const refreshAfterUnlock = () => {
+    qc.invalidateQueries({ queryKey: ['share-module', moduleId] });
+    qc.invalidateQueries({ queryKey: ['share-module-tree', moduleId] });
+    qc.invalidateQueries({ queryKey: ['share-module-content'] });
+  };
+
+  const payMutation = useMutation({
+    mutationFn: () => payUnlock({ moduleId: Number(moduleId) }),
+    onSuccess: () => {
+      setUnlockError('');
+      qc.invalidateQueries({ queryKey: ['wallet-balance'] });
+      refreshAfterUnlock();
+    },
+    onError: (err) => {
+      setUnlockError(formatApiError(err));
+      // 余额可能在别处变了,失败后重新取一次
+      qc.invalidateQueries({ queryKey: ['wallet-balance'] });
+    },
+  });
+
+  const passwordMutation = useMutation({
+    mutationFn: (pw: string) => passwordUnlock({ moduleId: Number(moduleId), password: pw }),
+    onSuccess: (res) => {
+      setUnlockError('');
+      if (res?.pass && moduleId) {
+        writePass(moduleId, res.pass);
+        setModulePass(res.pass);
+      } else {
+        refreshAfterUnlock();
+      }
+    },
+    onError: (err) => setUnlockError(formatApiError(err)),
+  });
+
+  const handlePay = () => {
+    if (!user) {
+      router.push(loginHref(`/share/module-detail?moduleId=${encodeURIComponent(moduleId || '')}`));
+      return;
     }
-  }, [treeAndModuleQuery.data, selectedKeys.length]);
+    payMutation.mutate();
+  };
 
-  const moduleShareType = treeAndModuleQuery.data?.module?.shareType;
-  const moduleNeedPay = treeAndModuleQuery.data?.module?.needPay;
-  const shouldShowUnlock =
-    !!moduleShareType && (moduleShareType === 'password' || (moduleNeedPay && moduleShareType === 'pay'));
-  const unlockVisible = shouldShowUnlock && !unlockDismissed;
-
-  useEffect(() => {
-    if (!unlockVisible || moduleInfo?.shareType !== 'pay' || !moduleId) return;
-    let cancelled = false;
-    payUnlock({ moduleId: Number(moduleId) })
-      .then((res: { qrCode?: string; qrUrl?: string; payUrl?: string; amount?: number } | null) => {
-        if (cancelled) return;
-        setPayInfo({
-          qrCode: res?.qrCode || res?.qrUrl,
-          payUrl: res?.payUrl,
-          amount: res?.amount ?? moduleInfo?.shareContent?.pay,
-        });
-      })
-      .catch((err) => {
-        // 合集目前没有定价模型,后端会明确拒绝;把原因告诉用户并允许关闭,别一直显示"加载中"
-        if (!cancelled) setPayError(formatApiError(err));
-      });
-    return () => { cancelled = true; };
-  }, [unlockVisible, moduleInfo?.shareType, moduleInfo?.shareContent?.pay, moduleId]);
+  const handlePasswordUnlock = () => {
+    if (!password.trim() || !moduleId || passwordMutation.isPending) return;
+    passwordMutation.mutate(password.trim());
+  };
 
   const handleMenuClick = (menu: MenuItem) => {
-    setSelectedKeys([menu.id]);
-    if (menu.contentId) {
-      setActiveContentId(menu.contentId);
-    }
+    setSelectedId(menu.id);
     setDrawerOpen(false);
   };
 
-  const handlePasswordUnlock = async () => {
-    if (!password.trim() || !moduleId) return;
-    setUnlockBusy(true);
-    setUnlockError('');
-    try {
-      await passwordUnlock({ moduleId: Number(moduleId), password: password.trim() });
-      setUnlockDismissed(true);
-    } catch (err) {
-      setUnlockError(formatApiError(err));
-    } finally {
-      setUnlockBusy(false);
-    }
-  };
+  const unlockVisible = locked && (isPay || isPassword) && !unlockDismissed;
+  const moduleName = moduleInfo?.title || moduleInfo?.name || '内容详情';
+  const unlockBusy = payMutation.isPending || passwordMutation.isPending;
 
   const renderMenu = (data: MenuItem[], depth = 0) => {
     return data.map((menu) => {
-      const isSelected = selectedKeys.includes(menu.id);
+      const isSelected = activeMenu?.id === menu.id;
       const isPage = menu.type === 'PAGE';
 
       if (isPage) {
@@ -168,7 +235,11 @@ function ShareModuleDetailContent() {
                 }}
               />
             )}
-            <ArticleIcon sx={{ fontSize: 14, color: isSelected ? 'primary.main' : 'text.secondary' }} />
+            {locked ? (
+              <LockOutlinedIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+            ) : (
+              <ArticleIcon sx={{ fontSize: 14, color: isSelected ? 'primary.main' : 'text.secondary' }} />
+            )}
             <Typography
               sx={{
                 fontSize: 12,
@@ -221,7 +292,7 @@ function ShareModuleDetailContent() {
           CONTENT MODULE
         </Typography>
         <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary', mt: 0.5 }}>
-          {moduleInfo?.name || '内容详情'}
+          {moduleName}
         </Typography>
       </Box>
       <Box sx={{ flex: 1, p: 1.5, overflow: 'auto' }}>
@@ -239,6 +310,27 @@ function ShareModuleDetailContent() {
           renderMenu(treeData)
         )}
       </Box>
+    </Box>
+  );
+
+  const renderLockedCard = () => (
+    <Box
+      sx={{
+        bgcolor: 'background.paper',
+        borderRadius: 2,
+        p: 6,
+        textAlign: 'center',
+        border: '1px dashed',
+        borderColor: 'divider',
+      }}
+    >
+      <LockOutlinedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+      <Typography sx={{ color: 'text.secondary', fontSize: 13, mb: 2 }}>
+        {isPay ? `这是付费合集,解锁后可查看全部内容` : '这是口令合集,输入口令后可查看全部内容'}
+      </Typography>
+      <Button variant="contained" onClick={() => setUnlockDismissed(false)} sx={{ borderRadius: 4, background: gradient }}>
+        {isPay ? `用 ${price} 钻解锁` : '输入口令'}
+      </Button>
     </Box>
   );
 
@@ -269,7 +361,7 @@ function ShareModuleDetailContent() {
             </IconButton>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {moduleInfo?.name || '内容详情'}
+                {moduleName}
               </Typography>
               <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
                 共 {treeData.length} 个分类
@@ -317,7 +409,9 @@ function ShareModuleDetailContent() {
 
             {/* Content area */}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              {contentDetail && contentDetail.id ? (
+              {locked && (isPay || isPassword) ? (
+                renderLockedCard()
+              ) : contentDetail && contentDetail.id ? (
                 <ModuleContentDetail detail={contentDetail} />
               ) : (
                 <Box
@@ -332,7 +426,7 @@ function ShareModuleDetailContent() {
                 >
                   <ArticleIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
                   <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
-                    {loading ? '加载中...' : '请选择左侧目录查看内容'}
+                    {loading || contentDetailQuery.isLoading ? '加载中...' : '请选择左侧目录查看内容'}
                   </Typography>
                 </Box>
               )}
@@ -343,8 +437,7 @@ function ShareModuleDetailContent() {
 
       <Modal
         open={unlockVisible}
-        // 口令分享必须解锁;付费拿不到支付信息时允许关掉弹窗
-        onClose={() => { if (moduleInfo?.shareType === 'pay' && payError) setUnlockDismissed(true); }}
+        onClose={() => { if (!unlockBusy) setUnlockDismissed(true); }}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -353,6 +446,7 @@ function ShareModuleDetailContent() {
       >
         <Box
           sx={{
+            position: 'relative',
             width: { xs: '90%', sm: 400 },
             bgcolor: 'background.paper',
             borderRadius: 3,
@@ -361,6 +455,15 @@ function ShareModuleDetailContent() {
             boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
           }}
         >
+          <IconButton
+            size="small"
+            aria-label="关闭"
+            onClick={() => setUnlockDismissed(true)}
+            disabled={unlockBusy}
+            sx={{ position: 'absolute', right: 8, top: 8, color: 'text.secondary' }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
           <Box
             sx={{
               width: 56,
@@ -368,67 +471,82 @@ function ShareModuleDetailContent() {
               mx: 'auto',
               mb: 2,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #FE2C55 0%, #FF6B8A 100%)',
+              background: gradient,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'text.primary',
+              color: '#fff',
             }}
           >
-            {moduleInfo?.shareType === 'pay' ? <QrCode2Icon sx={{ fontSize: 28 }} /> : <LockOutlinedIcon sx={{ fontSize: 28 }} />}
+            {isPay ? <DiamondRoundedIcon sx={{ fontSize: 28 }} /> : <LockOutlinedIcon sx={{ fontSize: 28 }} />}
           </Box>
           <Typography variant="h6" sx={{ mb: 0.5, textAlign: 'center', fontWeight: 700 }}>
-            {moduleInfo?.shareType === 'pay' ? '扫码支付解锁' : '输入口令解锁'}
+            {isPay ? '付费合集' : '输入口令解锁'}
           </Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mb: 3 }}>
-            {moduleInfo?.shareType === 'pay' ? '请使用微信/支付宝扫码支付' : '请输入分享者提供的 6 位口令'}
+            {isPay ? '一次解锁,合集内全部内容永久可看' : '请输入分享者提供的口令'}
           </Typography>
 
-          {moduleInfo?.shareType === 'pay' && (
-            <Box sx={{ textAlign: 'center', mb: 2 }}>
+          {isPay && (
+            <Box sx={{ textAlign: 'center' }}>
               <Box
                 sx={{
-                  width: 180,
-                  height: 180,
-                  mx: 'auto',
-                  borderRadius: 2,
-                  bgcolor: 'action.hover',
-                  border: '1px dashed',
-                  borderColor: 'divider',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mb: 2,
-                  overflow: 'hidden',
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 0.75,
+                  mb: 1,
+                  px: 2,
+                  py: 1,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(254, 44, 85, 0.08)',
                 }}
               >
-                {payInfo?.qrCode ? (
-                  <CoverImage src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <Typography sx={{ fontSize: 12, color: payError ? 'error.main' : 'text.disabled', px: 2 }}>
-                    {payError || '二维码加载中…'}
-                  </Typography>
-                )}
+                <DiamondRoundedIcon sx={{ fontSize: 16, color: 'primary.main', alignSelf: 'center' }} />
+                <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'primary.main' }}>{price}</Typography>
+                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>钻石</Typography>
               </Box>
-              {payInfo?.amount != null && (
-                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
-                  ¥{payInfo.amount}
+              {user && (
+                <Typography sx={{ fontSize: 12, color: insufficient ? 'error.main' : 'text.secondary', mb: 2 }}>
+                  {balance == null ? '正在查询余额…' : `当前余额 ${formatDiamonds(balance)}`}
                 </Typography>
               )}
-              {payError && (
-                <Button fullWidth variant="outlined" onClick={() => setUnlockDismissed(true)} sx={{ mt: 1, borderRadius: 4 }}>
-                  关闭
+              {unlockError && (
+                <Typography sx={{ fontSize: 12, color: 'error.main', mb: 1.5 }}>{unlockError}</Typography>
+              )}
+              {price <= 0 ? (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>该合集暂未定价,暂不能购买</Typography>
+              ) : user && insufficient ? (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  component={Link}
+                  href="/recharge"
+                  startIcon={<DiamondRoundedIcon />}
+                  sx={{ borderRadius: 4, py: 1.25, background: gradient }}
+                >
+                  钻石不足,去充值
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  disabled={unlockBusy || (!!user && balance == null)}
+                  startIcon={payMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <DiamondRoundedIcon />}
+                  onClick={handlePay}
+                  sx={{ borderRadius: 4, py: 1.25, background: gradient }}
+                >
+                  {user ? `用 ${price} 钻解锁` : '登录后解锁'}
                 </Button>
               )}
             </Box>
           )}
 
-          {moduleInfo?.shareType === 'password' && (
+          {isPassword && (
             <Box>
               <TextField
                 fullWidth
                 type="password"
-                placeholder="请输入 6 位口令"
+                placeholder="请输入口令"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handlePasswordUnlock()}
@@ -448,13 +566,9 @@ function ShareModuleDetailContent() {
                 variant="contained"
                 disabled={unlockBusy || !password.trim()}
                 onClick={handlePasswordUnlock}
-                sx={{
-                  borderRadius: 4,
-                  py: 1.25,
-                  background: 'linear-gradient(135deg, #FE2C55 0%, #FF6B8A 100%)',
-                }}
+                sx={{ borderRadius: 4, py: 1.25, background: gradient }}
               >
-                {unlockBusy ? '验证中…' : '解锁内容'}
+                {passwordMutation.isPending ? '验证中…' : '解锁内容'}
               </Button>
             </Box>
           )}

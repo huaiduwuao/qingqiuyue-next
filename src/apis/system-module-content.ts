@@ -68,11 +68,12 @@ export async function listModuleContents(params?: ModuleContentQuery) {
 
 // 获取模块内容详情
 // 内容 id 超 2^53,调用方按字符串原样传,不要 Number()(见 lib/id.ts)
-export async function detail(params: { id: EntityId } | EntityId) {
-  const id = typeof params === 'object' ? params.id : params;
+// 口令合集里的内容要带上合集通行证 modulePass(见 passwordUnlock),否则正文按未解锁打码
+export async function detail(params: { id: EntityId; modulePass?: string } | EntityId) {
+  const { id, modulePass } = typeof params === 'object' ? params : { id: params, modulePass: undefined };
   return contentClient<ModuleContentInfo>(`/module/content/client/detail`, {
     method: 'GET',
-    params: { id },
+    params: modulePass ? { id, modulePass } : { id },
   });
 }
 

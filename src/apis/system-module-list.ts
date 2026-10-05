@@ -18,10 +18,11 @@ export async function list(params: Record<string, unknown>) {
   });
 }
 
+// 后端 DELETE /module/removeByIds 收 {"ids": [...]}(裸数组会被当成参数错误)
 export async function remove(ids: number[]) {
   return contentClient("/module/removeByIds", {
     method: "DELETE",
-    data: ids
+    data: { ids }
   });
 }
 

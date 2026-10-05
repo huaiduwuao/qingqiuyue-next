@@ -10,6 +10,7 @@
 
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import ViewModuleRoundedIcon from '@mui/icons-material/ViewModuleRounded';
 import CardMembershipRoundedIcon from '@mui/icons-material/CardMembershipRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
@@ -128,6 +129,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'topic', label: '专题管理', path: '/system/topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'feed', label: '动态管理', path: '/system/feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'content-works', label: '作品管理', path: '/system/content/works', icon: <VideoLibraryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'module', label: '合集管理', path: '/system/module', icon: <ViewModuleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },
   {
