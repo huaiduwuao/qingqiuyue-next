@@ -37,7 +37,7 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { isAuthError, formatApiError } from '@/lib/api/client';
 import { FEN_PER_DIAMOND, getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
-import { createOrder, getDiamondPackages, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
+import { createOrder, getDiamondPackages, getPaymentChannels, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
 import {
   getDiamondBenefits,
   getDiamondActivity,
@@ -155,6 +155,19 @@ function RechargePageContent() {
     staleTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
   });
+  // 只展示后端真正开通的支付通道;一个都没有时直接告诉用户,而不是点了「去支付」才报"未配置"。
+  const channelQ = useQuery({
+    queryKey: ['payment-channels'],
+    queryFn: getPaymentChannels,
+    staleTime: 5 * 60 * 1000,
+  });
+  const availableMethods = useMemo(() => PAY_METHODS.filter((m) => !channelQ.data || channelQ.data[m.key]), [channelQ.data]);
+  const noChannel = !!channelQ.data && availableMethods.length === 0;
+  useEffect(() => {
+    if (availableMethods.length > 0 && !availableMethods.some((m) => m.key === payMethod)) {
+      setPayMethod(availableMethods[0].key);
+    }
+  }, [availableMethods, payMethod]);
   const benefitQ = useQuery({
     queryKey: ['recharge-benefits'],
     queryFn: () => getDiamondBenefits().then((r) => r.list || []),
@@ -280,6 +293,10 @@ function RechargePageContent() {
     // 未登录:档位和活动都看得到,但下单要会话——去登录页,登录后回到这页。
     if (!isAuthenticated) {
       router.push(loginHref());
+      return;
+    }
+    if (noChannel) {
+      setToast({ open: true, msg: '在线充值暂未开通,敬请留意公告', severity: 'info' });
       return;
     }
     if (payMethod !== 'wechat' && payMethod !== 'alipay') {
@@ -733,8 +750,13 @@ function RechargePageContent() {
                   <Typography sx={{ fontSize: 10 }}>支付链路加密</Typography>
                 </Box>
               </Box>
+              {noChannel && (
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', mb: 1 }}>
+                  在线充值暂未开通(支付通道还在接入中)。
+                </Typography>
+              )}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr' }, gap: 1.5 }}>
-                {PAY_METHODS.map((m) => {
+                {availableMethods.map((m) => {
                   const isSelected = payMethod === m.key;
                   const meta = PAY_ICON[m.iconKey];
                   return (

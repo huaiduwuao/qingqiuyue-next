@@ -198,6 +198,8 @@ export default function ContentDetailDrawer({ open, payload, onClose, onNavigate
             variant="outlined"
             startIcon={<VisibilityRoundedIcon sx={{ fontSize: 14 }} />}
             onClick={handleViewDetail}
+            // 没有详情路由的类型不给一个点了没反应的按钮
+            disabled={!onNavigate && !getDetailRoute(payload.contentType, payload.id)}
             sx={{
               textTransform: 'none',
               fontSize: 12,

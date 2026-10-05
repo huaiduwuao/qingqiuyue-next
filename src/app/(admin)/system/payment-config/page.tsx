@@ -1,180 +1,117 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import CircularProgress from '@mui/material/CircularProgress';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import Divider from '@mui/material/Divider';
-import InputAdornment from '@mui/material/InputAdornment';
-import IconButton from '@mui/material/IconButton';
-import Collapse from '@mui/material/Collapse';
 import AlertTitle from '@mui/material/AlertTitle';
-import WarningRoundedIcon from '@mui/icons-material/WarningRounded';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableRow from '@mui/material/TableRow';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { adminClient, formatApiError } from '@/lib/api/client';
 
-// 支付配置 API
+// 支付配置(只读)
 //
-// 之前这里裸 fetch(API_PREFIX + '/api/admin/payment/config') —— 网关上没有 /api/admin 这个前缀
-// (那是早已下线的独立 admin-api 的老路径),真实地址是 core-api 的
-// /api/core/payment/config,而且需要登录态。裸 fetch 还有一个问题:不带
-// Authorization 头,所以就算路径对了也是 401。改走 adminClient(base=/api/core,
-// 拦截器统一注入 session)。
+// 以前这是一张可编辑表单,但「保存」只写进 core-api 进程内存:真正收款的 paymentapp 从来只读环境变量,
+// 重启就丢;GET 回来的密钥是打码的,原样再存一次还会把缓存里的密钥覆盖成 abcd****wxyz。
+// 支付密钥属于服务器机密,不该经网页明文往返,所以这里改成只读:展示每个通道读到了哪些环境变量、
+// 网关客户端有没有真正初始化成功。要改,编辑服务器 docker/.env 后重启 core-api。
 //
-// 2026-09:微信登录(网站应用 AppID/AppSecret/回调地址)从本页搬走,统一归到「系统 -> 微信配置」
-// (与公众号、小程序一并维护)。原因是同一份「扫码登录」能力绑在 wx_config.type=pc 上,
-// 而真正在 OAuth 链路里读它的是 SocialUserService,与本页无关 —— 留在这里只会让人以为
-// 这里改了能影响登录,改完实际落到了 wx_config 表,容易误判。
-const paymentConfigAPI = {
-  // 拦截器已把 {code,msg,data} 剥到业务数据层,这里拿到的就是配置对象本身。
-  get: async (): Promise<Partial<PaymentConfig> | null> => {
-    const res = await adminClient<Partial<PaymentConfig> | null>('/payment/config');
-    return res ?? null;
-  },
-  save: async (data: PaymentConfig) => adminClient('/payment/config', { method: 'POST', data }),
-};
+// 微信登录(网站应用 / 移动应用 / 公众号 / 小程序)在「系统 → 微信配置」。
 
 interface PaymentConfig {
-  // 微信支付
-  wechatAppId: string;
-  wechatAppSecret: string;
-  wechatMchId: string;
-  wechatApiV3Key: string;
-  wechatSerialNo: string;
-  wechatPrivateKey: string;
-  wechatNotifyUrl: string;
-  // 支付宝
-  alipayAppId: string;
-  alipayPrivateKey: string;
-  alipayPublicCert: string;
-  alipayNotifyUrl: string;
-  alipayIsProd: boolean;
+  wechatAppId?: string;
+  wechatAppSecret?: string;
+  wechatMchId?: string;
+  wechatApiV3Key?: string;
+  wechatSerialNo?: string;
+  wechatPrivateKey?: string;
+  wechatNotifyUrl?: string;
+  alipayAppId?: string;
+  alipayPrivateKey?: string;
+  alipayPublicCert?: string;
+  alipayNotifyUrl?: string;
+  alipayIsProd?: boolean;
 }
 
-const DEFAULT_CONFIG: PaymentConfig = {
-  wechatAppId: '',
-  wechatAppSecret: '',
-  wechatMchId: '',
-  wechatApiV3Key: '',
-  wechatSerialNo: '',
-  wechatPrivateKey: '',
-  wechatNotifyUrl: '',
-  alipayAppId: '',
-  alipayPrivateKey: '',
-  alipayPublicCert: '',
-  alipayNotifyUrl: '',
-  alipayIsProd: false,
-};
+type Row = { env: string; field: keyof PaymentConfig; label: string; required?: boolean };
 
-const MULTILINE_SECRETS: ReadonlyArray<keyof PaymentConfig> = ['wechatPrivateKey', 'alipayPrivateKey', 'alipayPublicCert'];
+const WECHAT_ROWS: Row[] = [
+  { env: 'WECHAT_APP_ID', field: 'wechatAppId', label: '关联 AppID(公众号/网站应用)', required: true },
+  { env: 'WECHAT_MCH_ID', field: 'wechatMchId', label: '商户号', required: true },
+  { env: 'WECHAT_API_V3_KEY', field: 'wechatApiV3Key', label: 'APIv3 密钥', required: true },
+  { env: 'WECHAT_SERIAL_NO', field: 'wechatSerialNo', label: '商户证书序列号', required: true },
+  { env: 'WECHAT_PRIVATE_KEY', field: 'wechatPrivateKey', label: '商户私钥 apiclient_key.pem', required: true },
+  { env: 'WECHAT_NOTIFY_URL', field: 'wechatNotifyUrl', label: '回调地址', required: true },
+  { env: 'WECHAT_APP_SECRET', field: 'wechatAppSecret', label: 'AppSecret(JSAPI 取 openid 用)' },
+];
 
-// 密钥输入框 + 显示/隐藏开关。必须定义在页面组件外面:以前它是页面里的内联组件,
-// 每次输入都换成一个新的组件类型,整块 TextField 重新挂载,敲一个字就丢一次焦点。
-// 私钥/证书是多行 textarea,type=password 对它不起作用,隐藏时改用 text-security 打码。
-function SecretField({ label, field, value, onChange, placeholder, helper }: {
-  label: string;
-  field: keyof PaymentConfig;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  helper?: string;
+const ALIPAY_ROWS: Row[] = [
+  { env: 'ALIPAY_APP_ID', field: 'alipayAppId', label: '应用 AppID', required: true },
+  { env: 'ALIPAY_PRIVATE_KEY', field: 'alipayPrivateKey', label: '应用私钥(PKCS8)', required: true },
+  { env: 'ALIPAY_PUBLIC_CERT', field: 'alipayPublicCert', label: '支付宝公钥证书', required: true },
+  { env: 'ALIPAY_NOTIFY_URL', field: 'alipayNotifyUrl', label: '回调地址', required: true },
+];
+
+function ChannelCard({ title, ready, rows, config, extra }: {
+  title: string;
+  ready: boolean;
+  rows: Row[];
+  config: PaymentConfig;
+  extra?: React.ReactNode;
 }) {
-  const [shown, setShown] = useState(false);
-  const multiline = MULTILINE_SECRETS.includes(field);
   return (
-    <TextField
-      label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      fullWidth
-      multiline={multiline}
-      rows={multiline ? 6 : undefined}
-      type={multiline || shown ? 'text' : 'password'}
-      placeholder={placeholder}
-      helperText={helper}
-      autoComplete="off"
-      slotProps={{
-        htmlInput: multiline && !shown ? { style: { WebkitTextSecurity: 'disc' } as React.CSSProperties } : undefined,
-        input: {
-          endAdornment: (
-            <InputAdornment position="end">
-              <IconButton onClick={() => setShown((v) => !v)} edge="end" size="small" aria-label={shown ? '隐藏' : '显示'}>
-                {shown ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-              </IconButton>
-            </InputAdornment>
-          ),
-        },
-      }}
-    />
+    <Card sx={{ maxWidth: 800, mb: 3 }}>
+      <CardHeader
+        title={title}
+        avatar={ready ? <CloudDoneIcon color="success" /> : <CloudOffIcon color="disabled" />}
+        action={<Chip size="small" color={ready ? 'success' : 'default'} label={ready ? '已开通' : '未开通'} sx={{ mt: 1, mr: 1 }} />}
+        titleTypographyProps={{ variant: 'h6' }}
+      />
+      <CardContent sx={{ pt: 0 }}>
+        <Table size="small">
+          <TableBody>
+            {rows.map((r) => {
+              const v = config[r.field];
+              const set = typeof v === 'string' && v !== '';
+              return (
+                <TableRow key={r.env}>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>{r.env}</TableCell>
+                  <TableCell sx={{ fontSize: 13 }}>{r.label}{r.required ? '' : '(可选)'}</TableCell>
+                  <TableCell sx={{ fontSize: 12, fontFamily: 'monospace', color: set ? 'text.primary' : r.required ? 'error.main' : 'text.disabled', wordBreak: 'break-all' }}>
+                    {set ? (v as string) : '未设置'}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {extra}
+      </CardContent>
+    </Card>
   );
 }
 
 export default function PaymentConfigPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState(0);
-  const [config, setConfig] = useState<PaymentConfig>(DEFAULT_CONFIG);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const cfgQuery = useQuery({
+    queryKey: ['admin', 'payment-config'],
+    queryFn: async () => (await adminClient<PaymentConfig | null>('/payment/config')) ?? {},
+  });
+  const chQuery = useQuery({
+    queryKey: ['payment', 'channels'],
+    queryFn: async () => (await adminClient<{ wechat?: boolean; alipay?: boolean } | null>('/payment/channels')) ?? {},
+  });
 
-  const showMessage = (message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  useEffect(() => {
-    loadConfig();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在进页时拉一次配置
-  }, []);
-
-  const loadConfig = async () => {
-    setLoading(true);
-    try {
-      const cfg = await paymentConfigAPI.get();
-      if (cfg) {
-        setConfig({ ...DEFAULT_CONFIG, ...cfg });
-      }
-    } catch (err) {
-      // 以前这里只 console.error,页面照常显示一张全空的表单 ——
-      // "还没配过" 和 "接口 404 / 没权限" 长得一模一样。现在提示出来。
-      console.error('加载支付配置失败:', err);
-      showMessage('加载支付配置失败:' + formatApiError(err), 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await paymentConfigAPI.save(config);
-      showMessage('配置保存成功');
-    } catch (err) {
-      showMessage('保存失败: ' + (err instanceof Error ? err.message : '未知错误'), 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChange = (field: keyof PaymentConfig, value: PaymentConfig[keyof PaymentConfig]) => {
-    setConfig((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const isWechatPayValid = () => config.wechatAppId && config.wechatMchId && config.wechatApiV3Key && config.wechatPrivateKey;
-  const isAlipayValid = () => config.alipayAppId && config.alipayPrivateKey && config.alipayPublicCert;
-
-  if (loading) {
+  if (cfgQuery.isLoading || chQuery.isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
         <CircularProgress />
@@ -182,213 +119,50 @@ export default function PaymentConfigPage() {
     );
   }
 
+  const config = cfgQuery.data || {};
+  const ch = chQuery.data || {};
+  const err = cfgQuery.error || chQuery.error;
+
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
       <Typography variant="h5" sx={{ mb: 1 }}>支付配置</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3, fontSize: 13 }}>
-        配置微信支付、支付宝。敏感信息请妥善保管。
-        {' '}
-        微信登录(网站应用 AppID/AppSecret / 回调地址)请前往
-        <strong> 系统 → 微信配置 </strong>
-        维护,与公众号、小程序一并管理。
+      <Typography color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>
+        钻石充值、会员购买走这里的微信支付 / 支付宝通道。微信登录请到 <strong>系统 → 微信配置</strong>。
       </Typography>
 
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-        <Tab label="微信支付" icon={<CloudDoneIcon fontSize="small" />} iconPosition="start" />
-        <Tab label="支付宝" icon={<CloudDoneIcon fontSize="small" />} iconPosition="start" />
-      </Tabs>
+      {err && <Alert severity="error" sx={{ mb: 2, maxWidth: 800 }}>加载失败:{formatApiError(err)}</Alert>}
 
-      {/* 微信支付配置 */}
-      {tab === 0 && (
-        <Card sx={{ maxWidth: 800 }}>
-          <CardHeader
-            title="微信支付配置"
-            avatar={isWechatPayValid() ? <CloudDoneIcon color="success" /> : <CloudOffIcon color="disabled" />}
-            titleTypographyProps={{ variant: 'h6' }}
-          />
-          <CardContent>
-            <Collapse in={!isWechatPayValid()}>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <AlertTitle>配置说明</AlertTitle>
-                微信支付需要使用微信支付商户号。前往 <strong>微信支付商户平台</strong> (pay.weixin.qq.com) 申请接入。
-              </Alert>
-            </Collapse>
+      <Alert severity="info" sx={{ mb: 3, maxWidth: 800 }}>
+        <AlertTitle>怎么修改</AlertTitle>
+        支付密钥只放在服务器上,不经网页保存。编辑服务器上 qingqiuyue-go 的 <code>docker/.env</code>,
+        填入下表的环境变量,然后重启 core-api。密钥多行内容(PEM)可写成一行并用 <code>\n</code> 表示换行。
+        「已开通」表示 core-api 启动时网关客户端初始化成功,充值页才会显示该通道。
+      </Alert>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              <TextField
-                label="公众号 AppID"
-                value={config.wechatAppId}
-                onChange={(e) => handleChange('wechatAppId', e.target.value)}
-                fullWidth
-                placeholder="wx开头"
-                helperText="关联到商户号的公众号 AppID"
-              />
-
-              <SecretField
-                label="公众号 AppSecret"
-                field="wechatAppSecret"
-                value={config.wechatAppSecret}
-                onChange={(v) => handleChange('wechatAppSecret', v)}
-                helper="在公众号设置中获取"
-              />
-
-              <Divider sx={{ my: 1 }} />
-
-              <TextField
-                label="商户号 (MchID)"
-                value={config.wechatMchId}
-                onChange={(e) => handleChange('wechatMchId', e.target.value)}
-                fullWidth
-                placeholder="在商户平台获取"
-              />
-
-              <SecretField
-                label="API v3 密钥"
-                field="wechatApiV3Key"
-                value={config.wechatApiV3Key}
-                onChange={(v) => handleChange('wechatApiV3Key', v)}
-                placeholder="32位字符"
-                helper="在商户平台 - API安全 中设置 v3 密钥"
-              />
-
-              <TextField
-                label="证书序列号 (SerialNo)"
-                value={config.wechatSerialNo}
-                onChange={(e) => handleChange('wechatSerialNo', e.target.value)}
-                fullWidth
-                placeholder="在商户平台获取证书后查看"
-              />
-
-              <SecretField
-                label="商户私钥 (PKCS8 PEM)"
-                field="wechatPrivateKey"
-                value={config.wechatPrivateKey}
-                onChange={(v) => handleChange('wechatPrivateKey', v)}
-                placeholder="-----BEGIN PRIVATE KEY-----"
-                helper="在商户平台下载证书后，从 apiclient_key.pem 读取内容"
-              />
-
-              <Divider sx={{ my: 1 }} />
-
-              <TextField
-                label="支付回调地址"
-                value={config.wechatNotifyUrl}
-                onChange={(e) => handleChange('wechatNotifyUrl', e.target.value)}
-                fullWidth
-                placeholder="https://your-domain.com/api/core/payment/notify/wechat"
-                helperText="微信支付成功后会回调此地址，需公网可访问"
-              />
-
-              <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>配置步骤：</Typography>
-                <Typography component="ol" sx={{ pl: 2, m: 0, color: 'text.secondary', fontSize: 13 }}>
-                  <li>访问 <strong>pay.weixin.qq.com</strong> 登录商户号</li>
-                  <li>在「账户设置 - API安全」中设置 APIv3 密钥</li>
-                  <li>下载证书，获取证书序列号和私钥文件</li>
-                  <li>将回调地址配置到商户平台的「支付配置」中</li>
-                </Typography>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 支付宝配置 */}
-      {tab === 1 && (
-        <Card sx={{ maxWidth: 800 }}>
-          <CardHeader
-            title="支付宝配置"
-            avatar={isAlipayValid() ? <CloudDoneIcon color="success" /> : <CloudOffIcon color="disabled" />}
-            titleTypographyProps={{ variant: 'h6' }}
-          />
-          <CardContent>
-            <Collapse in={!isAlipayValid()}>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <AlertTitle>配置说明</AlertTitle>
-                支付宝支付需要使用支付宝开放平台账号。前往 <strong>支付宝开放平台</strong> (open.alipay.com) 申请应用。
-              </Alert>
-            </Collapse>
-
-            <Alert severity="warning" icon={<WarningRoundedIcon />} sx={{ mb: 3 }}>
-              <AlertTitle>重要提示</AlertTitle>
-              支付宝配置需要使用 RSA2 密钥，密钥格式为 PKCS8。推荐使用沙箱环境测试后再切换到生产环境。
-            </Alert>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              <TextField
-                label="应用 AppID"
-                value={config.alipayAppId}
-                onChange={(e) => handleChange('alipayAppId', e.target.value)}
-                fullWidth
-                placeholder="在开放平台应用详情页获取"
-              />
-
-              <SecretField
-                label="应用私钥 (PKCS8 PEM)"
-                field="alipayPrivateKey"
-                value={config.alipayPrivateKey}
-                onChange={(v) => handleChange('alipayPrivateKey', v)}
-                placeholder="-----BEGIN RSA PRIVATE KEY----- 或 -----BEGIN PRIVATE KEY-----"
-                helper="使用支付宝密钥工具生成，格式选择 PKCS8"
-              />
-
-              <Divider sx={{ my: 1 }} />
-
-              <SecretField
-                label="支付宝公钥证书内容 (PEM)"
-                field="alipayPublicCert"
-                value={config.alipayPublicCert}
-                onChange={(v) => handleChange('alipayPublicCert', v)}
-                placeholder="-----BEGIN CERTIFICATE-----"
-                helper="从支付宝开放平台下载应用公钥证书"
-              />
-
-              <Divider sx={{ my: 1 }} />
-
-              <TextField
-                label="支付回调地址"
-                value={config.alipayNotifyUrl}
-                onChange={(e) => handleChange('alipayNotifyUrl', e.target.value)}
-                fullWidth
-                placeholder="https://your-domain.com/api/core/payment/notify/alipay"
-                helperText="支付宝成功后会回调此地址，需公网可访问"
-              />
-
-              <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>配置步骤：</Typography>
-                <Typography component="ol" sx={{ pl: 2, m: 0, color: 'text.secondary', fontSize: 13 }}>
-                  <li>访问 <strong>open.alipay.com</strong> 创建应用</li>
-                  <li>在「开发设置」中生成 RSA2 密钥（选择 PKCS8）</li>
-                  <li>配置应用公钥，获取支付宝公钥证书</li>
-                  <li>将回调地址配置到应用设置中</li>
-                </Typography>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
-      <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving}
-          startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
-        >
-          {saving ? '保存中...' : '保存配置'}
-        </Button>
-      </Box>
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <ChannelCard
+        title="微信支付"
+        ready={!!ch.wechat}
+        rows={WECHAT_ROWS}
+        config={config}
+        extra={
+          <Typography sx={{ mt: 1.5, fontSize: 12, color: 'text.secondary' }}>
+            回调验签:新商户用「微信支付公钥」,另设 <code>WECHAT_PAY_PUBLIC_KEY</code> 和 <code>WECHAT_PAY_PUBLIC_KEY_ID</code>;
+            不设则自动下载平台证书。回调地址填 <code>https://qingqiuyue.com/api/core/payment/notify/wechat</code>。
+          </Typography>
+        }
+      />
+      <ChannelCard
+        title="支付宝"
+        ready={!!ch.alipay}
+        rows={ALIPAY_ROWS}
+        config={config}
+        extra={
+          <Typography sx={{ mt: 1.5, fontSize: 12, color: 'text.secondary' }}>
+            <code>ALIPAY_IS_PROD</code> = {config.alipayIsProd ? 'true(正式环境)' : 'false(沙箱)'}。
+            回调地址填 <code>https://qingqiuyue.com/api/core/payment/notify/alipay</code>。
+          </Typography>
+        }
+      />
     </Box>
   );
 }

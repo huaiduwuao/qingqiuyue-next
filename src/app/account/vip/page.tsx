@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -28,6 +28,7 @@ import {
   createOrder,
   getMembershipPlans,
   getMembershipStatus,
+  getPaymentChannels,
   getOrderList,
   type MembershipPlan,
   type PaymentOrder,
@@ -65,6 +66,11 @@ export default function VipPage() {
   const [snack, setSnack] = useState<string | null>(null);
 
   const plansQ = useQuery({ queryKey: ['membership-plans'], queryFn: getMembershipPlans, staleTime: 5 * 60 * 1000 });
+  // 支付通道没开通时只剩「钻石」,默认也落到钻石上
+  const channelQ = useQuery({ queryKey: ['payment-channels'], queryFn: getPaymentChannels, staleTime: 5 * 60 * 1000 });
+  useEffect(() => {
+    if (channelQ.data && channel !== 'diamond' && !channelQ.data[channel]) setChannel('diamond');
+  }, [channelQ.data, channel]);
   const statusQ = useQuery({ queryKey: ['membership-status'], queryFn: getMembershipStatus, refetchOnMount: 'always' });
   const ordersQ = useQuery({
     queryKey: ['payment-orders'],
@@ -290,8 +296,8 @@ export default function VipPage() {
                   </Typography>
                 </Typography>
                 <ToggleButtonGroup exclusive fullWidth size="small" value={channel} onChange={(_, v) => v && setChannel(v)}>
-                  <ToggleButton value="wechat">微信支付</ToggleButton>
-                  <ToggleButton value="alipay">支付宝</ToggleButton>
+                  <ToggleButton value="wechat" disabled={!!channelQ.data && !channelQ.data.wechat}>微信支付</ToggleButton>
+                  <ToggleButton value="alipay" disabled={!!channelQ.data && !channelQ.data.alipay}>支付宝</ToggleButton>
                   <ToggleButton value="diamond">钻石</ToggleButton>
                 </ToggleButtonGroup>
                 {channel === 'diamond' && (

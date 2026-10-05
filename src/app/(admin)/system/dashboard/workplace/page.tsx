@@ -23,7 +23,7 @@ import {
   Badge,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { adminClient } from '@/lib/api/client';
@@ -100,12 +100,12 @@ function useWorkplace() {
   const quickActions = useQuery<QuickAction[]>({
     queryKey: ['workplace', 'quick-actions'],
     queryFn: async () => [
-      { id: 'publish', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/system/app-config' },
+      { id: 'publish', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/account/content' },
       { id: 'userAdd', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
       { id: 'bot', label: '数字人', icon: 'bot', color: '#8B5CF6', path: '/system/digital-human' },
       { id: 'dict', label: '字典类型', icon: 'dict', color: '#25F4EE', path: '/system/dict/dict-type' },
       { id: 'log', label: '操作日志', icon: 'log', color: '#5DDB96', path: '/system/log' },
-      { id: 'monitor', label: '服务监控', icon: 'monitor', color: '#FFB400', path: '/system/app' },
+      { id: 'monitor', label: '服务监控', icon: 'monitor', color: '#FFB400', path: '/system/dashboard/monitor' },
       { id: 'agent-manager', label: 'Agent 管理', icon: 'bot', color: '#5B8DEF', path: '/system/staff' },
       { id: 'chart', label: '数据分析', icon: 'chart', color: '#8B5CF6', path: '/system/dashboard/analysis' },
     ],
@@ -148,19 +148,9 @@ function useWorkplace() {
 export default function DashboardWorkplacePage() {
   const { user, quickActions, todos, projects, team } = useWorkplace();
   const router = useRouter();
-  const queryClient = useQueryClient();
-
-  const toggleTodo = useMutation({
-    mutationFn: (id: number) => {
-      // 悬赏任务状态由后端 workflow 驱动,前端仅本地乐观更新
-      const current = queryClient.getQueryData<Todo[]>(['workplace', 'todos']) || [];
-      const updated = current.map((t: Todo) =>
-        t.id === id ? { ...t, status: DONE_STATUSES.has(t.status) ? 'pending' : 'completed' } : t
-      );
-      queryClient.setQueryData(['workplace', 'todos'], updated);
-      return Promise.resolve();
-    },
-  });
+  // 待办就是悬赏任务(reward_task),状态只能走认领/提交/验收流程推进;
+  // 以前这里有个"标记完成"只改本地缓存,刷新就复原 —— 改成跳到任务详情去处理。
+  const openTodo = (id: number) => router.push(`/account/reward?tab=board&task=${id}`);
 
   const u = user.data;
   const pendingTodos = (todos.data || []).filter((t: Todo) => !DONE_STATUSES.has(t.status));
@@ -261,7 +251,9 @@ export default function DashboardWorkplacePage() {
                     <Typography variant="h6">待办事项</Typography>
                     <Chip label={`${pendingTodos.length} 待处理`} size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: 11 }} />
                   </Box>
-                  <IconButton size="small"><AddRoundedIcon fontSize="small" /></IconButton>
+                  <Tooltip title="发布悬赏">
+                    <IconButton size="small" onClick={() => router.push('/account/reward')}><AddRoundedIcon fontSize="small" /></IconButton>
+                  </Tooltip>
                 </Box>
                 {todos.isLoading ? (
                   Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={56} sx={{ mb: 1 }} />)
@@ -272,9 +264,9 @@ export default function DashboardWorkplacePage() {
                         <ListItem
                           sx={{ px: 1, py: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}
                           secondaryAction={
-                            <Tooltip title="标记完成">
-                              <IconButton size="small" onClick={() => toggleTodo.mutate(t.id)}>
-                                <DoneAllRoundedIcon fontSize="small" />
+                            <Tooltip title="去处理">
+                              <IconButton size="small" onClick={() => openTodo(t.id)}>
+                                <SendRoundedIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           }
@@ -335,7 +327,7 @@ export default function DashboardWorkplacePage() {
                     <AssessmentRoundedIcon sx={{ color: '#8B5CF6', fontSize: 22 }} />
                     <Typography variant="h6">项目进度</Typography>
                   </Box>
-                  <Button size="small" variant="text" sx={{ fontSize: 12 }}>查看全部</Button>
+                  <Button size="small" variant="text" sx={{ fontSize: 12 }} onClick={() => router.push('/system/topic')}>查看全部</Button>
                 </Box>
                 {projects.isLoading ? (
                   Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={80} sx={{ mb: 1 }} />)
@@ -392,7 +384,7 @@ export default function DashboardWorkplacePage() {
               <CardContent sx={{ py: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6">团队成员</Typography>
-                  <Button size="small" variant="text" sx={{ fontSize: 12 }}>管理团队</Button>
+                  <Button size="small" variant="text" sx={{ fontSize: 12 }} onClick={() => router.push('/system/user')}>管理团队</Button>
                 </Box>
                 {team.isLoading ? (
                   <Box sx={{ display: 'flex', gap: 2 }}>{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" width={140} height={100} />)}</Box>

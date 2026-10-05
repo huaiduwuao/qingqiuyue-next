@@ -48,6 +48,7 @@ function ShareModuleDetailContent() {
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState('');
   const [payInfo, setPayInfo] = useState<{ qrCode?: string; payUrl?: string; amount?: number } | null>(null);
+  const [payError, setPayError] = useState('');
 
   const treeAndModuleQuery = useQuery({
     queryKey: ['share-module', moduleId],
@@ -97,8 +98,9 @@ function ShareModuleDetailContent() {
           amount: res?.amount ?? moduleInfo?.shareContent?.pay,
         });
       })
-      .catch(() => {
-        // 后端未就绪时使用模块价格兜底展示
+      .catch((err) => {
+        // 合集目前没有定价模型,后端会明确拒绝;把原因告诉用户并允许关闭,别一直显示"加载中"
+        if (!cancelled) setPayError(formatApiError(err));
       });
     return () => { cancelled = true; };
   }, [unlockVisible, moduleInfo?.shareType, moduleInfo?.shareContent?.pay, moduleId]);
@@ -341,7 +343,8 @@ function ShareModuleDetailContent() {
 
       <Modal
         open={unlockVisible}
-        onClose={() => {}}
+        // 口令分享必须解锁;付费拿不到支付信息时允许关掉弹窗
+        onClose={() => { if (moduleInfo?.shareType === 'pay' && payError) setUnlockDismissed(true); }}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -402,12 +405,21 @@ function ShareModuleDetailContent() {
                 {payInfo?.qrCode ? (
                   <CoverImage src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
-                  <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码加载中…</Typography>
+                  <Typography sx={{ fontSize: 12, color: payError ? 'error.main' : 'text.disabled', px: 2 }}>
+                    {payError || '二维码加载中…'}
+                  </Typography>
                 )}
               </Box>
-              <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
-                ¥{payInfo?.amount ?? moduleInfo?.shareContent?.pay ?? 9.9}
-              </Typography>
+              {payInfo?.amount != null && (
+                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
+                  ¥{payInfo.amount}
+                </Typography>
+              )}
+              {payError && (
+                <Button fullWidth variant="outlined" onClick={() => setUnlockDismissed(true)} sx={{ mt: 1, borderRadius: 4 }}>
+                  关闭
+                </Button>
+              )}
             </Box>
           )}
 

@@ -497,7 +497,6 @@ function StepPreview({ entries, picked }: { entries: ContentCatalogEntry[]; pick
             key={e.code}
             label={e.label}
             size="small"
-            onDelete={() => {}}
             sx={{ fontSize: 11 }}
           />
         ))}

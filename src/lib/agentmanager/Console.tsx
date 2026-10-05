@@ -505,20 +505,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography variant="h6">外部运行时</Typography>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() =>
-                  agentmAPI
-                    .discoverInstances()
-                    .then(loadData)
-                    // 后端容器自动发现未接 podman/docker,返 501;此前没 catch,
-                    // 成为未处理的 promise rejection,点了毫无反馈。这里如实提示。
-                    .catch((e) => alert(`自动发现不可用: ${e?.message || '后端未接入容器运行时,请手动登记实例'}`))
-                }
-              >
-                自动发现
-              </Button>
+              {/* 「自动发现」按钮已去掉:后端没接容器运行时,/instances/discover 永远 501。外部运行时是可选的遗留登记。 */}
             </Box>
             <Alert severity="info" sx={{ mb: 2 }}>
               数字员工、后台运行、工作流都跑在 agentmanager 服务内部,直连「模型供应商」,不经过这里。

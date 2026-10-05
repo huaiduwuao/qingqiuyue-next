@@ -68,6 +68,12 @@ export async function getMembershipPlans(): Promise<MembershipPlan[]> {
   return (res ?? []) as MembershipPlan[];
 }
 
+// 可用的支付通道:后端网关客户端真正初始化成功才为 true(公开接口)
+export async function getPaymentChannels(): Promise<{ wechat: boolean; alipay: boolean }> {
+  const res = (await accountClient('/payment/channels')) as { wechat?: boolean; alipay?: boolean } | null;
+  return { wechat: !!res?.wechat, alipay: !!res?.alipay };
+}
+
 // 创建订单
 export async function createOrder(params: {
   orderType: 'diamond' | 'membership';
