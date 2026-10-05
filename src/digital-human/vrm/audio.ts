@@ -64,7 +64,7 @@ export function createAudioHandle(): AudioHandle {
 
   function ensureAudio() {
     if (audioCtx) { audioCtx.resume(); return; }
-    const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+    const AC = (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
     audioCtx = new AC();
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 1024;

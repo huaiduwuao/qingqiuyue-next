@@ -81,11 +81,12 @@ export function buildLookups(bundle: ConfigBundle) {
 }
 
 /** 把后端列表响应统一成数组（兼容 { data: [...] } / { items: [...] } / { scenes: [...] } 等） */
-function normalizeList<T>(v: any): T[] | null {
+function normalizeList<T>(v: unknown): T[] | null {
   if (Array.isArray(v)) return v as T[];
   if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
     for (const key of ['data', 'items', 'scenes', 'models', 'actions', 'danceStyles', 'poses', 'expressionPresets', 'visemes']) {
-      if (Array.isArray(v[key])) return v[key] as T[];
+      if (Array.isArray(o[key])) return o[key] as T[];
     }
   }
   return null;

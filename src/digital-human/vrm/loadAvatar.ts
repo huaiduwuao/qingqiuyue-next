@@ -16,18 +16,20 @@
  *   - 同一页面里反复挂载同一个模型仍然直接复用(引用为 0 的条目留在缓存里,直到被挤出)。
  */
 
+import type * as THREE from 'three';
+import type { GLTFParser } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as THREE_VRM from '@pixiv/three-vrm';
 
-type MorphEntry = { mesh: any; indices: Record<string, number> };
+type MorphEntry = { mesh: THREE.Mesh; indices: Record<string, number> };
 
 export type Cached = {
   url: string;
-  scene: any;
-  vrm: any;
+  scene: THREE.Group;
+  vrm: THREE_VRM.VRM;
   morphs: Record<string, MorphEntry>;
-  expressionManager: any;
-  humanoid: any;
-  animations: any[];
+  expressionManager: THREE_VRM.VRMExpressionManager | undefined;
+  humanoid: THREE_VRM.VRMHumanoid;
+  animations: THREE.AnimationClip[];
 };
 
 /** 引用为 0 时最多留几个模型在缓存里(常见场景:当前模型 + 刚换下的一个) */
@@ -132,13 +134,13 @@ async function loadEntry(url: string, cacheKey: string, rotateVRM0: boolean, rem
   const buf = new Uint8Array(await res.arrayBuffer());
   const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
   const loader = new GLTFLoader();
-  loader.register((parser: any) => new THREE_VRM.VRMLoaderPlugin(parser));
+  loader.register((parser: GLTFParser) => new THREE_VRM.VRMLoaderPlugin(parser));
   const gltf = await loader.parseAsync(buf.buffer, '');
-  const vrm = gltf.userData.vrm;
+  const vrm = gltf.userData.vrm as THREE_VRM.VRM | undefined;
   if (!vrm) throw new Error(`VRM 解析失败: ${url}`);
 
   // 检测 VRM 版本（仅打 log，不强制旋转 — 实际朝向以模型文件为准）
-  const metaVersion: string = (vrm.meta as any)?.metaVersion || 'unknown';
+  const metaVersion: string = vrm.meta?.metaVersion || 'unknown';
   console.log('[loadAvatar] VRM metaVersion:', metaVersion, '| rotateVRM0:', rotateVRM0);
 
   if (rotateVRM0) {
@@ -151,7 +153,8 @@ async function loadEntry(url: string, cacheKey: string, rotateVRM0: boolean, rem
 
   // 索引 morphTargetDictionary（兼容 0.0 老格式 / 非 VRM 表情通道的 morph）
   const morphs: Record<string, MorphEntry> = {};
-  vrm.scene.traverse((obj: any) => {
+  vrm.scene.traverse((o) => {
+    const obj = o as THREE.Mesh & { isSkinnedMesh?: boolean };
     if (obj.isMesh || obj.isSkinnedMesh) {
       const dict = obj.morphTargetDictionary;
       if (dict) morphs[obj.name] = { mesh: obj, indices: { ...dict } };

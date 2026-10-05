@@ -105,29 +105,29 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     if (dancing) {
       // 跳舞时聚光跟节拍呼吸（强度围绕 spotPowerMul 上下浮动）
       for (const l of h.lights) {
-        if ((l as any).isSpotLight) {
-          const base = (l as any).userData?.baseIntensity ?? 1;
+        if ((l as Partial<THREE_NS.SpotLight>).isSpotLight) {
+          const base = l.userData?.baseIntensity ?? 1;
           // 以配置强度为基准做 ±60% 脉冲，不再绝对覆盖
-          (l as any).intensity = base * spotPowerMul * (0.7 + 0.6 * dance);
+          l.intensity = base * spotPowerMul * (0.7 + 0.6 * dance);
         }
       }
       for (let i = 0; i < h.beams.length; i++) {
         const beam = h.beams[i];
-        const m = beam as any;
+        const m = beam as THREE_NS.Object3D & { material?: THREE_NS.Material };
         if (m.material && 'opacity' in m.material) {
           m.material.opacity = 0.08 + 0.22 * dance * (0.7 + 0.3 * Math.sin(t * 2 + i));
           if ('scale' in m) { m.scale.x = m.scale.z = 0.85 + 0.3 * dance; }
         }
       }
       if (h.ledRing) {
-        const m = h.ledRing as any;
+        const m = h.ledRing;
         if (m.material && 'opacity' in m.material) {
           m.material.opacity = 0.4 + 0.5 * Math.min(1, dance);
           if ('rotation' in m) m.rotation.z += dt * 1.5;
         }
       }
       if (h.ledRing2) {
-        const m = h.ledRing2 as any;
+        const m = h.ledRing2;
         if (m.material && 'opacity' in m.material) {
           m.material.opacity = 0.3 + 0.4 * Math.min(1, 1 - dance);
           if ('rotation' in m) m.rotation.z -= dt * 1.0;
@@ -136,30 +136,30 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     } else {
       // 停舞后把聚光还原到配置强度（否则亮度会卡在最后一帧的脉冲值）
       for (const l of h.lights) {
-        if ((l as any).isSpotLight) {
-          const base = (l as any).userData?.baseIntensity ?? 1;
-          (l as any).intensity = base * spotPowerMul;
+        if ((l as Partial<THREE_NS.SpotLight>).isSpotLight) {
+          const base = l.userData?.baseIntensity ?? 1;
+          l.intensity = base * spotPowerMul;
         }
       }
       // 不跳舞时让 LED 环慢速转 + 半透（保活，不压暗）
       if (h.ledRing) {
-        const m = h.ledRing as any;
+        const m = h.ledRing;
         if (m.material && 'opacity' in m.material) m.material.opacity = 0.55;
         if ('rotation' in m) m.rotation.z += dt * 0.3;
       }
       if (h.ledRing2) {
-        const m = h.ledRing2 as any;
+        const m = h.ledRing2;
         if (m.material && 'opacity' in m.material) m.material.opacity = 0.45;
         if ('rotation' in m) m.rotation.z -= dt * 0.2;
       }
     }
     // backdrop / particles 时间相关动画始终在跑
     if (h.backdrop) {
-      const m = h.backdrop as any;
+      const m = h.backdrop as unknown as { material?: THREE_NS.ShaderMaterial };
       if (m.material?.uniforms?.uTime) m.material.uniforms.uTime.value = t;
     }
     if (h.particles) {
-      const m = h.particles as any;
+      const m = h.particles as unknown as { material?: THREE_NS.ShaderMaterial };
       if (m.material?.uniforms?.uTime) m.material.uniforms.uTime.value = t;
     }
   }

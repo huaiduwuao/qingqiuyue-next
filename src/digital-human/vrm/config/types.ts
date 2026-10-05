@@ -258,12 +258,12 @@ export interface ToolParamSchema {
   description: string;
   minimum?: number;
   maximum?: number;
-  default?: any;
+  default?: unknown;
   properties?: Record<string, ToolParamSchema>;
   items?: ToolParamSchema;
 }
 
-export interface ToolDefinition<Params = Record<string, any>> {
+export interface ToolDefinition<Params = Record<string, unknown>> {
   name: string;
   description: string;
   category: 'face' | 'mouth' | 'body' | 'camera' | 'system';
@@ -273,7 +273,7 @@ export interface ToolDefinition<Params = Record<string, any>> {
     required?: string[];
     additionalProperties?: boolean;
   };
-  handler: (params: Params, ctx: ToolContext) => Promise<any> | any;
+  handler: (params: Params, ctx: ToolContext) => unknown;
 }
 
 export interface ToolContext {
@@ -360,10 +360,12 @@ export type ActionName =
 // 类型守卫
 // ============================================================================
 
-export function isScenePresetConfig(c: any): c is SceneConfig {
-  return c && typeof c === 'object' && c.name && Array.isArray(c.lights);
+export function isScenePresetConfig(c: unknown): c is SceneConfig {
+  const o = c as Record<string, unknown> | null | undefined;
+  return !!(o && typeof o === 'object' && o.name && Array.isArray(o.lights));
 }
 
-export function isActionConfig(c: any): c is ActionConfig {
-  return c && typeof c === 'object' && c.name && c.boneRotations !== undefined;
+export function isActionConfig(c: unknown): c is ActionConfig {
+  const o = c as Record<string, unknown> | null | undefined;
+  return !!(o && typeof o === 'object' && o.name && o.boneRotations !== undefined);
 }

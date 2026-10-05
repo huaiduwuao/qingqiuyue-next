@@ -13,6 +13,9 @@ import type { OrbitControls as OrbitControlsT } from 'three/examples/jsm/control
 import type { CameraPresetName } from './types';
 import { CAMERA_PRESETS } from './types';
 
+/** camera.position 的构造器(和 camera 同一份 three,不直接 import 避免多实例) */
+type Vec3Ctor = new (x?: number, y?: number, z?: number) => THREE.Vector3;
+
 const PRESET_VALUES: Record<CameraPresetName, { pos: [number, number, number]; target: [number, number, number] }> = {
   front: { pos: [0, 1.1, 4.5], target: [0, 0.95, 0] },
   three: { pos: [2.4, 1.4, 3.6], target: [0, 0.95, 0] },
@@ -42,16 +45,16 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     animRef.current = {
       t: 0, dur: 0.8,
       fromPos: camera.position.clone(),
-      toPos: new (camera.position.constructor as any)(...v.pos),
-      fromTgt: controls?.target.clone() ?? new (camera.position.constructor as any)(...v.target),
-      toTgt: new (camera.position.constructor as any)(...v.target),
+      toPos: new (camera.position.constructor as unknown as Vec3Ctor)(...v.pos),
+      fromTgt: controls?.target.clone() ?? new (camera.position.constructor as unknown as Vec3Ctor)(...v.target),
+      toTgt: new (camera.position.constructor as unknown as Vec3Ctor)(...v.target),
     };
   }, [camera, controls]);
 
   /** 飞到任意机位(凑近看某块屏幕用)。之后再切预设照常生效。 */
   const flyTo = useCallback((pos: [number, number, number], target: [number, number, number], dur = 0.9) => {
     if (!camera) return;
-    const V = camera.position.constructor as any;
+    const V = camera.position.constructor as unknown as Vec3Ctor;
     presetRef.current = 'custom' as CameraPresetName;
     animRef.current = {
       t: 0, dur,
@@ -97,7 +100,7 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
    */
   function orbit(direction: 'left' | 'right' | 'up' | 'down' | 'in' | 'out', amount = 0.04) {
     if (!camera) return;
-    const target = controls?.target ?? new (camera.position.constructor as any)(0, 0.95, 0);
+    const target = controls?.target ?? new (camera.position.constructor as unknown as Vec3Ctor)(0, 0.95, 0);
     const offset = camera.position.clone().sub(target);
     const radius = Math.max(0.1, offset.length());
     // 当前 azimuth (绕 Y 角度) 和 polar (仰角)

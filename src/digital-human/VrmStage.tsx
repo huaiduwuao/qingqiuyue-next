@@ -34,7 +34,8 @@ import type { ConfigBundle } from './vrm/config/types';
 import { useVrmPhysics } from './vrm/useVrmPhysics';
 import { useExpressionLerp } from './vrm/useExpressionLerp';
 import { acquireAvatar, releaseAvatar, type Cached } from './vrm/loadAvatar';
-import { useVrmRenderer } from './vrm/useVrmRenderer';
+import { useVrmRenderer, type RendererState } from './vrm/useVrmRenderer';
+import type { VRM, VRMExpressionManager } from '@pixiv/three-vrm';
 import { useVrmScene } from './vrm/useVrmScene';
 import { useVrmLipSync } from './vrm/useVrmLipSync';
 import { useVrmAnimation } from './vrm/useVrmAnimation';
@@ -170,7 +171,7 @@ export interface VrmStageHandle {
    * userData.noCapture 的东西(选中圈、gizmo)这一帧不画。画不出返回 null
    */
   captureFrame: (maxW?: number) => string | null;
-  getThree: () => { THREE: typeof import('three'); scene: import('three').Scene; camera: import('three').PerspectiveCamera; renderer: import('three').WebGLRenderer; controls: any; canvas: HTMLCanvasElement } | null;
+  getThree: () => { THREE: typeof import('three'); scene: import('three').Scene; camera: import('three').PerspectiveCamera; renderer: import('three').WebGLRenderer; controls: RendererState['controls']; canvas: HTMLCanvasElement } | null;
   /** 创世 · 泼溅外壳:实时改对齐 / 按包围盒自动摆正 */
   setRoomAlign: (a: RoomShellAlign) => void;
   autoFitRoom: () => RoomShellAlign | null;
@@ -281,7 +282,7 @@ const EXPRESSION_PASSTHROUGH = new Set([
  * VRM 模型默认是 T-pose，手臂水平外伸
  * 大臂 rotation.z ≈ ±1.4 rad 让手臂垂到身体两侧
  */
-function setNaturalPose(vrm: any) {
+function setNaturalPose(vrm: VRM | null | undefined) {
   if (!vrm?.humanoid) return;
   const lUpper = getBone(vrm.humanoid, 'leftUpperArm');
   const rUpper = getBone(vrm.humanoid, 'rightUpperArm');
@@ -364,12 +365,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // CSS3D 面板层挂在 canvas 的父容器上(与 canvas 同尺寸、同坐标系)
   const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
-  const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM
+  const vrmSceneRef = useRef<import('three').Object3D | null>(null);  // THREE.Object3D of the loaded VRM
   const vrmDataRef = useRef<Cached | null>(null);
-  const expressionManagerRef = useRef<any>(null);
+  const expressionManagerRef = useRef<VRMExpressionManager | null | undefined>(null);
   /** 最近一次「嘴由真实音频驱动」的时刻(performance.now) */
   const lastAudioLipAtRef = useRef(0);
-  const vrmRef = useRef<any>(null);
+  const vrmRef = useRef<VRM | null>(null);
   const handleInternalRef = useRef<VrmStageHandle | null>(null);  // useImperativeHandle 工厂里同步存 handle
   const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
 
@@ -386,17 +387,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
 
   // 关键：把 hook 返回值（每次 render 都是新对象）存到 ref，handle 内部读 ref
   // 这样 useImperativeHandle 的 factory 用空 deps 只跑一次，handle 引用稳定
-  const sceneApiRef = useRef<any>(null);
-  const animApiRef = useRef<any>(null);
-  const camApiRef = useRef<any>(null);
-  const rendererStateRef = useRef<any>(null);
-  const lipApiRef = useRef<any>(null);
-  const rendererApiRef = useRef<any>(null);
+  const sceneApiRef = useRef<ReturnType<typeof useVrmScene> | null>(null);
+  const animApiRef = useRef<ReturnType<typeof useVrmAnimation> | null>(null);
+  const camApiRef = useRef<ReturnType<typeof useVrmCamera> | null>(null);
+  const rendererStateRef = useRef<RendererState | null>(null);
+  const lipApiRef = useRef<ReturnType<typeof useVrmLipSync> | null>(null);
+  const rendererApiRef = useRef<ReturnType<typeof useVrmRenderer> | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiOn, setConfettiOn] = useState(false);
-  const confettiRef = useRef<any>(null);
+  const confettiRef = useRef<ReturnType<typeof makeConfetti> | null>(null);
   // 角色位置（x, z，y 由 yOffset 控制）
   const positionRef = useRef({ x: 0, z: 0, prevX: 0, prevZ: 0 });
   const yOffsetRef = useRef(0);  // 手动 Y 偏移
@@ -460,7 +461,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const panelApi = useVrmScenePanel({
     container: stageEl,
     camera: rendererState?.camera ?? null,
-    THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+    THREE_NS: rendererState?.THREE_NS ?? null,
     scene: rendererState?.scene ?? null,
     canvas: rendererState ? canvasRef.current : null,
   });
@@ -494,7 +495,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   onWorldEventRef.current = onWorldEvent;
   const worldApi = useVrmWorld({
     enabled: world && !debugNoThree,
-    THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+    THREE_NS: rendererState?.THREE_NS ?? null,
     scene: rendererState?.scene ?? null,
     camera: rendererState?.camera ?? null,
     canvas: rendererState ? canvasRef.current : null,
@@ -503,7 +504,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     characters,
     quality: worldQuality,
     timeMode: worldTime,
-    renderer: (rendererState as any)?.renderer ?? null,
+    renderer: rendererState?.renderer ?? null,
     getAvatar: () => vrmDataRef.current?.scene ?? null,
     walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
     editing: worldEditing,
@@ -576,10 +577,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         vrmVersionRef.current = ver;
         const available = listAvailableExpressions(cached.expressionManager);
         devLog.debug(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
-        cached.scene.traverse((o: any) => { o.castShadow = true; o.frustumCulled = false; });
+        cached.scene.traverse((o) => { o.castShadow = true; o.frustumCulled = false; });
         rendererState.scene.add(cached.scene);
         // 贴地：信任模型自然原点（VRM 标准：feet 在 y=0），用 yOffset 手动微调
-        const THREE_NS = (rendererState as any).THREE_NS as typeof import('three');
+        const THREE_NS = rendererState.THREE_NS;
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
         const autoYOffset = -box.min.y;
         yOffsetRef.current = autoYOffset;
@@ -959,7 +960,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       }
       // 7. confetti
       if (confettiOn && confettiRef.current && rendererState) {
-        updateConfetti((rendererState as any).THREE_NS, confettiRef.current, dt);
+        updateConfetti(rendererState.THREE_NS, confettiRef.current, dt);
       }
       // 8. VRM 内部更新（spring bone / lookAt）
       vrmDataRef.current?.vrm?.update?.(dt);
@@ -995,7 +996,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     devLog.debug('[VrmStage] handle 已构造（useMemo, 只跑一次）');
     // 全局调试：方便在控制台测试
     if (typeof window !== 'undefined') {
-      (window as any).__vrmStageHandle = null; // 先清空，等下面赋值
+      (window as unknown as { __vrmStageHandle?: VrmStageHandle | null }).__vrmStageHandle = null; // 先清空，等下面赋值
     }
     return {
       setEmotion: (dict) => {
@@ -1183,7 +1184,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       },
       getPosition: () => ({ x: positionRef.current.x, z: positionRef.current.z }),
       getScreenshot: () => {
-        const r = (rendererStateRef.current as any)?.renderer;
+        const r = rendererStateRef.current?.renderer;
         if (!r) return null;
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
@@ -1344,7 +1345,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   if (ref) (ref as React.MutableRefObject<VrmStageHandle | null>).current = handle;
   // 全局调试变量（方便在控制台测试）
   if (typeof window !== 'undefined') {
-    (window as any).__vrmStageHandle = handle;
+    (window as unknown as { __vrmStageHandle?: VrmStageHandle | null }).__vrmStageHandle = handle;
   }
 
   // useEffect: handle 构造后通知父组件（只触发一次）
@@ -1359,7 +1360,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
 
   function rebuildConfetti(_name: ScenePresetName) {
     if (!rendererState || !confettiOn) return;
-    const THREE_NS = (rendererState as any).THREE_NS as typeof import('three');
+    const THREE_NS = rendererState.THREE_NS;
     removeConfetti();
     confettiRef.current = makeConfetti(THREE_NS);
     // 挂到主 scene（彩屑应当浮在整个舞台上）

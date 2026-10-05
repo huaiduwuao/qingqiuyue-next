@@ -40,6 +40,17 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 //   "Unexpected import of module ... which was deleted by an HMR update"
 // 导致整个 BlenderAvatar 组件挂掉, VRM 不动 → T-pose
 import * as THREE_VRM from '@pixiv/three-vrm';
+import type * as THREE_T from 'three';
+
+/** 下面这些函数按字符串取骨骼 / 表情(VRM 0.x 是 PascalCase),比 VRM 自带的类型宽 */
+type LooseVrm = {
+  meta?: { metaVersion?: string } | null;
+  scene: THREE_T.Object3D;
+  humanoid: { getNormalizedBoneNode(name: string): THREE_T.Object3D | null };
+  expressionManager?: { setValue(name: string, weight: number): void } | null;
+};
+/** 老版本 three-vrm 没有 vrm.update,只有 springBoneManager */
+type SpringVrm = { springBoneManager?: { update?(dt: number): void } };
 const { VRMHumanBoneName } = THREE_VRM;
 
 // 注: three.js / VRM 对象在运行时动态加载, 很多内部类型无法静态精确表达;
@@ -136,7 +147,7 @@ export interface BlenderAvatarProps {
    * LLM/Hermes tool_call 通道 — 上层 chat hook 调用此 prop 把 tool_calls 喂给数字人。
    * 父组件要么用 useChatAvatarV2 (内置 dispatcher), 要么自己消费返回的 sink 集合。
    */
-  onToolCall?: (call: { name: string; params: Record<string, any> }) => void;
+  onToolCall?: (call: { name: string; params: Record<string, unknown> }) => void;
 }
 
 // GaussianSplatRenderer 在模块层 lazy 一次。以前写在组件体里,每渲染一次就得到一个
@@ -202,11 +213,11 @@ function VrmAvatar({
 }: BlenderAvatarProps) {
   // canvas 由初始化 effect 自己创建 / 移除(见 effectCanvas.ts),这里只留宿主节点
   const canvasHostRef = React.useRef<HTMLDivElement>(null);
-  const rendererRef = React.useRef<any>(null);
-  const sceneRef = React.useRef<any>(null);
-  const cameraRef = React.useRef<any>(null);
+  const rendererRef = React.useRef<THREE_T.WebGLRenderer | null>(null);
+  const sceneRef = React.useRef<THREE_T.Scene | null>(null);
+  const cameraRef = React.useRef<THREE_T.PerspectiveCamera | null>(null);
   const loadedRef = React.useRef<Cached | null>(null);
-  const mixerRef = React.useRef<any>(null);
+  const mixerRef = React.useRef<THREE_T.AnimationMixer | null>(null);
   const rafRef = React.useRef<number | null>(null);
   // 用 ref 跟踪 currentAction, 避免 frame 闭包过期
   const currentActionRef = React.useRef(currentAction);
@@ -228,7 +239,7 @@ function VrmAvatar({
     const host = canvasHostRef.current;
     if (!host) return;
     // 调试：按 1 键可跳过 Three.js，用于排查 runtime.lastError 来源
-    const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noThree?: boolean } | undefined;
+    const debug = (typeof window !== 'undefined' && (window as Window & { __DIGITAL_HUMAN_DEBUG?: unknown }).__DIGITAL_HUMAN_DEBUG) as { noThree?: boolean } | undefined;
     if (debug?.noThree) {
       console.log('[BlenderAvatar] SKIP: noThree debug flag set');
       setLoading(false);
@@ -296,7 +307,7 @@ function VrmAvatar({
 
         // 动画 mixer(VRM 通常没内置动画,这里只是 placeholder)
         if (loaded.animations.length > 0) {
-          const { AnimationMixer } = THREE as any;
+          const { AnimationMixer } = THREE;
           const mixer = new AnimationMixer(loaded.scene);
           mixerRef.current = mixer;
           const clip = loaded.animations[0];
@@ -323,13 +334,13 @@ function VrmAvatar({
             const vrm = loadedRef.current.vrm
             // 1) 推 bone rotation 到顶点
             if (vrm.humanoid && typeof vrm.humanoid.update === 'function') {
-              vrm.humanoid.update(dt)
+              ;(vrm.humanoid as unknown as { update(dt: number): void }).update(dt)
             }
             // 2) VRM 1.x spring bone 物理 (衣服/头发跟随)
             if (typeof vrm.update === 'function') {
               vrm.update(dt)
-            } else if ((vrm as any).springBoneManager?.update) {
-              ;(vrm as any).springBoneManager.update(dt)
+            } else if ((vrm as SpringVrm).springBoneManager?.update) {
+              ;(vrm as SpringVrm).springBoneManager!.update!(dt)
             }
             // 3) 设下帧 bone rotation (time-dependent idle 动画)
             applyVRMAction(vrm, currentActionRef.current).catch(() => {})
@@ -391,7 +402,7 @@ function VrmAvatar({
     if (loaded.vrm) {
       applyVRMAction(loaded.vrm, currentAction);
     } else if (mixerRef.current && loaded.animations.length > 0) {
-      const clip = loaded.animations.find((a: any) => a.name === currentAction) || loaded.animations[0];
+      const clip = loaded.animations.find((a) => a.name === currentAction) || loaded.animations[0];
       if (clip) {
         mixerRef.current.stopAllAction();
         mixerRef.current.clipAction(clip).play();
@@ -450,11 +461,11 @@ function VrmAvatar({
 
 // ── VRM 动作:10 个通过 humanoid bones 实现 ─────────────────
 
-async function applyVRMAction(vrm: any, action: string) {
+async function applyVRMAction(vrm: LooseVrm, action: string) {
   if (!vrm.humanoid) {
-    if (!(globalThis as any).__vrm_warn) {
+    if (!(globalThis as typeof globalThis & { __vrm_warn?: boolean }).__vrm_warn) {
       console.warn('[BlenderAvatar] applyVRMAction: vrm.humanoid 不存在! bones 无法控制')
-      ;(globalThis as any).__vrm_warn = true
+      ;(globalThis as typeof globalThis & { __vrm_warn?: boolean }).__vrm_warn = true
     }
     return
   }
@@ -769,7 +780,7 @@ function tSec() {
 
 // 鼠标位置 → 头部 + 眼球旋转(让数字人"看着你")
 // mouse: {x, y} 都在 [-1, 1]
-function applyMouseFollow(vrm: any, mouse: { x: number; y: number }) {
+function applyMouseFollow(vrm: LooseVrm, mouse: { x: number; y: number }) {
   if (!vrm.humanoid) return
   const vrmVer = (vrm.meta?.metaVersion || '').toString()
   const isVRM1 = vrmVer.startsWith('1') || vrmVer.startsWith('2')
@@ -810,7 +821,7 @@ function applyMouseFollow(vrm: any, mouse: { x: number; y: number }) {
 // 随机微表情 + 长眨眼(让数字人"活"得更像人, 不只眨眼一次)
 // 周期 6-9s 随机闪烁 joy 0.15(若有若无的微笑)
 // 周期 3-7s 随机长眨眼(0.15s 闭眼)
-function applyMicroExpressions(vrm: any, t: number) {
+function applyMicroExpressions(vrm: LooseVrm, t: number) {
   if (!vrm.expressionManager) return
   const em = vrm.expressionManager
 

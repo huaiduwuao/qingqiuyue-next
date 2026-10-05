@@ -311,7 +311,7 @@ function buildDecoration(THREE_NS: typeof THREE, dec: DecorationConfig): THREE.O
       return m;
     }
     default:
-      console.warn('[buildDecoration] unknown type:', (dec as any).type);
+      console.warn('[buildDecoration] unknown type:', (dec as { type?: unknown }).type);
       return null;
   }
 }
@@ -352,7 +352,7 @@ function buildLight(THREE_NS: typeof THREE, cfg: LightConfig): THREE.Light | nul
     }
     default: return null;
   }
-  if (l) (l as any).userData.baseIntensity = cfg.intensity;
+  if (l) l.userData.baseIntensity = cfg.intensity;
   return l;
 }
 
@@ -395,7 +395,8 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, conf
     if (l) {
       sceneGroup.add(l);
       // directional / spot 有 target object
-      if ((l as any).target) sceneGroup.add((l as any).target);
+      const lt = (l as THREE.Light & { target?: THREE.Object3D }).target;
+      if (lt) sceneGroup.add(lt);
       lights.push(l);
     }
   }
@@ -409,11 +410,12 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, conf
       if (dec.scale) obj.scale.set(...dec.scale);
       sceneGroup.add(obj);
       // 简单 dispose
-      obj.traverse((o: any) => {
+      obj.traverse((node) => {
+        const o = node as THREE.Mesh;
         if (o.geometry) disposers.push(() => o.geometry.dispose());
         if (o.material) {
-          if (Array.isArray(o.material)) o.material.forEach((m: any) => disposers.push(() => m.dispose()));
-          else disposers.push(() => o.material.dispose());
+          if (Array.isArray(o.material)) o.material.forEach((m) => disposers.push(() => m.dispose()));
+          else disposers.push(() => (o.material as THREE.Material).dispose());
         }
       });
       // 特殊：识别 LED ring / backdrop

@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useRef, useState, type MutableRefObject } from 'react';
+import type { VRMExpressionManager } from '@pixiv/three-vrm';
 import type { AudioHandle, LipFrame } from './audio';
 import { setExpression } from './vrmCompat';
 
@@ -18,7 +19,7 @@ export interface UseVrmLipSyncOptions {
    * tick 每帧都在第一行 return —— 音频驱动的口型从来没有生效过,嘴只能靠「每字 150ms」的
    * 计时器硬猜,和真实语音对不上。
    */
-  emRef: MutableRefObject<any>;
+  emRef: MutableRefObject<VRMExpressionManager | null | undefined>;
   /** 由父组件传入的 audio handle（与 useVrmAnimation 共享） */
   audio: AudioHandle;
   /** 手动 UI 是否在用口型滑杆（true 时跳过自动覆盖） */

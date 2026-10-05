@@ -10,6 +10,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import type { VRM } from '@pixiv/three-vrm';
 import { getBone } from './vrmCompat';
 import { applySitPose, sitDrop } from './world/interact';
 import { loadActionClip, loadMocap, MOCAP_ACTIONS, MOCAP_BONES, MOCAP_UPPER, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
@@ -70,7 +71,7 @@ export class AnimationStateMachine {
 
 export interface UseVrmAnimationOptions {
   configBundle: ConfigBundle;
-  vrmRef: React.MutableRefObject<any>;
+  vrmRef: React.MutableRefObject<VRM | null>;
   audio: AudioHandle;
   walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
   /** 十期:坐着的座位(y = 座面离地多高);null = 站着 */
@@ -156,7 +157,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   }, [lookups.actionByName]);
 
   function beatNow(dt: number): number {
-    const ctx: AudioContext | null = (audio as any).audioCtx;
+    const ctx: AudioContext | null | undefined = (audio as AudioHandle & { audioCtx?: AudioContext | null }).audioCtx;
     if (audio.isSongOn() && ctx) {
       return (ctx.currentTime - audio.getSongStartTime()) * bpmRef.current / 60;
     }
@@ -164,7 +165,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     return freeBeatRef.current;
   }
 
-  function applyBoneRotations(bones: Record<string, [number, number, number]>, H: (n: string) => any) {
+  function applyBoneRotations(bones: Record<string, [number, number, number]>, H: (n: string) => THREE.Object3D | null) {
     for (const [boneName, rot] of Object.entries(bones)) {
       if (!Array.isArray(rot) || rot.length < 3) continue;
       const o = H(boneName);
@@ -174,7 +175,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     }
   }
 
-  function applyActionFormula(cfg: ActionConfig, t: number, H: (n: string) => any, _sceneObj: any) {
+  function applyActionFormula(cfg: ActionConfig, t: number, H: (n: string) => THREE.Object3D | null, _sceneObj: THREE.Object3D) {
     if (!cfg.formula) return;
     const result = safeEvalFormula(cfg.formula, { t, blend: 1 });
     if (result.bones) applyBoneRotations(result.bones, H);
@@ -182,7 +183,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     // action formulas only drive bone rotations to avoid clipping through the floor.
   }
 
-  function applyDanceFormula(cfg: DanceStyleConfig, danceT: number, b: number, A: number, bass: number, phase: number, H: (n: string) => any) {
+  function applyDanceFormula(cfg: DanceStyleConfig, danceT: number, b: number, A: number, bass: number, phase: number, H: (n: string) => THREE.Object3D | null) {
     const result = safeEvalFormula(cfg.formula, { t: danceT, b, blend: 1, A, bass, phase });
     if (result.bones) applyBoneRotations(result.bones, H);
     // Ignore hipsPosY: world height is owned by the physics capsule to keep feet grounded.
@@ -190,7 +191,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
   // Track last pose name for logging
   let lastPoseName = '';
-  function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
+  function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => THREE.Object3D | null) {
     if (blend <= 0) return;
     // Only log when pose name changes (debug mode only)
     if (lastPoseName !== cfg.name) {
@@ -216,7 +217,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   const flatRoot = new THREE.Quaternion();
   const flatQ = new THREE.Quaternion();
   /** 站着时脚放平:小腿微弯会把脚带得脚尖上翘,把脚的朝向拧回站直时的样子(平放、朝前)。w = 站着的程度 */
-  function flattenFeet(H: (n: string) => any, root: any, w: number) {
+  function flattenFeet(H: (n: string) => THREE.Object3D | null, root: THREE.Object3D | null | undefined, w: number) {
     if (w <= 0.001 || !root) return;
     root.getWorldQuaternion(flatRoot);
     for (const side of ['left', 'right'] as const) {
@@ -227,7 +228,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       ft.quaternion.slerp(flatQ, w);
     }
   }
-  function plantDrop(H: (n: string) => any): number | null {
+  function plantDrop(H: (n: string) => THREE.Object3D | null): number | null {
     const hips = H('hips');
     if (!hips?.parent) return null;
     hips.updateWorldMatrix(false, true);
@@ -238,7 +239,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       const ul = H(`${side}UpperLeg`), ll = H(`${side}LowerLeg`), ft = H(`${side}Foot`), toe = H(`${side}Toes`);
       if (!ul || !ll || !ft) continue;
       const restFoot = -(ul.position.y + ll.position.y + ft.position.y);
-      const raised = (c: any, rest: number) => rest - (hipsY - c.getWorldPosition(plantV).y) / scale;
+      const raised = (c: THREE.Object3D, rest: number) => rest - (hipsY - c.getWorldPosition(plantV).y) / scale;
       lowest = Math.min(lowest, raised(ft, restFoot));
       if (toe) lowest = Math.min(lowest, raised(toe, restFoot - toe.position.y));
     }
@@ -257,7 +258,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
    */
   const gaitRef = useRef({ blend: 0, run: 0 });
   const gaitBase = useRef(new Map<string, { bx: number; by: number; bz: number; wx: number; wy: number; wz: number }>()).current;
-  function applyGait(phase: number, weight: number, run: number, t: number, H: (n: string) => any) {
+  function applyGait(phase: number, weight: number, run: number, t: number, H: (n: string) => THREE.Object3D | null) {
     // 叠加偏移:有的骨骼每帧会被 idle / pose 重写,有的不会(比如小臂、脖子)。
     // 记下上一帧写进去的值:没被别人改过就从上一帧的底子上叠,改过就以新值为底子 —— 不会越叠越歪。
     const layer = (key: string, v: { x: number; y: number; z: number } | undefined, x: number, y: number, z: number) => {
@@ -315,7 +316,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   }
 
 
-  function applyRestFix(t: number, H: (n: string) => any) {
+  function applyRestFix(t: number, H: (n: string) => THREE.Object3D | null) {
     const breath = Math.sin(t * 1.3);
     // 同步态一样按「上一帧写的值」判断底子,不被每帧重置的骨骼(手)也不会越叠越歪
     const set = (bone: string, x: number, y: number, z: number) => {
@@ -354,7 +355,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   const qT = useRef(new THREE.Quaternion()).current;
   const qT2 = useRef(new THREE.Quaternion()).current;
   /** 这个模型的腿长(大腿根 → 脚踝,米):动捕的步幅 / 起伏都以腿长为单位 */
-  function legLen(vrm: any, H: (n: string) => any): number {
+  function legLen(vrm: VRM, H: (n: string) => THREE.Object3D | null): number {
     const v = legLenRef.current.get(vrm);
     if (v) return v;
     const a = H('leftUpperLeg'), b = H('leftLowerLeg'), c = H('leftFoot');
@@ -380,7 +381,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     return true;
   }
   /** 髋的上下起伏:按「上一帧写进去的值」判断底子,不越叠越高 */
-  function layerHipsY(H: (n: string) => any, dy: number) {
+  function layerHipsY(H: (n: string) => THREE.Object3D | null, dy: number) {
     const hips = H('hips');
     if (!hips?.position) return;
     let rec = gaitBase.get('mocap:hips.y');

@@ -43,7 +43,13 @@ interface Base {
 
 const FACE_PREFIX = 'qq_face_';
 
-function raw(vrm: any, name: BoneName): THREE.Object3D | null {
+/** 只用到 VRM 的 scene 和 humanoid 取原始骨骼的方法(测试里传的是简化替身) */
+type AvatarVrm = {
+  scene?: THREE.Object3D;
+  humanoid?: { getRawBoneNode?(name: BoneName): THREE.Object3D | null; getBoneNode?(name: BoneName): THREE.Object3D | null } | null;
+};
+
+function raw(vrm: AvatarVrm | null | undefined, name: BoneName): THREE.Object3D | null {
   const h = vrm?.humanoid;
   if (!h) return null;
   return (h.getRawBoneNode?.(name) ?? h.getBoneNode?.(name) ?? null) as THREE.Object3D | null;
@@ -72,7 +78,7 @@ function forEachMaterial(root: THREE.Object3D, cb: (m: THREE.Material, mesh: THR
 
 const orderOf = (k: string) => { const i = Object.keys(FACE_SLIDER_LABELS).indexOf(k); return i < 0 ? 999 : i; };
 
-export function inspectAvatar(vrm: any): AvatarInfo {
+export function inspectAvatar(vrm: AvatarVrm | null | undefined): AvatarInfo {
   const root = vrm?.scene as THREE.Object3D | undefined;
   const faceSliders = new Set<string>();
   const colorSlots: Record<ColorSlot, number> = { skin: 0, hair: 0, eyes: 0, outfit: 0 };
@@ -103,7 +109,7 @@ export function inspectAvatar(vrm: any): AvatarInfo {
   };
 }
 
-function ensureBase(THREE_NS: typeof THREE, vrm: any): Base {
+function ensureBase(THREE_NS: typeof THREE, vrm: AvatarVrm): Base {
   const root = vrm.scene as THREE.Object3D;
   let base = root.userData.qqBase as Base | undefined;
   if (base) return base;
@@ -159,10 +165,10 @@ const clamp = (v: unknown, lo: number, hi: number, d = 1) => {
 };
 
 /** 套参数。返回套完以后脚底该抬多高(让模型脚踩在 y=0)和身高 */
-export function applyAvatarParams(THREE_NS: typeof THREE, vrm: any, params: AvatarParams | null | undefined): { footOffset: number; height: number } {
+export function applyAvatarParams(THREE_NS: typeof THREE, vrm: AvatarVrm | null | undefined, params: AvatarParams | null | undefined): { footOffset: number; height: number } {
   const root = vrm?.scene as THREE.Object3D | undefined;
   if (!root) return { footOffset: 0, height: 1.6 };
-  const base = ensureBase(THREE_NS, vrm);
+  const base = ensureBase(THREE_NS, vrm!);
   // 1. 全部还原
   for (const [o, s] of base.scales) o.scale.copy(s);
   root.scale.setScalar(base.sceneScale);

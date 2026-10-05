@@ -13,6 +13,10 @@
  *   - getBone(humanoid, name)  → 兼容 camelCase/PascalCase
  */
 
+import type * as THREE from 'three';
+import type { VRMExpressionManager, VRMHumanBoneName, VRMHumanoid, VRMMeta } from '@pixiv/three-vrm';
+
+type ExpressionManagerLike = Pick<VRMExpressionManager, 'setValue'>;
 
 /** ARKit 52 维 → VRM 1.0 预设表情的映射 */
 const ARKIT_TO_VRM1_PRESET: Record<string, string> = {
@@ -62,13 +66,13 @@ const ARKIT_TO_VRM0: Record<string, string> = {
 };
 
 /** 推断 VRM 版本：1 = VRM 1.0，0 = VRM 0.0 */
-export function detectVrmVersion(vrm: any): 0 | 1 {
-  const metaVersion: string = (vrm?.meta as any)?.metaVersion || '1';
+export function detectVrmVersion(vrm: { meta?: VRMMeta | null } | null | undefined): 0 | 1 {
+  const metaVersion: string = vrm?.meta?.metaVersion || '1';
   return String(metaVersion).startsWith('0') ? 0 : 1;
 }
 
 /** 在 expressionManager 上 setValue，兼容 0.0/1.0 命名 */
-export function setExpression(em: any, name: string, value: number, version: 0 | 1): boolean {
+export function setExpression(em: ExpressionManagerLike | null | undefined, name: string, value: number, version: 0 | 1): boolean {
   if (!em) return false;
   // 1.0：先尝试直接设置 ARKit 名称（如果模型支持），再尝试映射到预设
   if (version === 1) {
@@ -89,7 +93,7 @@ export function setExpression(em: any, name: string, value: number, version: 0 |
 }
 
 /** 表情 dict 整批设（兼容 0.0/1.0） */
-export function setExpressionDict(em: any, dict: Record<string, number>, version: 0 | 1): void {
+export function setExpressionDict(em: ExpressionManagerLike | null | undefined, dict: Record<string, number>, version: 0 | 1): void {
   if (!em) return;
   for (const [k, v] of Object.entries(dict)) {
     setExpression(em, k, v, version);
@@ -97,30 +101,31 @@ export function setExpressionDict(em: any, dict: Record<string, number>, version
 }
 
 /** 兼容 camelCase/PascalCase 取骨骼（VRM 0.0 骨骼名是 PascalCase，1.0 是 camelCase） */
-export function getBone(humanoid: any, name: string): any {
+export function getBone(humanoid: VRMHumanoid | null | undefined, name: string): THREE.Object3D | null {
   if (!humanoid) return null;
   // 1.0 camelCase
-  let node = humanoid.getNormalizedBoneNode?.(name);
+  let node = humanoid.getNormalizedBoneNode?.(name as VRMHumanBoneName);
   if (node) return node;
   // 0.0 PascalCase（仅首字母大写）
   const pascal = name.charAt(0).toUpperCase() + name.slice(1);
-  node = humanoid.getNormalizedBoneNode?.(pascal);
+  node = humanoid.getNormalizedBoneNode?.(pascal as VRMHumanBoneName);
   if (node) return node;
   // 0.0 全部 PascalCase（LeftUpperArm → LEFTUPPERARM）
   const upper = name.toUpperCase();
-  node = humanoid.getNormalizedBoneNode?.(upper);
+  node = humanoid.getNormalizedBoneNode?.(upper as VRMHumanBoneName);
   return node || null;
 }
 
 /** 取模型所有可用的 expression 名（用于调试） */
-export function listAvailableExpressions(em: any): string[] {
+export function listAvailableExpressions(em: VRMExpressionManager | null | undefined): string[] {
   if (!em) return [];
   const out: string[] = [];
-  // VRM 0.x/1.x 的 expressionManager 都有 _expressionMap
-  if (em._expressionMap) {
-    for (const k of Object.keys(em._expressionMap)) out.push(k);
-  } else if (em._blendShapeGroups) {
-    for (const k of Object.keys(em._blendShapeGroups)) out.push(k);
+  // VRM 0.x/1.x 的 expressionManager 都有 _expressionMap(私有字段,类型上看不到)
+  const internals = em as unknown as { _expressionMap?: Record<string, unknown>; _blendShapeGroups?: Record<string, unknown> };
+  if (internals._expressionMap) {
+    for (const k of Object.keys(internals._expressionMap)) out.push(k);
+  } else if (internals._blendShapeGroups) {
+    for (const k of Object.keys(internals._blendShapeGroups)) out.push(k);
   }
   return out;
 }

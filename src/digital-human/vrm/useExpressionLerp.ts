@@ -16,10 +16,14 @@
  */
 
 import { useCallback, useRef } from 'react';
+import type { VRMExpressionManager } from '@pixiv/three-vrm';
+
+/** expressionManager 的私有字段 _expressionMap(类型上看不到) */
+type EmInternals = { _expressionMap?: Record<string, unknown> };
 
 export interface UseExpressionLerpOptions {
   /** expressionManager ref（从 vrmDataRef）—— 异步加载，render 时可能为 null */
-  emRef: React.MutableRefObject<any>;
+  emRef: React.MutableRefObject<VRMExpressionManager | null | undefined>;
   /** VRM 版本 ref（0 = VRM 0.0, 1 = VRM 1.0） */
   vrmVersionRef?: React.MutableRefObject<0 | 1>;
   /** 过渡速度（1=慢, 8=快, 默认 6 = ~150ms 完成） */
@@ -67,8 +71,9 @@ export function useExpressionLerp(opts: UseExpressionLerpOptions) {
     currentRef.current = {};
     const em = emRef.current;
     if (!em) return;
-    if (em._expressionMap) {
-      for (const k of Object.keys(em._expressionMap)) em.setValue(k, 0);
+    const exprMap = (em as unknown as EmInternals)._expressionMap;
+    if (exprMap) {
+      for (const k of Object.keys(exprMap)) em.setValue(k, 0);
     }
   }, [emRef]);
 
@@ -90,7 +95,7 @@ export function useExpressionLerp(opts: UseExpressionLerpOptions) {
       current[kk] = next;
       if (Math.abs(next) > 0.001) {
         // VRM 1.0：如果直接设置失败，尝试映射到预设
-        if (version === 1 && !(kk in (em._expressionMap || {}))) {
+        if (version === 1 && !(kk in ((em as unknown as EmInternals)._expressionMap || {}))) {
           em.setValue(kk, next);
           if (ARKIT_TO_VRM1[kk]) {
             em.setValue(ARKIT_TO_VRM1[kk], next);
