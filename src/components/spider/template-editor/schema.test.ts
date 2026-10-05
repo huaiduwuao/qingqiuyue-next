@@ -11,6 +11,7 @@ import {
   setIn,
   unknownTopKeys,
   validateConfig,
+  type Config,
 } from './schema';
 
 const field = (path: string) => SECTIONS.flatMap((s) => s.fields).find((f) => f.path.join('.') === path)!;
@@ -21,11 +22,11 @@ describe('template content helpers', () => {
     const next = setIn(cfg, ['browser', 'wait_for'], '#app');
     expect(next).toEqual({ browser: { enabled: true, wait_for: '#app' }, list_item_selector: '.a' });
     expect(cfg.browser).toEqual({ enabled: true });
-    expect(setIn({ pagination: null } as any, ['pagination', 'enabled'], true)).toEqual({ pagination: { enabled: true } });
+    expect(setIn({ pagination: null }, ['pagination', 'enabled'], true)).toEqual({ pagination: { enabled: true } });
   });
 
   it('keeps js_extract and the rest of custom in sync', () => {
-    let cfg: any = { custom: { js_extract: 'x()', foo: 1 } };
+    let cfg: Config = { custom: { js_extract: 'x()', foo: 1 } };
     expect(customRest(cfg)).toEqual({ foo: 1 });
     cfg = setField(cfg, field('custom'), { bar: 2 });
     expect(cfg.custom).toEqual({ bar: 2, js_extract: 'x()' });

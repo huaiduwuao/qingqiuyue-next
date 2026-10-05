@@ -39,7 +39,7 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import { getTemplateDetail, updateTemplate, testTemplate, testBookProfile } from '@/apis/spider';
+import { getTemplateDetail, updateTemplate, testTemplate, testBookProfile, type TemplateTestResult } from '@/apis/spider';
 import type { TemplateAttr, TemplateRow } from '@/beans/spider';
 import { CONTENT_TYPES } from '@/lib/contentType.gen';
 import {
@@ -93,7 +93,7 @@ function fmtTime(v?: string) {
 
 // ─── 字段输入 ───────────────────────────────────────────────────────────────
 
-function JsonInput({ value, onChange, minRows = 4 }: { value: any; onChange: (v: Record<string, any>) => void; minRows?: number }) {
+function JsonInput({ value, onChange, minRows = 4 }: { value: unknown; onChange: (v: Record<string, unknown>) => void; minRows?: number }) {
   const serialized = useMemo(() => JSON.stringify(value ?? {}, null, 2), [value]);
   const [text, setText] = useState(serialized);
   const [err, setErr] = useState('');
@@ -137,7 +137,7 @@ function JsonInput({ value, onChange, minRows = 4 }: { value: any; onChange: (v:
   );
 }
 
-function MapInput({ value, onChange }: { value: any; onChange: (v: Record<string, string> | null) => void }) {
+function MapInput({ value, onChange }: { value: unknown; onChange: (v: Record<string, string> | null) => void }) {
   const entries: [string, string][] =
     value && typeof value === 'object' && !Array.isArray(value)
       ? Object.entries(value).map(([k, v]) => [k, String(v ?? '')])
@@ -186,7 +186,7 @@ function MapInput({ value, onChange }: { value: any; onChange: (v: Record<string
   );
 }
 
-function FieldInput({ f, value, onChange }: { f: FieldDef; value: any; onChange: (v: any) => void }) {
+function FieldInput({ f, value, onChange }: { f: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
   const monoInput = { input: { sx: { fontFamily: MONO, fontSize: 12.5 } } };
   switch (f.kind) {
     case 'bool':
@@ -403,6 +403,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
   // 编辑态:meta(行字段)+ cfg(content 对象)。baseline 用来判断有没有未保存的修改。
   const [meta, setMeta] = useState<Meta | null>(null);
   const [cfg, setCfg] = useState<Config>({});
+  const apiSourceName = (cfg.api_source as { name?: string } | null | undefined)?.name;
   const [baseline, setBaseline] = useState('');
   const [rawBroken, setRawBroken] = useState(false);
   const [mode, setMode] = useState<'form' | 'json'>('form');
@@ -511,14 +512,14 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
         domain: meta!.domain.trim(),
         content: JSON.stringify(cfg),
       }),
-    onSuccess: (saved: any) => {
+    onSuccess: (saved) => {
       setBaseline(snapshot(meta, cfg));
       setSaveErr('');
       setToast('已保存');
       qc.invalidateQueries({ queryKey: ['spider', 'templates'] });
       qc.invalidateQueries({ queryKey: ['spider', 'template-detail', templateId] });
       if (saved && typeof saved === 'object' && 'content' in saved) {
-        qc.setQueryData(['spider', 'template', templateId], (old: any) => (old ? { ...old, template: saved } : old));
+        qc.setQueryData(['spider', 'template', templateId], (old: Record<string, unknown> | undefined) => (old ? { ...old, template: saved } : old));
       }
     },
     onError: (e: unknown) => setSaveErr(errMessage(e) || '保存失败'),
@@ -550,14 +551,16 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
 
   // 测试解析
   const [testUrl, setTestUrl] = useState('');
-  const [testRes, setTestRes] = useState<any>(null);
+  const [testRes, setTestRes] = useState<TemplateTestResult | null | undefined>(null);
   const testM = useMutation({
     mutationFn: () => {
-      const sel =
+      const sel = (
         type === 'detail' || type === 'chapter'
           ? cfg.content_selector || cfg.item_container_selector || cfg.detail_title_selector || ''
-          : cfg.item_container_selector || cfg.list_item_selector || '';
-      const js = typeof cfg.custom?.js_extract === 'string' ? cfg.custom.js_extract.trim() : '';
+          : cfg.item_container_selector || cfg.list_item_selector || ''
+      ) as string;
+      const custom = cfg.custom as { js_extract?: unknown } | null | undefined;
+      const js = typeof custom?.js_extract === 'string' ? custom.js_extract.trim() : '';
       return testTemplate({
         url: testUrl.trim(),
         type,
@@ -660,8 +663,8 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
               <Chip size="small" label={`#${row.id}`} sx={{ fontFamily: MONO, height: 22 }} />
               <Chip size="small" color="primary" variant="outlined" label={typeLabel || '未设类型'} sx={{ height: 22 }} />
               {isSet(cfg.content_type) && <Chip size="small" variant="outlined" label={String(cfg.content_type)} sx={{ height: 22, fontFamily: MONO }} />}
-              {isSet(cfg.api_source?.name) && <Chip size="small" variant="outlined" label={`API · ${cfg.api_source.name}`} sx={{ height: 22 }} />}
-              {cfg.browser?.enabled && <Chip size="small" variant="outlined" label="浏览器渲染" sx={{ height: 22 }} />}
+              {isSet(apiSourceName) && <Chip size="small" variant="outlined" label={`API · ${apiSourceName}`} sx={{ height: 22 }} />}
+              {(cfg.browser as { enabled?: boolean } | null | undefined)?.enabled && <Chip size="small" variant="outlined" label="浏览器渲染" sx={{ height: 22 }} />}
               {meta.domain && (
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', fontFamily: MONO }}>{meta.domain}</Typography>
               )}
@@ -965,9 +968,9 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
                   {testRes.warning ? ` · ${testRes.warning}` : ''}
                 </Alert>
               )}
-              {testRes?.items?.length > 0 && (
+              {(testRes?.items?.length ?? 0) > 0 && (
                 <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 320, overflow: 'auto' }}>
-                  {testRes.items.map((it: any, i: number) => (
+                  {testRes!.items!.map((it, i) => (
                     <Box key={i} sx={{ display: 'flex', gap: 1, fontSize: 12.5, py: 0.5, borderBottom: '1px solid var(--border-color, rgba(127,127,127,0.15))' }}>
                       <Box component="span" sx={{ color: 'text.disabled', width: 22, flexShrink: 0, textAlign: 'right' }}>{i + 1}</Box>
                       <Box sx={{ minWidth: 0 }}>
@@ -1011,7 +1014,7 @@ function BookProfileTest({ content }: { content: string }) {
   const [author, setAuthor] = useState('');
   const [bookId, setBookId] = useState('');
   const m = useMutation({ mutationFn: () => testBookProfile({ content, title: title.trim(), author: author.trim(), bookId: bookId.trim() }) });
-  const r: any = m.data;
+  const r = m.data;
   const step = (label: string, ok: boolean, text: React.ReactNode) => (
     <Alert severity={ok ? 'success' : 'warning'} sx={{ py: 0, '& .MuiAlert-message': { wordBreak: 'break-all' } }}>
       <b>{label}</b>:{text}
@@ -1033,12 +1036,12 @@ function BookProfileTest({ content }: { content: string }) {
           {m.isPending ? '试跑中…' : '试跑'}
         </Button>
       </Box>
-      {m.isError && <Alert severity="error" sx={{ mt: 1 }}>{(m.error as any)?.message || '请求失败'}</Alert>}
+      {m.isError && <Alert severity="error" sx={{ mt: 1 }}>{errMessage(m.error) || '请求失败'}</Alert>}
       {r && (
         <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {r.valid === false && step('配置校验', false, r.error)}
           {r.search && step('站内搜索', !r.search.error && r.search.count > 0,
-            r.search.error || `${r.search.count} 条:${(r.search.hits || []).slice(0, 5).map((h: any) => `${h.title}/${h.author}(${h.book_id})`).join(' · ')}`)}
+            r.search.error || `${r.search.count} 条:${(r.search.hits || []).slice(0, 5).map((h) => `${h.title}/${h.author}(${h.book_id})`).join(' · ')}`)}
           {r.resolved && step('定位', true, `${r.resolved.title} / ${r.resolved.author} → book ${r.resolved.book_id}`)}
           {r.resolve_error && step('定位', false, r.resolve_error)}
           {r.catalog && step('目录', !r.catalog.error && r.catalog.count > 0,

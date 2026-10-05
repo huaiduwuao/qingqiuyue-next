@@ -218,44 +218,44 @@ export const SECTIONS: SectionDef[] = [
 /** 清单覆盖到的顶层键(其余顶层键进「其他字段」) */
 export const KNOWN_TOP_KEYS = new Set(SECTIONS.flatMap((s) => s.fields.map((f) => f.path[0])));
 
-export type Config = Record<string, any>;
+export type Config = Record<string, unknown>;
 
-export function getIn(obj: any, path: string[]): any {
-  let cur = obj;
+export function getIn(obj: unknown, path: string[]): unknown {
+  let cur = obj as Record<string, unknown> | null | undefined;
   for (const k of path) {
     if (cur == null || typeof cur !== 'object') return undefined;
-    cur = cur[k];
+    cur = cur[k] as Record<string, unknown> | null | undefined;
   }
   return cur;
 }
 
 /** 不可变写入;中间层不存在或不是对象时补成 {} */
-export function setIn(obj: Config, path: string[], value: any): Config {
+export function setIn(obj: Config, path: string[], value: unknown): Config {
   const [k, ...rest] = path;
   const base = obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
   if (!rest.length) return { ...base, [k]: value };
-  return { ...base, [k]: setIn(base[k], rest, value) };
+  return { ...base, [k]: setIn(base[k] as Config, rest, value) };
 }
 
 /** custom 的「其余键」= custom 去掉 js_extract(它有单独的输入框) */
-export function customRest(cfg: Config): Record<string, any> {
+export function customRest(cfg: Config): Record<string, unknown> {
   const c = cfg.custom;
   if (!c || typeof c !== 'object' || Array.isArray(c)) return {};
-  const { js_extract: _js, ...rest } = c;
+  const { js_extract: _js, ...rest } = c as Record<string, unknown>;
   return rest;
 }
 
 /** 字段当前值(custom 整体字段读的是去掉 js_extract 的部分) */
-export function fieldValue(cfg: Config, f: FieldDef): any {
+export function fieldValue(cfg: Config, f: FieldDef): unknown {
   if (f.path.length === 1 && f.path[0] === 'custom') return customRest(cfg);
   return getIn(cfg, f.path);
 }
 
 /** 写回字段;custom 整体字段写回时保留 js_extract,js_extract 清空时删键 */
-export function setField(cfg: Config, f: FieldDef, value: any): Config {
+export function setField(cfg: Config, f: FieldDef, value: unknown): Config {
   if (f.path.length === 1 && f.path[0] === 'custom') {
     const js = getIn(cfg, ['custom', 'js_extract']);
-    const next = { ...(value || {}) };
+    const next: Record<string, unknown> = { ...((value || {}) as Record<string, unknown>) };
     if (typeof js === 'string' && js) next.js_extract = js;
     return { ...cfg, custom: Object.keys(next).length ? next : null };
   }
@@ -269,7 +269,7 @@ export function setField(cfg: Config, f: FieldDef, value: any): Config {
 }
 
 /** 「已配置」:非空字符串、非 0 数字、true、非空数组 / 对象 */
-export function isSet(v: any): boolean {
+export function isSet(v: unknown): boolean {
   if (v == null) return false;
   if (typeof v === 'string') return v.trim() !== '';
   if (typeof v === 'number') return v !== 0;
@@ -285,13 +285,13 @@ export function sectionStats(cfg: Config, s: SectionDef): { set: number; total: 
 }
 
 /** 清单外的顶层键(旧版字段、手工加的键),保存时原样带上 */
-export function unknownTopKeys(cfg: Config): Record<string, any> {
-  const out: Record<string, any> = {};
+export function unknownTopKeys(cfg: Config): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(cfg || {})) if (!KNOWN_TOP_KEYS.has(k)) out[k] = v;
   return out;
 }
 
-export function replaceUnknownTopKeys(cfg: Config, next: Record<string, any>): Config {
+export function replaceUnknownTopKeys(cfg: Config, next: Record<string, unknown>): Config {
   const out: Config = {};
   for (const [k, v] of Object.entries(cfg || {})) if (KNOWN_TOP_KEYS.has(k)) out[k] = v;
   return { ...out, ...next };

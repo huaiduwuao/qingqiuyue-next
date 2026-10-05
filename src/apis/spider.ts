@@ -886,12 +886,35 @@ export async function exportTemplates(params: { sourceId: EntityId; format?: str
  * 试跑 book 模板(站内搜索 → 定位 → 目录 → 第 1 章),只读。
  * content 是编辑器里当前的 JSON(不必先保存)。
  */
+/** /templates/book-test 的分步结果(每步都可能缺) */
+export interface BookProfileTestResult {
+  valid?: boolean;
+  error?: string;
+  search?: { error?: string; count: number; hits?: { title?: string; author?: string; book_id?: string }[] };
+  resolved?: { title?: string; author?: string; book_id?: string };
+  resolve_error?: string;
+  catalog?: { error?: string; count: number; first?: { title?: string }; last?: { title?: string } };
+  chapter?: { error?: string; length: number; title?: string; head?: string };
+}
+
+/** /templates/test 的结果 */
+export interface TemplateTestResult {
+  success?: boolean;
+  count?: number;
+  body_len?: number;
+  duration?: string | number;
+  error?: string;
+  warning?: string;
+  items?: { title?: string; url?: string }[];
+  body_preview?: string;
+}
+
 export async function testBookProfile(params: {
   content: string;
   title?: string;
   author?: string;
   bookId?: string;
-}): Promise<unknown> {
+}): Promise<BookProfileTestResult | null | undefined> {
   return spiderClient('/templates/book-test', {
     method: 'POST',
     data: { content: params.content, title: params.title, author: params.author, book_id: params.bookId },
@@ -906,7 +929,7 @@ export async function testTemplate(params: {
   selector?: string;        // 没存模板时直接试选择器
   jsExtract?: string;
   maxItems?: number;
-}): Promise<unknown> {
+}): Promise<TemplateTestResult | null | undefined> {
   return spiderClient('/templates/test', {
     method: 'POST',
     data: {
