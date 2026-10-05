@@ -221,7 +221,7 @@ function KfConversation() {
     const form = new FormData();
     form.append('file', file);
     try {
-      const res = (await fileUpload(form as any)) as { url?: string };
+      const res = (await fileUpload(form as unknown as Record<string, unknown>)) as { url?: string };
       const url = res?.url;
       if (!url) throw new Error('上传失败,未返回图片地址');
       send.mutate({ content: url, type: 'image' });

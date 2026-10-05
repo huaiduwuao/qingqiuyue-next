@@ -12,13 +12,19 @@ import { qaDetail } from '@/apis/home';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
 import { ListLayout } from '@/components/common/ListLayout';
 
+interface QaItem {
+  title?: string;
+  content?: string;
+  answer?: string;
+}
+
 export default function ShareQaPage() {
   const [searchKey, setSearchKey] = useState('');
   const [submittedKey, setSubmittedKey] = useState('');
 
   const query = useQuery({
     queryKey: ['qa', submittedKey],
-    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r as any[]) || []),
+    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r as QaItem[]) || []),
     enabled: !!submittedKey,
   });
 

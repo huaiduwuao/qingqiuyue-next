@@ -52,15 +52,15 @@ export default function CrawledPage() {
     queryFn: async (): Promise<SourceOption[]> => {
       const res = await listSources({ page: 1, pageSize: 200 });
       return (res.list || [])
-        .filter((s: any) => s.name)
-        .map((s: any) => ({ label: s.name, value: s.name }));
+        .filter((s: { name?: string }): s is { name: string } => !!s.name)
+        .map((s) => ({ label: s.name, value: s.name }));
     },
     staleTime: 5 * 60 * 1000,
   });
   const allSources = sourcesQ.data ?? EMPTY_SOURCES;
 
   const fetchData = useCallback(
-    async (params: any) => {
+    async (params: { pageNumber?: number; pageSize?: number }) => {
       try {
         // DataGridTable 给的 pageNumber 已经是 1 起
         const pageNumber = params.pageNumber || 1;

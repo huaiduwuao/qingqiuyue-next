@@ -357,7 +357,7 @@ function Top10Section({ genre, genreLabel, status, sort }: { genre: string; genr
   if (topQuery.isLoading) return null;
   if (!topQuery.data?.list?.length) return null;
 
-  return <Top10Podium list={topQuery.data.list} genreLabel={genreLabel} status={status as any} sort={sort} />;
+  return <Top10Podium list={topQuery.data.list} genreLabel={genreLabel} status={status as DramaSeries['status'] | 'ALL'} sort={sort} />;
 }
 
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

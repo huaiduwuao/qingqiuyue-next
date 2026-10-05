@@ -64,6 +64,8 @@ interface NovelDetail {
   totalChapters?: number | string;
   content?: string;
   description?: string;
+  desc?: string;
+  intro?: string;
   source?: string;
   sourceUrl?: string;
   commentCount?: number;
@@ -717,7 +719,7 @@ function NovelDetailContent() {
                 title={bookTitle || '小说详情'}
                 url={typeof window !== 'undefined' ? window.location.href : ''}
                 cover={detail?.cover}
-                desc={(detail as any)?.desc || (detail as any)?.intro}
+                desc={detail?.desc || detail?.intro}
               />
             </Box>
             <Box component="span" sx={{ mx: 1, opacity: 0.5 }}>|</Box>

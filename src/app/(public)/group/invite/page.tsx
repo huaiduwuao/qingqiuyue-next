@@ -34,7 +34,7 @@ export default function GroupInvitePage() {
 
   const acceptM = useMutation({
     mutationFn: () => acceptGroupInvite(token),
-    onSuccess: (g: any) => {
+    onSuccess: (g) => {
       setAcceptedId(g.id);
     },
     onError: (e: unknown) => setError(errMessage(e) || '接受邀请失败'),

@@ -89,7 +89,7 @@ function ShareModuleDetailContent() {
     if (!unlockVisible || moduleInfo?.shareType !== 'pay' || !moduleId) return;
     let cancelled = false;
     payUnlock({ moduleId: Number(moduleId) })
-      .then((res: any) => {
+      .then((res: { qrCode?: string; qrUrl?: string; payUrl?: string; amount?: number } | null) => {
         if (cancelled) return;
         setPayInfo({
           qrCode: res?.qrCode || res?.qrUrl,

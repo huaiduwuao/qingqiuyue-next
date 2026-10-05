@@ -31,6 +31,7 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined
 import HistoryIcon from '@mui/icons-material/History';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { ThemeProvider } from '@mui/material/styles';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
@@ -81,7 +82,7 @@ const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 
   { key: 'alipay', label: '支付宝', sub: '快捷', iconKey: 'alipay' },
 ];
 
-const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: any }>> = {
+const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: SxProps<Theme> }>> = {
   crown: EmojiEventsIcon,
   flash: FlashOnIcon,
   gift: CardGiftcardIcon,

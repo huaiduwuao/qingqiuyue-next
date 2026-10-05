@@ -61,7 +61,7 @@ interface ContentItem {
   commentCount?: number;
   viewCount?: number;
   author?: { id: number; nickname: string; avatar?: string };
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const CATEGORY_NAV = [
@@ -143,7 +143,7 @@ export default function HomeRecommendPage() {
           pageSize: PAGE_SIZE,
           ...(contentType ? { contentType } : {}),
           orderBy: 'COLLECT',
-        }) as any;
+        });
         // 拦截器已把 {code,msg,data} 剥到业务数据层:resp 就是 { list, total }。再取一层 .data 会让分类页永远是空的。
         const page = resp ?? {};
         const records: ContentItem[] = page.list || page.records || [];

@@ -39,8 +39,18 @@ type PictureDetail = {
   commentCount?: number;
 };
 
-function parseStructured(data: PictureDetail) {
-  if (data.structuredContent) return data.structuredContent as any;
+/** structuredContent / content 里的 JSON:图集要么是数组,要么是带 images 的对象 */
+type PictureStructured = {
+  images?: unknown;
+  audioUrl?: string;
+  audio?: { url?: string };
+  text?: string;
+  kind?: string;
+  mode?: string;
+};
+
+function parseStructured(data: PictureDetail): PictureStructured {
+  if (data.structuredContent) return data.structuredContent as PictureStructured;
   if (!data.content) return {};
   try {
     return JSON.parse(data.content);
@@ -69,14 +79,14 @@ function ImageDetailContent() {
     const data = query.data;
     if (!data) return { images: [] as string[], audioUrl: '', text: '', isMv: false };
     const structured = parseStructured(data);
-    const rawImages = Array.isArray(structured)
+    const rawImages: unknown[] = Array.isArray(structured)
       ? structured
       : Array.isArray(structured?.images)
         ? structured.images
         : [];
     const images: string[] = rawImages
-      .map((item: any) => typeof item === 'string' ? item : item?.url || item?.imageUrl)
-      .filter(Boolean);
+      .map((item) => typeof item === 'string' ? item : (item as { url?: string; imageUrl?: string } | null)?.url || (item as { imageUrl?: string } | null)?.imageUrl)
+      .filter(Boolean) as string[];
     if (!images.length && data.cover) images.push(data.cover);
     return {
       images,

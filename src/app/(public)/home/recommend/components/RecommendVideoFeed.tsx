@@ -50,6 +50,28 @@ import { useFeedDanmaku, DanmakuLayer } from './FeedDanmaku';
 import { useBackClose } from '@/lib/backStack';
 import { createWheelPager } from '@/lib/wheelPager';
 
+/** /recommend/feed 下发的原始条目(字段都可能缺,数字可能是字符串) */
+interface RecommendFeedRaw {
+  id?: string | number;
+  idString?: string;
+  title?: string;
+  contentType?: string;
+  cover?: string;
+  author?: string;
+  authorAvatar?: string;
+  authorId?: string | number;
+  views?: string | number;
+  likes?: string | number;
+  comments?: string | number;
+  collects?: string | number;
+  shares?: string | number;
+  sourceUrl?: string;
+  metadata?: string;
+  playable?: unknown;
+  playbackStatus?: VideoItem['playbackStatus'];
+  repairNotice?: string;
+}
+
 interface VideoItem {
   id: number;
   idString?: string; // 字符串形 id,避免 JS 2^53 精度损失,后端 home/recommend 返回)
@@ -226,8 +248,8 @@ export function RecommendVideoFeed() {
         // 沉浸式流每一屏就是一个播放器:只要站内能看到画面的(后端 recommendengine WatchableOnly)
         watchable: 1,
         shuffle,
-      }) as any;
-      const list = (resp?.list ?? []) as any[];
+      });
+      const list = (resp?.list ?? []) as RecommendFeedRaw[];
       const items = list.map((it): VideoItem => ({
         id: Number(it.id) || 0,
         idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
@@ -383,7 +405,7 @@ export function RecommendVideoFeed() {
     });
 
     Promise.race([parseStream(video.sourceUrl), timeoutPromise])
-      .then((data: any) => {
+      .then((data) => {
         if (cancelled) return;
         if (data?.timedOut) {
           setStreamError('解析超时');

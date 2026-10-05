@@ -26,6 +26,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon from '@mui/icons-material/Person';
 import StarIcon from '@mui/icons-material/Star';
 import { ThemeProvider } from '@mui/material/styles';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { useApp } from '@/contexts/AppContext';
 import { loadWallpaperPrefs, saveWallpaperPrefs } from '@/lib/wallpaperPrefs';
@@ -113,7 +114,7 @@ function bgCss(wp: Pick<Wallpaper, 'bg' | 'source'>): string {
   return wp.bg;
 }
 
-const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<{ sx?: any }>; label: string }> = {
+const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<{ sx?: SxProps<Theme> }>; label: string }> = {
   desktop: { Icon: DesktopWindowsIcon, label: '桌面' },
   tablet: { Icon: TabletIcon, label: '平板' },
   mobile: { Icon: PhoneIphoneIcon, label: '手机' },
@@ -125,7 +126,7 @@ const EMPTY_COUNTS: Record<string, number> = {};
 
 async function fetchAllWallpapers(): Promise<{ items: Wallpaper[]; categories: CategoryMeta[]; counts: Record<string, number> }> {
   // 拦截器已把 {code,msg,data} 外壳剥掉,返回值就是业务数据本体 { list, total, categories }
-  type WallpaperPayload = { list?: any[]; items?: any[]; categories?: any[]; total?: number };
+  type WallpaperPayload = { list?: Wallpaper[]; items?: Wallpaper[]; categories?: { key?: unknown; count?: unknown }[]; total?: number };
   const fetchPage = async (page: number): Promise<WallpaperPayload> => {
     const raw = await adminClient.get<WallpaperPayload>(`/wallpaper/list?page=${page}&page_size=${PAGE_SIZE}`);
     return {
@@ -157,7 +158,7 @@ async function fetchAllWallpapers(): Promise<{ items: Wallpaper[]; categories: C
   }
   counts.all = total;
   const themed = (first.categories ?? [])
-    .map((c: any) => CATEGORY_META.get(String(c?.key ?? '') as WallpaperCategory))
+    .map((c) => CATEGORY_META.get(String(c?.key ?? '') as WallpaperCategory))
     .filter((c): c is NonNullable<typeof c> => !!c && c.key !== 'all');
   const onlyOther = themed.length <= 1 && themed[0]?.key === 'other';
   return { items, categories: [WALLPAPER_CATEGORIES[0], ...(onlyOther ? [] : themed)], counts };
@@ -667,7 +668,7 @@ function WallpaperPageContent() {
               return (
                 <Box
                   key={s.key}
-                  onClick={() => setSort(s.key as any)}
+                  onClick={() => setSort(s.key as typeof sort)}
                   sx={{
                     px: 1,
                     py: 0.4,

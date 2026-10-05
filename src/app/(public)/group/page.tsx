@@ -66,6 +66,7 @@ import {
   settleTeam,
   listTeamSettlements,
   type GroupMember,
+  type GroupRole,
   type GroupMessage,
   type GroupView,
   type TeamSettlement,
@@ -567,7 +568,7 @@ function MemberRow({
                   onClick={() => {
                     const role = prompt('新角色 (owner/admin/member)', m.role);
                     if (role && ['owner', 'admin', 'member'].includes(role)) {
-                      setGroupMemberRole(m.groupId, m.userId, role as any).then(onAction);
+                      setGroupMemberRole(m.groupId, m.userId, role as GroupRole).then(onAction);
                     }
                   }}
                 >

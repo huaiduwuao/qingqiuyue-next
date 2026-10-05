@@ -104,10 +104,35 @@ export const REASON_HINT: Record<string, string> = {
 };
 
 /** 后端 /search 的 list → 结果卡片数据;第一页和「加载更多」共用。 */
-export function toSearchItems(res: any, q: string): SearchContentItem[] {
-  const list = res?.list || res || [];
+/** 后端 /search 单条结果的原始字段(各数据源字段名不统一) */
+interface SearchHitRaw {
+  id?: number;
+  contentType?: string;
+  type?: string;
+  title?: string;
+  name?: string;
+  subtitle?: string;
+  info?: string;
+  description?: string;
+  cover?: string;
+  coverUrl?: string;
+  author?: string;
+  username?: string;
+  userName?: string;
+  score?: unknown;
+  availability?: string;
+  usable?: unknown;
+  readyItems?: unknown;
+  totalItems?: unknown;
+  reason?: unknown;
+  mergedCount?: unknown;
+  variants?: unknown;
+}
+
+export function toSearchItems(res: unknown, q: string): SearchContentItem[] {
+  const list = (res as { list?: unknown } | null | undefined)?.list || res || [];
   const lq = q.toLowerCase();
-  return (Array.isArray(list) ? list : []).map((it: any) => {
+  return (Array.isArray(list) ? list : []).map((it: SearchHitRaw) => {
     const type = (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'];
     // 命中位置:后端没显式给 matchField,前端按"关键词是否在 title/author 里"推断,
     // 让卡片右下角那个"标题/描述/作者命中"标签有意义。

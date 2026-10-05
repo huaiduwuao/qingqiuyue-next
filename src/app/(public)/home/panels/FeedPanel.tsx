@@ -60,8 +60,8 @@ import { useResponsive } from '@/hooks/useResponsive';
 // 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
 // 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
 // 此函数在 id 超出安全范围时保留原始形式（数字或字符串）。
-const safeId = (id: any): string | number => {
-  if (id === null || id === undefined) return id as any;
+const safeId = (id: unknown): string | number => {
+  if (id === null || id === undefined) return id as unknown as string | number;
   const n = Number(id);
   if (Number.isSafeInteger(n)) return n;
   // 超出安全范围:保留原始值（后端已转 string）
@@ -98,14 +98,43 @@ type FeedItem = {
   totalItems?: number;
   /** 集数角标「全81集 / 更新至12集 / 全308章 / 更新至37话」,/module/content/list 下发 */
   episodeLabel?: string;
+  /** 后端实际下发的 module_content.content_type(大写),优先于 category */
+  contentType?: string;
 };
+
+/** 各接口(/module/content/list、歌单、专题)下发的原始条目:字段名不统一,toFeedRecord 负责规整 */
+interface RawFeedRecord {
+  id?: unknown;
+  postedAgoMin?: number;
+  createTime?: string | number;
+  cover?: string;
+  coverUrl?: string;
+  authorName?: string;
+  author?: string;
+  authorAvatar?: string;
+  avatar?: string;
+  views?: number;
+  readNum?: number;
+  likes?: number;
+  agreeNum?: number;
+  comments?: number;
+  commentNum?: number;
+  shares?: number;
+  shareNum?: number;
+  category?: string;
+  contentType?: string;
+  durationSec?: unknown;
+  duration?: unknown;
+  metadata?: unknown;
+  [key: string]: unknown;
+}
 
 // 精选流参与交错的类型。NEWS 不在内:它基本是热搜词条,没有封面。
 const RECOMMEND_TYPES = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'COMICS', 'MUSIC', 'NOVEL', 'SHORT_DRAMA', 'ARTICLE', 'LIVE'];
 const RECOMMEND_PER_TYPE = 2;
 
 // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望字段
-function toFeedRecord(item: any) {
+function toFeedRecord(item: RawFeedRecord): FeedItem {
   // postedAgoMin:从 createTime 计算分钟数
   let postedAgoMin = item.postedAgoMin || 0;
   if (!postedAgoMin && item.createTime) {
@@ -126,7 +155,7 @@ function toFeedRecord(item: any) {
     postedAgoMin,
     durationSec,
     category: item.category || item.contentType?.toLowerCase() || 'video',
-  };
+  } as unknown as FeedItem;
 }
 
 // 顶部页签(频道)不再写死:除固定的「推荐」外全部来自用户自己的频道列表
@@ -197,7 +226,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   const subcatQuery = useQuery({
     queryKey: ['home', 'feed', 'subcategory', parentType],
     queryFn: () =>
-      fetchSubcategories(parentType as string).then((r: any) => {
+      fetchSubcategories(parentType as string).then((r: { list?: unknown; groups?: Record<string, unknown> } | null) => {
         // 后端返回 { list: [...] } 或 { groups: { NOVEL: [...] } }
         if (Array.isArray(r?.list)) return r.list as SubcategoryItem[];
         if (parentType && r?.groups?.[parentType]) return r.groups[parentType] as SubcategoryItem[];
@@ -284,9 +313,9 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             }).catch(() => null),
           ),
         );
-        const lists: any[][] = results.map((r: any) => r?.list || r?.records || []);
-        const totals = results.map((r: any) => Number(r?.total || r?.totalRow || 0));
-        const merged: any[] = [];
+        const lists: RawFeedRecord[][] = results.map((r) => r?.list || r?.records || []);
+        const totals = results.map((r) => Number(r?.total || r?.totalRow || 0));
+        const merged: RawFeedRecord[] = [];
         for (let i = 0; i < RECOMMEND_PER_TYPE; i++) {
           for (const list of lists) {
             if (list[i]) merged.push(list[i]);
@@ -301,7 +330,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
       // 歌单频道:一张歌单就是一格页签,曲目按歌单里排好的顺序给(不分页,一张歌单最多几十首)
       if (active.kind === 'playlist' && active.listId != null) {
         const page = await getMyListContent(active.listId);
-        const records = (page.list ?? []).map((it: any) =>
+        const records = (page.list ?? []).map((it) =>
           toFeedRecord({ ...it, id: it.contentId, contentType: it.type, author: it.author }),
         );
         // 一次给完:hasMore=false 让无限滚动到此为止,不会再去要第二页
@@ -310,7 +339,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
       // 专题频道:作品直接取专题收录(手工收录在前,命中自动规则的补在后面)
       if (active.kind === 'topic' && active.topicId != null) {
         const page = await fetchTopicContents(active.topicId, pageParam, PAGE_SIZE);
-        const records = (page.list ?? []).map((it: any) =>
+        const records = (page.list ?? []).map((it) =>
           toFeedRecord({ ...it, coverUrl: it.cover, readNum: it.views, agreeNum: it.likes, commentNum: it.comments }),
         );
         return { records, total: page.total ?? records.length, page: pageParam };
@@ -334,7 +363,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         watchable: 1,
         ...(ratingMin ? { ratingMin } : {}),
         ...(year ? { releaseYear: year } : {}),
-      }) as any;
+      });
       // moduleContentPage 内部用 contentClient;拦截器剥壳后 resp 就是 { list, total }
       const rawRecords = resp?.list || resp?.records || [];
       const records = rawRecords.map(toFeedRecord);
@@ -403,7 +432,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             return (
               <Box
                 key={s.key}
-                onClick={() => setSort(s.key as any)}
+                onClick={() => setSort(s.key as typeof sort)}
                 sx={{
                   flexShrink: 0,
                   px: 1.25,
@@ -846,7 +875,7 @@ const FeedCard = memo(function FeedCard({ item }: { item: FeedItem }) {
   const legacyCategoryToType: Record<string, string> = {
     video: 'VIDEO', short: 'VIDEO', image: 'VIDEO', live: 'LIVE',
   };
-  const rawType = (item as any).contentType || item.category;
+  const rawType = item.contentType || item.category;
   const targetType = rawType ? (legacyCategoryToType[rawType] || String(rawType).toUpperCase()) : null;
 
 

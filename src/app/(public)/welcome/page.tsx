@@ -262,7 +262,7 @@ function TypesGrid() {
     queryKey: ['welcome', 'types'],
     queryFn: () =>
       fetchContentTypes()
-        .then((r: any) => (r?.list ?? []) as { code: string; name: string }[])
+        .then((r: { list?: { code: string; name: string }[] } | null) => (r?.list ?? []) as { code: string; name: string }[])
         .catch(() => []),
     staleTime: 10 * 60_000,
   });

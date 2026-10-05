@@ -51,6 +51,7 @@ interface Video {
   /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun),优先于 source */
   playSourceUrl?: string;
   playSourceLabel?: string;
+  isFollowing?: boolean;
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
 }
 
@@ -74,7 +75,7 @@ function VideoDetailContent() {
     }
   }, [id]);
   const [followOverride, setFollowOverride] = React.useState<boolean | null>(null);
-  const followed = followOverride ?? !!(query.data as any)?.isFollowing;
+  const followed = followOverride ?? !!query.data?.isFollowing;
   const [followBusy, setFollowBusy] = React.useState(false);
   const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,

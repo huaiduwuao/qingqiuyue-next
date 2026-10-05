@@ -28,6 +28,7 @@ import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import SecurityIcon from '@mui/icons-material/Security';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { ThemeProvider } from '@mui/material/styles';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import {
   PLATFORMS,
@@ -54,7 +55,7 @@ const CLIENT_INSTALL_URLS: Record<ClientPlatform, string | undefined> = {
   android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID ?? `${RELEASE_LATEST}/qingqiuyue-android.apk`,
 };
 
-const PLATFORM_ICONS: Record<ClientPlatform, React.ComponentType<{ sx?: any }>> = {
+const PLATFORM_ICONS: Record<ClientPlatform, React.ComponentType<{ sx?: SxProps<Theme> }>> = {
   windows: LaptopWindowsIcon,
   macos: LaptopMacIcon,
   ios: PhoneIphoneIcon,

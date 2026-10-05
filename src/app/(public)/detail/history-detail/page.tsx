@@ -17,6 +17,9 @@ import { DetailRenderer } from '@/components/detail/views/DetailRenderer';
 import { SubscribeButton } from '@/components/subscription/SubscribeButton';
 import { track, recordHistory } from '@/lib/track';
 
+/** 历史详情的字段大多直接交给 DetailRenderer,这里只用到标题和二级分类 */
+type HistoryDetail = { title?: string; subcategory_code?: string; [key: string]: unknown };
+
 function HistoryDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -24,7 +27,7 @@ function HistoryDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'news', id],
-    queryFn: () => contentDetail({ id: id! }).then((r) => r as any),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r as HistoryDetail),
     enabled: !!id,
   });
 

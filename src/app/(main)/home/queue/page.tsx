@@ -19,10 +19,17 @@ import { page as spiderPage } from '@/apis/content-spider-queue';
 import { page as todoPage } from '@/apis/content-todo-queue';
 import { AsyncState } from '@/components/common/AsyncState';
 
+interface QueueItem {
+  id?: number | string;
+  title?: string;
+  info?: string;
+  content?: { content?: string };
+}
+
 interface QueuePanelProps {
   status: 'running' | 'done';
   onStatusChange: (s: 'running' | 'done') => void;
-  query: ReturnType<typeof useQuery<any[]>>;
+  query: ReturnType<typeof useQuery<QueueItem[]>>;
 }
 
 function QueuePanel({ status, onStatusChange, query }: QueuePanelProps) {
