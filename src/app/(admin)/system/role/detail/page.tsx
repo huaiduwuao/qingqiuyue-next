@@ -42,6 +42,7 @@ import {
 import type { DataPermissionRecord, MemberRecord, MenuRecord, PermissionRecord } from '@/apis/system-role';
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
+import { errMessage } from '@/lib/errMessage';
 
 type Notify = (message: string, severity?: 'success' | 'error') => void;
 
@@ -51,7 +52,7 @@ interface TabProps {
   notify: Notify;
 }
 
-const errMsg = (err: any, fallback: string) => err?.message || fallback;
+const errMsg = (err: unknown, fallback: string) => errMessage(err) || fallback;
 
 function sameSet(a: Set<number>, b: Set<number>) {
   if (a.size !== b.size) return false;

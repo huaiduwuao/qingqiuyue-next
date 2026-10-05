@@ -39,7 +39,7 @@ function useContentStats() {
   return useQuery<ContentStats>({
     queryKey: ['stats', 'content'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/stats/content');
+      const r = await adminClient<ContentStats>('/admin/dashboard/stats/content');
       return r as ContentStats;
     },
     refetchInterval: 60_000,

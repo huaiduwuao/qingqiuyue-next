@@ -28,7 +28,7 @@ export default function SystemUserPointPage() {
   const qc = useQueryClient();
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [form, setForm] = useState({ userId: '', point: '', info: '' });
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -39,7 +39,7 @@ export default function SystemUserPointPage() {
   const adjustMutation = useMutation({
     mutationFn: () =>
       adjustUserPoint({ userId: Number(form.userId), point: Number(form.point), info: form.info.trim() || undefined }),
-    onSuccess: (res: any) => {
+    onSuccess: (res) => {
       showMessage(`已调整,当前余额 ${res?.point ?? '-'}`);
       setAdjustOpen(false);
       qc.invalidateQueries({ queryKey: LIST_KEY });
@@ -85,9 +85,9 @@ export default function SystemUserPointPage() {
       <DataGridTable
         queryKey={LIST_KEY}
         columns={columns}
-        fetchData={async (params: any) => {
+        fetchData={async (params) => {
           const userId = Number(filterValues.userId) || undefined;
-          const res: any = await listPointRecords({ ...params, pageNumber: params.pageNumber, userId });
+          const res = await listPointRecords({ ...params, pageNumber: params.pageNumber, userId });
           const list = res?.records || res?.list || [];
           const total = res?.totalRow || res?.total || 0;
           return { records: list, totalRow: total };
@@ -106,7 +106,7 @@ export default function SystemUserPointPage() {
             variant="contained"
             startIcon={<TuneRoundedIcon />}
             onClick={() => {
-              setForm({ userId: filterValues.userId ?? '', point: '', info: '' });
+              setForm({ userId: (filterValues.userId as string | undefined) ?? '', point: '', info: '' });
               setAdjustOpen(true);
             }}
           >

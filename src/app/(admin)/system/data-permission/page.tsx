@@ -15,7 +15,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { meta, page, remove, save, update } from '@/apis/system-data-permission';
+import { meta, page, remove, save, update, type CreateDataPermissionReq, type DataPermissionInfo } from '@/apis/system-data-permission';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -42,10 +42,10 @@ export default function SystemDataPermissionPage() {
     .join(';');
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Partial<DataPermissionInfo> | null>(null);
   const { can } = useAuthority();
-  const [formValues, setFormValues] = useState<any>({});
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [formValues, setFormValues] = useState<Partial<CreateDataPermissionReq>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -57,20 +57,20 @@ export default function SystemDataPermissionPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => save(vals),
+    mutationFn: (vals: CreateDataPermissionReq) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); qc.invalidateQueries({ queryKey: LIST_KEY }); },
     onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => update(vals),
+    mutationFn: (vals: Parameters<typeof update>[0]) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); qc.invalidateQueries({ queryKey: LIST_KEY }); },
     onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: Partial<DataPermissionInfo>) => {
     setSelectedRecord(record);
     setFormValues({
       name: record?.name || '',
@@ -80,7 +80,7 @@ export default function SystemDataPermissionPage() {
     setWriteVisible(true);
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: DataPermissionInfo) => {
     if (!confirm('确定删除吗？')) return;
     deleteMutation.mutate([record.id]);
   };
@@ -93,12 +93,12 @@ export default function SystemDataPermissionPage() {
     if (selectedRecord?.id) {
       updateMutation.mutate({ ...formValues, id: selectedRecord.id });
     } else {
-      saveMutation.mutate(formValues);
+      saveMutation.mutate(formValues as CreateDataPermissionReq);
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
-    setFormValues((prev: any) => ({ ...prev, [field]: value }));
+  const handleFormChange = (field: keyof CreateDataPermissionReq, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
   const columns: GridColDef[] = [

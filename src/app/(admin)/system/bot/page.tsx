@@ -86,7 +86,7 @@ export default function SystemBotPage() {
     message: '',
     severity: 'success',
   });
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const actionRef = useRef<{ reload: () => void } | null>(null);
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
@@ -98,12 +98,12 @@ export default function SystemBotPage() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => botApi.save(vals),
+    mutationFn: (vals: Record<string, unknown>) => botApi.save(vals),
     onSuccess: () => { showMessage('创建成功'); handleModalClose(); reload(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => botApi.update({ ...vals, id: record?.id }),
+    mutationFn: (vals: Record<string, unknown>) => botApi.update({ ...vals, id: record?.id }),
     onSuccess: () => { showMessage('更新成功'); handleModalClose(); reload(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
@@ -147,7 +147,7 @@ export default function SystemBotPage() {
     setRecord(null);
   };
 
-  const handleSubmit = (vals: any) => {
+  const handleSubmit = (vals: Record<string, unknown>) => {
     if (record?.id) {
       updateMutation.mutate(vals);
     } else {

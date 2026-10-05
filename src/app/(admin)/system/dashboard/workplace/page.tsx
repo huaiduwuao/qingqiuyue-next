@@ -42,6 +42,7 @@ import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
 import CircleIcon from '@mui/icons-material/Circle';
 import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
+import type { CurrentUser } from '@/beans/account';
 
 // ── 类型 ──
 interface WorkplaceUser {
@@ -82,13 +83,13 @@ function useWorkplace() {
   const user = useQuery<WorkplaceUser>({
     queryKey: ['workplace', 'user', currentUser?.name],
     queryFn: async () => {
-      const u = currentUser || {};
+      const u: CurrentUser = currentUser || {};
       const hour = new Date().getHours();
       const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
       return {
-        name: (u as any).nickname || (u as any).name || '管理员',
-        avatar: (u as any).avatar || '',
-        role: ((u as any).roles || []).join(', ') || '系统管理员',
+        name: u.nickname || u.name || '管理员',
+        avatar: u.avatar || '',
+        role: (u.roles || []).join(', ') || '系统管理员',
         department: '技术部',
         greeting,
       };

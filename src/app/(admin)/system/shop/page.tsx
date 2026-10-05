@@ -113,7 +113,7 @@ export default function SystemShopPage() {
   const [redemptionFilters, setRedemptionFilters] = useState<Record<string, string | undefined>>({});
   const [giftFilters, setGiftFilters] = useState<Record<string, string | undefined>>({});
 
-  type FetchParams = { pageNumber: number; pageSize: number; [key: string]: any };
+  type FetchParams = { pageNumber: number; pageSize: number } & Record<string, string | number | undefined>;
   const fetchItems = useCallback(async ({ pageNumber, pageSize, keyword, category, status, deliverType }: FetchParams) => {
     itemsAll.current = await listMallItems({ keyword, category, status, deliverType });
     return sliceAll(itemsAll.current, pageNumber, pageSize);
@@ -156,7 +156,7 @@ export default function SystemShopPage() {
     { field: 'user', headerName: '用户', width: 130, sortable: false,
       renderCell: (p) => {
         const r = p.row as AdminRedemption;
-        return <>{r.userId}{(r as any).isBot && <Chip size="small" label="AI" sx={{ ml: 0.5, height: 18, fontSize: 10 }} />}</>;
+        return <>{r.userId}{r.isBot && <Chip size="small" label="AI" sx={{ ml: 0.5, height: 18, fontSize: 10 }} />}</>;
       } },
     { field: 'itemName', headerName: '商品', flex: 1, minWidth: 140 },
     { field: 'price', headerName: '实付', width: 100, align: 'right', headerAlign: 'right', sortable: false,

@@ -13,7 +13,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
-import Select from '@mui/material/Select';
+import Select, { type SelectChangeEvent } from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import OutlinedInput from '@mui/material/OutlinedInput';
 import Checkbox from '@mui/material/Checkbox';
@@ -41,7 +41,7 @@ interface RoleBrief {
   system: boolean;
 }
 
-const rolesOf = (row: any): RoleBrief[] => (Array.isArray(row?.roles) ? row.roles.filter((r: any) => r && typeof r === 'object') : []);
+const rolesOf = (row: { roles?: unknown } | null | undefined): RoleBrief[] => (Array.isArray(row?.roles) ? row.roles.filter((r: unknown) => r && typeof r === 'object') : []);
 
 const columns: GridColDef<UserItem>[] = [
   { field: 'name', headerName: '账户名', width: 150 },
@@ -80,7 +80,7 @@ export default function SystemUserPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<UserItem | null>(null);
   const [deleteIds, setDeleteIds] = useState<number[]>([]);
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -103,13 +103,13 @@ export default function SystemUserPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => save(vals),
+    mutationFn: (vals: Record<string, unknown>) => save(vals),
     onSuccess: () => { showMessage('操作成功'); handleModalClose(); reload(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '操作失败', 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => update(vals),
+    mutationFn: (vals: Record<string, unknown>) => update(vals),
     onSuccess: () => { showMessage('操作成功'); handleModalClose(); reload(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '操作失败', 'error'),
   });
@@ -145,7 +145,7 @@ export default function SystemUserPage() {
     setRecord(null);
   };
 
-  const handleSubmit = (values: any) => {
+  const handleSubmit = (values: Record<string, unknown>) => {
     if (record?.id) {
       updateMutation.mutate({ ...record, ...values });
     } else {
@@ -232,14 +232,14 @@ export default function SystemUserPage() {
 interface OperationModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: any) => void;
+  onSubmit: (values: Record<string, unknown>) => void;
   record: UserItem | null;
   isSubmitting?: boolean;
 }
 
 function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: OperationModalProps) {
   const { isSuperAdmin } = useAuthority();
-  const [values, setValues] = useState<Record<string, any>>({});
+  const [values, setValues] = useState<Record<string, unknown>>({});
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
 
   // 获取角色列表
@@ -270,13 +270,13 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
     setValues((v) => ({ ...v, [field]: e.target.value }));
   };
 
-  const handleRoleChange = (event: any) => {
+  const handleRoleChange = (event: SelectChangeEvent<number[]>) => {
     const value = event.target.value as number[];
     setSelectedRoles(typeof value === 'number' ? [value] : value);
   };
 
   const handleSubmit = () => {
-    if (!record?.id && (values.password || '').length < 6) {
+    if (!record?.id && ((values.password as string | undefined) || '').length < 6) {
       alert('新用户的密码至少 6 位');
       return;
     }
@@ -284,9 +284,9 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
     onSubmit({ ...rest, ...(password ? { password } : {}), roleIds: selectedRoles });
   };
 
-  const roles = rolesData?.records || rolesData?.list || [];
+  const roles: RoleBrief[] = rolesData?.records || rolesData?.list || [];
   // 内置角色(超级管理员)只有超级管理员能授予或收回,后端同样校验。
-  const lockedRole = (role: any) => Boolean(role?.system) && !isSuperAdmin;
+  const lockedRole = (role: RoleBrief) => Boolean(role?.system) && !isSuperAdmin;
   const editingSuperAdmin = rolesOf(record).some((r) => r.system) && !isSuperAdmin;
 
   return (
@@ -348,11 +348,11 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
               input={<OutlinedInput label="角色" />}
               renderValue={(selected) =>
                 (selected as number[])
-                  .map((id) => roles.find((r: any) => r.id === id)?.name || id)
+                  .map((id) => roles.find((r) => r.id === id)?.name || id)
                   .join(', ')
               }
             >
-              {roles.map((role: any) => (
+              {roles.map((role) => (
                 <MenuItem key={role.id} value={role.id} disabled={lockedRole(role)}>
                   <Checkbox checked={selectedRoles.includes(role.id)} />
                   <ListItemText primary={role.name} secondary={lockedRole(role) ? `${role.code} · 仅超级管理员可授予` : role.code} />

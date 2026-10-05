@@ -89,8 +89,8 @@ export default function DashboardMonitorPage() {
       const res = await ops.overview();
       setNodes(res.nodes || []);
       setForbidden(false);
-    } catch (e: any) {
-      if (e?.code === 403) setForbidden(true);
+    } catch (e) {
+      if ((e as { code?: unknown } | null | undefined)?.code === 403) setForbidden(true);
     }
   }, []);
 

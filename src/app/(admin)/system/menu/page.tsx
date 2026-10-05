@@ -19,6 +19,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { list, remove, save, update } from '@/apis/menu';
+import type { MenuItem as MenuRecord } from '@/beans/system';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,6 +30,9 @@ import { PERMISSIONS } from '@/lib/permissions';
 import { MENU_ICON_NAMES, resolveMenuIcon } from '@/lib/menuIcons';
 import { MENU_GROUP_ORDER, MENU_GROUP_LABELS } from '@/lib/menuGroups';
 import { errMessage } from '@/lib/errMessage';
+
+/** 提交体:权限码 / 高亮色 / 分组空字符串转 null(表示清空) */
+type MenuPayload = Omit<MenuRecord, 'code' | 'accent' | 'group'> & { code: string | null; accent: string | null; group: string | null };
 
 const LIST_KEY = ['system', 'menu'];
 
@@ -45,10 +49,10 @@ const GROUP_OPTIONS = MENU_GROUP_ORDER.map((g) => ({ value: g, label: MENU_GROUP
 export default function SystemMenuPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<MenuRecord | null>(null);
   const { can } = useAuthority();
-  const [formValues, setFormValues] = useState<any>({});
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [formValues, setFormValues] = useState<MenuRecord>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   // 父菜单下拉的候选列表。注意不能复用 DataGridTable 的分页数据(只拉第一页),
@@ -58,7 +62,7 @@ export default function SystemMenuPage() {
     queryFn: () => list({ pageSize: 500 }),
     enabled: writeVisible,
   });
-  const allMenus: any[] = allMenusData?.list || allMenusData?.records || [];
+  const allMenus: MenuRecord[] = allMenusData?.list || allMenusData?.records || [];
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
 
@@ -71,20 +75,20 @@ export default function SystemMenuPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => save(vals),
+    mutationFn: (vals: MenuPayload) => save(vals as MenuRecord),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => update(vals.id, vals),
+    mutationFn: (vals: MenuPayload & { id: number }) => update(vals.id, vals as MenuRecord),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: MenuRecord) => {
     setSelectedRecord(record);
     setFormValues({
       name: record?.name || '',
@@ -103,9 +107,9 @@ export default function SystemMenuPage() {
     setWriteVisible(true);
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: MenuRecord) => {
     if (!confirm('确定删除吗？')) return;
-    deleteMutation.mutate(record.id);
+    deleteMutation.mutate(record.id as number);
   };
 
   const handleSubmit = () => {
@@ -124,8 +128,8 @@ export default function SystemMenuPage() {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
-    setFormValues((prev: any) => ({ ...prev, [field]: value }));
+  const handleFormChange = <K extends keyof MenuRecord>(field: K, value: MenuRecord[K]) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
   const columns: GridColDef[] = [
@@ -251,10 +255,10 @@ export default function SystemMenuPage() {
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Autocomplete
                 options={allMenus.filter((m) => m.type !== 'button' && m.id !== selectedRecord?.id)}
-                getOptionLabel={(o: any) => o?.name ?? ''}
-                isOptionEqualToValue={(o: any, v: any) => o?.id === v?.id}
+                getOptionLabel={(o) => o?.name ?? ''}
+                isOptionEqualToValue={(o, v) => o?.id === v?.id}
                 value={allMenus.find((m) => m.id === formValues.pid) ?? null}
-                onChange={(_, v: any) => handleFormChange('pid', v?.id ?? 0)}
+                onChange={(_, v) => handleFormChange('pid', v?.id ?? 0)}
                 sx={{ flex: 1 }}
                 size="small"
                 renderInput={(params) => <TextField {...params} label="父级菜单" sx={textFieldSx} />}
@@ -317,10 +321,10 @@ export default function SystemMenuPage() {
               />
               <Autocomplete
                 options={GROUP_OPTIONS}
-                getOptionLabel={(o: any) => (typeof o === 'string' ? o : o?.label ?? '')}
-                isOptionEqualToValue={(o: any, v: any) => o?.value === v?.value}
+                getOptionLabel={(o) => (typeof o === 'string' ? o : o?.label ?? '')}
+                isOptionEqualToValue={(o, v) => o?.value === v?.value}
                 value={GROUP_OPTIONS.find((g) => g.value === formValues.group) ?? null}
-                onChange={(_, v: any) => handleFormChange('group', v?.value ?? '')}
+                onChange={(_, v) => handleFormChange('group', v?.value ?? '')}
                 sx={{ flex: 1 }}
                 size="small"
                 renderInput={(params) => <TextField {...params} label="分组" sx={textFieldSx} />}

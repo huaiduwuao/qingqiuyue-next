@@ -82,7 +82,7 @@ export default function WithdrawReviewPage() {
 function WithdrawReviewPageInner() {
   const { can } = useAuthority();
   const canReview = can(PERMISSIONS.SYSTEM_WITHDRAW_REVIEW.REVIEW);
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [reviewTarget, setReviewTarget] = useState<WithdrawRequest | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [submitting, setSubmitting] = useState(false);

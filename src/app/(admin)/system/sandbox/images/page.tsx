@@ -32,7 +32,7 @@ export default function ImagesPage() {
   const [writeVisible, setWriteVisible] = useState(false);
   const [viewing, setViewing] = useState<SandboxImageResp | null>(null);
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   // DataGridTable 没有暴露 refresh;改 extraParams 触发它重拉(fetchData 的依赖变了)。
   const [refreshKey, setRefreshKey] = useState(0);
 

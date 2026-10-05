@@ -94,7 +94,7 @@ function useVisitorStats(range: '7d' | '30d') {
   return useQuery<VisitorStats>({
     queryKey: ['stats', 'visitor', range],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/stats/visitor', { params: { days: range === '30d' ? 30 : 7 } });
+      const r = await adminClient<VisitorStats>('/admin/dashboard/stats/visitor', { params: { days: range === '30d' ? 30 : 7 } });
       return r as VisitorStats;
     },
     refetchInterval: 60_000,

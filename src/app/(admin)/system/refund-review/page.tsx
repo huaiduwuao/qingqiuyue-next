@@ -60,7 +60,7 @@ export default function RefundReviewPage() {
 function RefundReviewPageInner() {
   const { can } = useAuthority();
   const canReview = can(PERMISSIONS.SYSTEM_REFUND_REVIEW.REVIEW);
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({ status: 'refunding' });
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({ status: 'refunding' });
   const [target, setTarget] = useState<PaymentOrder | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);

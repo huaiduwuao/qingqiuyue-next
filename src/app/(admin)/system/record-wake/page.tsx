@@ -123,13 +123,38 @@ async function tryLoadFfmpeg() {
   return null
 }
 
+/** 训练日志里页面用到的字段(用前都先判 undefined) */
+interface TrainingLog {
+  val_recall: number
+  fa_per_hour: number
+  threshold?: number
+}
+
+/** /api/core/train-wake-word 各接口回包里页面读到的字段 */
+interface WakeWordResp {
+  ok?: boolean
+  model?: string
+  modelSize: number
+  modelMtime?: string | number
+  positiveSamples?: number
+  trainingLog?: unknown
+  taskStatus?: string
+  taskId?: string | number
+  training?: boolean
+  saved?: number
+  error?: string
+  trainError?: string
+}
+
+type ModelDetail = Omit<WakeWordResp, 'trainingLog'> & { trainingLog: TrainingLog | null }
+
 // core-api 的回包是 {code,msg,data},真正的字段在 data 里
-const unwrap = (j: any) => (j && typeof j === 'object' && 'data' in j ? j.data : j) ?? {}
+const unwrap = (j: unknown) => ((j && typeof j === 'object' && 'data' in j ? j.data : j) ?? {}) as WakeWordResp
 
 /** 训练日志(后端存的是 JSON 字符串) */
-function parseTrainingLog(raw: unknown): any {
+function parseTrainingLog(raw: unknown): TrainingLog | null {
   if (!raw) return null
-  if (typeof raw === 'object') return raw
+  if (typeof raw === 'object') return raw as TrainingLog
   try { return JSON.parse(String(raw)) } catch { return null }
 }
 
@@ -142,7 +167,7 @@ export default function RecordWakePage() {
   const [error, setError] = useState<string | null>(null)
   const [autoRecord, setAutoRecord] = useState(false)
   const [currentModel, setCurrentModel] = useState<string>('')
-  const [modelDetail, setModelDetail] = useState<any>(null)
+  const [modelDetail, setModelDetail] = useState<ModelDetail | null>(null)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -453,7 +478,7 @@ export default function RecordWakePage() {
               </Box>
               <Box>
                 <Typography component="p" variant="caption" color="text.secondary">召回 / 误唤醒</Typography>
-                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: modelDetail.trainingLog?.val_recall > 0.8 ? 'success.main' : 'warning.main' }}>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: (modelDetail.trainingLog?.val_recall as number) > 0.8 ? 'success.main' : 'warning.main' }}>
                   {modelDetail.trainingLog?.val_recall !== undefined
                     ? `${(modelDetail.trainingLog.val_recall * 100).toFixed(0)}% / ${modelDetail.trainingLog.fa_per_hour} 次每时`
                     : '-'}

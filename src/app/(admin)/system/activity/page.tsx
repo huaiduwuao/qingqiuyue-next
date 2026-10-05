@@ -84,7 +84,7 @@ export default function SystemActivityPage() {
   // 后端 admin activity 接口(2026-09)不分页,前端在 DataGridTable 内做切片。
   // keyword/category/published 走后端;阶段由时间推导,在前端过滤。
   const activitiesAll = React.useRef<AdminActivity[]>([]);
-  const fetchActivities = useCallback(async (params: { pageNumber: number; pageSize: number; [key: string]: any }) => {
+  const fetchActivities = useCallback(async (params: { pageNumber: number; pageSize: number; keyword?: string; category?: string; published?: string; status?: string }) => {
     const list = await listActivities({ keyword: params.keyword, category: params.category, published: params.published });
     activitiesAll.current = params.status ? list.filter((a) => a.status === params.status) : list;
     const totalRow = activitiesAll.current.length;

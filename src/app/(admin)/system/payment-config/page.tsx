@@ -41,10 +41,10 @@ import { adminClient, formatApiError } from '@/lib/api/client';
 const paymentConfigAPI = {
   // 拦截器已把 {code,msg,data} 剥到业务数据层,这里拿到的就是配置对象本身。
   get: async (): Promise<Partial<PaymentConfig> | null> => {
-    const res: any = await adminClient('/payment/config');
+    const res = await adminClient<Partial<PaymentConfig> | null>('/payment/config');
     return res ?? null;
   },
-  save: async (data: any) => adminClient('/payment/config', { method: 'POST', data }),
+  save: async (data: PaymentConfig) => adminClient('/payment/config', { method: 'POST', data }),
 };
 
 interface PaymentConfig {
@@ -124,7 +124,7 @@ export default function PaymentConfigPage() {
     }
   };
 
-  const handleChange = (field: keyof PaymentConfig, value: any) => {
+  const handleChange = (field: keyof PaymentConfig, value: PaymentConfig[keyof PaymentConfig]) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -135,7 +135,7 @@ export default function PaymentConfigPage() {
     label: string;
     field: keyof PaymentConfig;
     value: string;
-    onChange: (v: any) => void;
+    onChange: (v: string) => void;
     placeholder?: string;
     helper?: string;
   }) => (

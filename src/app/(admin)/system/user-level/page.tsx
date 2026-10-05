@@ -30,7 +30,7 @@ const filters: FilterField[] = [
   { key: 'name', label: '等级名称', type: 'text' },
 ];
 
-const validate = (body: Record<string, any>) => {
+const validate = (body: Record<string, number>) => {
   if (!Number.isInteger(body.userId) || body.userId <= 0) return '请填写正确的用户 ID';
   if (!Number.isInteger(body.level) || body.level <= 0) return '等级需为正整数';
   if (body.end && body.end < body.start) return '到期时间不能早于生效时间';

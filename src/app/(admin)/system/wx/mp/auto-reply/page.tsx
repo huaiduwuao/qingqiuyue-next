@@ -46,7 +46,7 @@ const filters: FilterField[] = [
   { key: 'reqKey', label: '关键词', type: 'text' },
 ];
 
-const validate = (b: Record<string, any>) => {
+const validate = (b: Record<string, unknown>) => {
   if (b.type === 'keyword' && !String(b.reqKey ?? '').trim()) return '关键词回复需要填写关键词';
   if (b.repType === 'news' ? !String(b.repUrl ?? '').trim() || !String(b.repName ?? '').trim() : !String(b.repContent ?? '').trim()) {
     return b.repType === 'news' ? '图文回复需要标题和跳转链接' : '请填写回复文字';

@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
+import Chip, { type ChipProps } from '@mui/material/Chip';
 import Tooltip from '@mui/material/Tooltip';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
@@ -17,13 +17,13 @@ import { getRechargeRecords, formatMoney, statusLabels, channelLabels, type Rech
 function StatusChip({ status }: { status: string }) {
   const config = statusLabels[status];
   if (!config) return <Chip label={status} size="small" />;
-  return <Chip label={config.label} color={config.color as any} size="small" />;
+  return <Chip label={config.label} color={config.color as ChipProps['color']} size="small" />;
 }
 
 function ChannelChip({ channel }: { channel: string }) {
   const config = channelLabels[channel];
   if (!config) return <Chip label={channel} size="small" variant="outlined" />;
-  return <Chip label={config.label} color={config.color as any} size="small" variant="outlined" />;
+  return <Chip label={config.label} color={config.color as ChipProps['color']} size="small" variant="outlined" />;
 }
 
 function SourceChip({ source }: { source: string }) {
@@ -82,7 +82,7 @@ const columns: GridColDef[] = [
 ];
 
 export default function RechargeRecordsPage() {
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h6">充值记录</Typography>

@@ -16,7 +16,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { page, remove, save, update } from '@/apis/system-role';
+import { page, remove, save, update, type RoleRecord } from '@/apis/system-role';
 import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -27,6 +27,8 @@ import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
 import { errMessage } from '@/lib/errMessage';
 
+type RoleForm = { name?: string; code?: string; info?: string };
+
 const LIST_KEY = ['system', 'role'];
 
 // 与后端 service.roleCodeRe 一致
@@ -36,10 +38,10 @@ export default function SystemRolePage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Partial<RoleRecord> | null>(null);
   const { can, isSuperAdmin } = useAuthority();
-  const [formValues, setFormValues] = useState<any>({});
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [formValues, setFormValues] = useState<RoleForm>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -53,13 +55,13 @@ export default function SystemRolePage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => save(vals),
+    mutationFn: (vals: Record<string, unknown>) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => update(vals),
+    mutationFn: (vals: Record<string, unknown>) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
     onError: (err: unknown) => showMessage(errMessage(err) || '更新失败', 'error'),
   });
@@ -67,9 +69,9 @@ export default function SystemRolePage() {
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
 
   // 内置角色(超级管理员)只有超级管理员能改,后端同样校验。
-  const canEditRole = (row: any) => can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (!row?.system || isSuperAdmin);
+  const canEditRole = (row: Partial<RoleRecord>) => can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (!row?.system || isSuperAdmin);
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: Partial<RoleRecord>) => {
     setSelectedRecord(record);
     setFormValues({
       name: record?.name || '',
@@ -79,7 +81,7 @@ export default function SystemRolePage() {
     setWriteVisible(true);
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: RoleRecord) => {
     if (record.system) return;
     if (!confirm(`确定删除角色「${record.name}」吗?它的成员会失去这个角色的全部权限。`)) return;
     deleteMutation.mutate([record.id]);
@@ -99,8 +101,8 @@ export default function SystemRolePage() {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
-    setFormValues((prev: any) => ({ ...prev, [field]: value }));
+  const handleFormChange = (field: keyof RoleForm, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
   const columns: GridColDef[] = [

@@ -79,7 +79,7 @@ const columns: GridColDef<FeedItem>[] = [
 /** 社区运营:24 小时数据(真人 / AI 分开算)+ 全部动态,可删除违规内容 */
 export default function FeedAdminPage() {
   const qc = useQueryClient();
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
 
   const stats = useQuery({ queryKey: ['admin', 'community', 'stats'], queryFn: fetchCommunityStats, refetchInterval: 60_000 });
 

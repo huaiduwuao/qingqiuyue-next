@@ -92,7 +92,7 @@ function useDashboard() {
   const stats = useQuery<DashboardStats>({
     queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/stats');
+      const r = await adminClient<DashboardStats>('/admin/dashboard/stats');
       return r as DashboardStats;
     },
     refetchInterval: 30_000,
@@ -101,7 +101,7 @@ function useDashboard() {
   const trend = useQuery<TrendPoint[]>({
     queryKey: ['dashboard', 'trend'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/trend', { params: { days: 30 } });
+      const r = await adminClient<{ list?: unknown } | null>('/admin/dashboard/trend', { params: { days: 30 } });
       const list = (r?.list ?? []) as Array<{
         statDate: string; users: number; content: number; revenue: number; orders: number; activeUsers: number;
       }>;
@@ -119,16 +119,16 @@ function useDashboard() {
   const contentDist = useQuery<ContentDist[]>({
     queryKey: ['dashboard', 'content-distribution'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/content-distribution');
-      const list = (r?.records ?? r?.list ?? []) as any;
-      return (list as any[]).map((d: any) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
+      const r = await adminClient<{ records?: ContentDist[]; list?: ContentDist[] } | null>('/admin/dashboard/content-distribution');
+      const list = r?.records ?? r?.list ?? [];
+      return list.map((d) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
     },
     staleTime: 60_000,
   });
   const topCreators = useQuery<TopCreator[]>({
     queryKey: ['dashboard', 'top-creators'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/top-creators');
+      const r = await adminClient<{ list?: TopCreator[] } | null>('/admin/dashboard/top-creators');
       return (r?.list ?? []) as TopCreator[];
     },
     staleTime: 5 * 60_000,
@@ -136,7 +136,7 @@ function useDashboard() {
   const activities = useQuery<Activity[]>({
     queryKey: ['dashboard', 'recent-activities'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/recent-activities');
+      const r = await adminClient<{ list?: Activity[] } | null>('/admin/dashboard/recent-activities');
       return (r?.list ?? []) as Activity[];
     },
     staleTime: 60_000,

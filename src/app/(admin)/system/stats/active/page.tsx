@@ -81,7 +81,7 @@ function useActiveStats() {
   return useQuery<ActiveStats>({
     queryKey: ['stats', 'active'],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/stats/active');
+      const r = await adminClient<ActiveStats>('/admin/dashboard/stats/active');
       return r as ActiveStats;
     },
     refetchInterval: 60_000,

@@ -40,7 +40,7 @@ export default function TasksPage() {
   const [writeVisible, setWriteVisible] = useState(false);
   const [viewing, setViewing] = useState<SandboxTaskResp | null>(null);
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   // DataGridTable 不走 react-query,invalidate 刷不到它;建 / 取消任务后靠这个 key 触发重拉
   const [refreshKey, setRefreshKey] = useState(0);
 
