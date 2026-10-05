@@ -13,6 +13,8 @@ import { AUTH_EXPIRED_EVENT, getAuthToken, notifyAuthExpired } from '@/lib/api/a
  * 历史上取值层级混乱(r.data.X / r.data.data.X / r.data.data ?? r.data 三套并存)的根因
  * 就是拦截器返回了整个 body。现在统一收敛,泛型 T 让 tsc 能在编译期抓出多一层的写法。
  */
+// 返回类型默认 any 是历史约定:几百处调用没写泛型,改成 unknown 要逐个补类型,新代码请显式传 T
+/* eslint-disable @typescript-eslint/no-explicit-any -- 见上:T 的默认值保持 any,逐步迁移 */
 export interface ApiClient {
   <T = any>(config: AxiosRequestConfig): Promise<T>;
   <T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
@@ -20,12 +22,13 @@ export interface ApiClient {
   delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
   head<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
   options<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
-  post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
-  put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
-  patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
+  post<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
+  put<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
+  patch<T = any>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
   /** 底层 axios 实例,仅供确需原始响应(拿 headers / 流式)的极少数场景使用 */
   raw: AxiosInstance;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * canceled:调用方主动 abort(卸载 / 切路由 / 换参数),不是故障,不该弹「网络连接失败」。
@@ -38,14 +41,14 @@ export class ApiError extends Error {
   category: ApiErrorCategory;
   code?: string | number;
   status?: number;
-  response?: any;
+  response?: unknown;
 
   constructor(opts: {
     message: string;
     category: ApiErrorCategory;
     code?: string | number;
     status?: number;
-    response?: any;
+    response?: unknown;
   }) {
     super(opts.message);
     this.name = opts.category === 'canceled' ? 'AbortError' : 'ApiError';
@@ -87,7 +90,7 @@ export function isBusinessError(error: unknown): boolean {
  * 分页响应归一化
  * 将后端返回的各种字段命名统一为标准格式
  */
-function normalizePaginationPayload(payload: Record<string, any>): void {
+function normalizePaginationPayload(payload: Record<string, unknown>): void {
   // 数据列表归一：优先使用 list，兼容 records/items
   if ('list' in payload && !('records' in payload)) {
     payload.records = payload.list;
@@ -139,7 +142,7 @@ function normalizePaginationPayload(payload: Record<string, any>): void {
     }
     if (!('hasMore' in payload) || typeof payload.hasMore !== 'boolean') {
       const page = payload.page ?? 1;
-      payload.hasMore = page < payload.totalPages;
+      payload.hasMore = (page as number) < (payload.totalPages as number);
     }
   }
 }
@@ -289,8 +292,9 @@ function createApiClient(baseURL: string): ApiClient {
         voteAverage: 'rating',
       };
 
-      const applyAliases = (obj: any): any => {
-        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+      const applyAliases = (raw: unknown): unknown => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+        const obj = raw as Record<string, unknown>;
         for (const [from, to] of Object.entries(aliasMap)) {
           if (from in obj && !(to in obj)) {
             obj[to] = obj[from];
@@ -299,7 +303,7 @@ function createApiClient(baseURL: string): ApiClient {
         // 递归处理 list / records / items
         for (const key of ['list', 'records', 'items', 'data']) {
           if (Array.isArray(obj[key])) {
-            obj[key] = obj[key].map((it: any) => applyAliases(it));
+            obj[key] = (obj[key] as unknown[]).map((it) => applyAliases(it));
           } else if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
             obj[key] = applyAliases(obj[key]);
           }
@@ -322,12 +326,12 @@ function createApiClient(baseURL: string): ApiClient {
           return Promise.reject(error);
         }
         // 分页响应归一(同原逻辑)
-        const payload = (data as any)?.data;
+        const payload = data.data;
         if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
           // 字段别名:对分页响应里的 data.data 整个对象做一次
           applyAliases(payload);
           // 分页字段归一
-          normalizePaginationPayload(payload);
+          normalizePaginationPayload(payload as Record<string, unknown>);
         }
         // MinIO 内网直链 → 网关地址(整个 payload 深度遍历,不限字段名)
         normalizeMediaUrls(payload);
@@ -339,7 +343,7 @@ function createApiClient(baseURL: string): ApiClient {
       //    收敛:直接 resolve 业务数据本体,不再手工包 {code,msg,data}。
       //    列表分页归一:flat { items } 也提供 list 别名
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        normalizePaginationPayload(data as Record<string, any>);
+        normalizePaginationPayload(data as Record<string, unknown>);
         // 字段别名归一(递归)
         applyAliases(data);
       }
