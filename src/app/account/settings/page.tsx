@@ -507,9 +507,9 @@ function WechatDialog({
   // 获取授权 URL
   const fetchAuthUrl = async () => {
     try {
-      const res = await accountClient.get('/oauth/bind/wechat');
+      const res = await accountClient.get<{ authUrl?: string } | null>('/oauth/bind/wechat');
       // 拦截器已把 body({code,msg,data:{authUrl}})剥到业务数据层,这里直接读 res.authUrl。
-      const authUrl = (res as any)?.authUrl;
+      const authUrl = res?.authUrl;
       if (authUrl) {
         setAuthUrl(authUrl);
         return true;

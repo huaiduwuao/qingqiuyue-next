@@ -37,7 +37,7 @@ export default function BountyPicks({ variant = 'desktop' }: { variant?: 'deskto
     queryFn: () => getHotBounties({ page: 1, pageSize: 4, order: 'reward' }),
     staleTime: 60_000,
   });
-  const items = ((q.data?.list ?? []) as any[]).slice(0, 4);
+  const items = (q.data?.list ?? []).slice(0, 4);
   const goSquare = () => router.push('/account/reward?tab=square');
 
   if (!q.isLoading && items.length === 0) return null;

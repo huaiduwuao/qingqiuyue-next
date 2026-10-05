@@ -85,7 +85,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const wip: WipItem[] = (wipResp?.list ?? []).map((w: any) => ({
+  const wip: WipItem[] = (wipResp?.list ?? []).map((w) => ({
     id: w.id,
     kind: w.stage === 'draft' ? 'draft' : w.stage === 'transcoding' || w.stage === 'reviewing' ? 'uploading' : 'scheduled',
     type: (w.type as WipItem['type']) ?? 'video',

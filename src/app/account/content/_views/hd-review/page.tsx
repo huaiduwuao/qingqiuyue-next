@@ -119,7 +119,7 @@ export default function HdReviewPage() {
   const { tabParams, setActiveTab } = useActiveTab();
   // 真接口:HD 视频 + 审核员,tab 切换时强制 refetch
   const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, pageSize: 50 }), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const apiVideos: HdVideo[] = (hdResp?.list ?? []).map((v: any) => ({
+  const apiVideos: HdVideo[] = (hdResp?.list ?? []).map((v) => ({
     id: v.id, title: v.title, cover: v.cover,
     resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
     status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,

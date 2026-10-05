@@ -145,7 +145,7 @@ export default function ActivityPage() {
     }));
   }, [actResp]);
   // apiMyWorks 同理:hashtags 字段也要防御。后端没保证是数组
-  const apiMyWorks: MyWork[] = (worksResp?.list ?? (worksResp as any)?.records ?? []).map((w: any) => ({
+  const apiMyWorks: MyWork[] = (worksResp?.list ?? (worksResp as { records?: MyWork[] } | undefined)?.records ?? []).map((w) => ({
     ...w,
     hashtags: ensureArray<string>(w?.hashtags),
   }));
@@ -262,7 +262,7 @@ export default function ActivityPage() {
     if (!submitTarget || submitSelected.length === 0) return;
     try {
       // 投稿记录、名次、投稿数都以服务端为准,提交后重新拉取(以前本地拼一条假投稿,票数 = 点赞 × 0.6)
-      const res: any = await accountClient('/activity/submit', {
+      const res = await accountClient<{ submitted?: number } | null>('/activity/submit', {
         method: 'POST',
         data: { activityId: submitTarget.id, workIds: submitSelected, caption: submitCaption.trim() },
       });

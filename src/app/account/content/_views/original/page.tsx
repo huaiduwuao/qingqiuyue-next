@@ -105,11 +105,14 @@ export default function OriginalPage() {
   const whitelistQ = useQuery({ queryKey: ['original', 'whitelist'], queryFn: listWhitelist, enabled: tab === 3 });
   const worksQ = useQuery({ queryKey: ['creator-my-works'], queryFn: () => getMyWorks(), enabled: addOpen });
 
+  /** 我的作品里候选登记的字段 */
+  type CandidateWork = { id: string | number; title?: string; views?: number };
   const certs = useMemo(() => certsQ.data ?? [], [certsQ.data]);
   const suspects = suspectsQ.data ?? [];
   const registered = useMemo(() => new Set(certs.map((c) => c.contentId)), [certs]);
-  const candidates = ((worksQ.data as any)?.list ?? (worksQ.data as any)?.records ?? []).filter(
-    (w: any) => !registered.has(String(w.id)),
+  const works = worksQ.data as { list?: CandidateWork[]; records?: CandidateWork[] } | undefined;
+  const candidates = (works?.list ?? works?.records ?? []).filter(
+    (w) => !registered.has(String(w.id)),
   );
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
@@ -151,7 +154,7 @@ export default function OriginalPage() {
               <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 2 }}>没有可以登记的已发布作品(已登记的不会重复显示)。</Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 360, overflowY: 'auto' }}>
-                {candidates.map((w: any) => {
+                {candidates.map((w) => {
                   const id = String(w.id);
                   const checked = addSelected.includes(id);
                   return (

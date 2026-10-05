@@ -655,7 +655,7 @@ export function PointsMallTab({ initialPoints }: Props) {
                         {r.itemName}
                       </Typography>
                       <Chip
-                        icon={s.icon as any}
+                        icon={s.icon as React.ReactElement}
                         label={s.label}
                         size="small"
                         sx={{
