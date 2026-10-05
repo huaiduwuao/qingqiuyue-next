@@ -27,12 +27,12 @@ export interface ToolParamSchema {
   description: string;
   minimum?: number;
   maximum?: number;
-  default?: any;
+  default?: unknown;
   properties?: Record<string, ToolParamSchema>;
   items?: ToolParamSchema;
 }
 
-export interface ToolDefinition<Params = Record<string, any>> {
+export interface ToolDefinition<Params = Record<string, unknown>> {
   name: string;
   description: string;
   category: 'face' | 'mouth' | 'body' | 'camera' | 'system';
@@ -46,7 +46,7 @@ export interface ToolDefinition<Params = Record<string, any>> {
    * 实际执行逻辑 (前端 dispatch 时调用).
    * 返回一个对象, 可传给 LLM / 上报 Hermes.
    */
-  handler: (params: Params, ctx: ToolContext) => Promise<any> | any;
+  handler: (params: Params, ctx: ToolContext) => unknown;
 }
 
 export interface ToolContext {
@@ -76,7 +76,7 @@ export const faceSetExpression: ToolDefinition<{
     properties: {
       template: {
         type: 'string',
-        enum: Object.keys(EXPRESSION_PRESETS) as any,
+        enum: Object.keys(EXPRESSION_PRESETS),
         description: '预设模板名',
         default: 'neutral',
       },
@@ -315,6 +315,7 @@ export const sceneAct: ToolDefinition<{
 
 /* ────────────── 全量注册 ────────────── */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 各工具的 Params 各不相同,dispatcher 按 schema 校验后再调 handler
 export const ALL_TOOLS: ToolDefinition<any>[] = [
   faceSetExpression,
   faceMouthOpen,

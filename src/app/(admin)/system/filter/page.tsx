@@ -259,7 +259,7 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
   const [filterParent, setFilterParent] = useState('');
 
   const openCreate = () => { setForm({ parentType: '', code: '', name: '', sort: 0, status: 1 }); setWriteVisible(true); };
-  const openEdit = (row: any) => { setForm(row); setWriteVisible(true); };
+  const openEdit = (row: SubcategoryRow) => { setForm(row); setWriteVisible(true); };
   const invalidate = () => qc.invalidateQueries({ queryKey: SUBCAT_KEY });
 
   // 大类下拉候选(全集)
@@ -305,8 +305,8 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
         queryKey={SUBCAT_KEY}
         columns={columns}
         extraParams={{ parentType: filterParent || undefined }}
-        fetchData={async (params: any) => {
-          const res: any = await pageSubcategories({
+        fetchData={async (params) => {
+          const res = await pageSubcategories({
             page: params.pageNumber ?? 1,
             pageSize: params.pageSize ?? 20,
             parentType: params.parentType ?? '',
@@ -332,7 +332,7 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
           </Box>
         )}
         onEdit={openEdit}
-        onDelete={(row: any) => removeMutation.mutate([row.id])}
+        onDelete={(row: SubcategoryRow) => removeMutation.mutate([row.id])}
       />
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} fullWidth maxWidth="sm">
         <DialogTitle>{form.id ? '编辑题材' : '新增题材'}</DialogTitle>

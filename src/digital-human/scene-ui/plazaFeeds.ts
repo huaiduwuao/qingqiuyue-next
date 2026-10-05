@@ -61,7 +61,7 @@ const fmtCount = (n?: number) => (!n ? undefined : n >= 10000 ? `${(n / 10000).t
 
 async function cinema(): Promise<ZoneFeed> {
   const r = await fetchRecommend({ types: 'FILM,TELEPLAY,ANIMATION,VIDEO', size: 8, watchable: 1 }).catch(() => null);
-  const list: any[] = r?.list ?? r?.items ?? [];
+  const list: { id: string | number; title: string; author?: string; reason?: string; cover?: string; contentType: string }[] = r?.list ?? r?.items ?? [];
   return {
     title: '今日放映',
     cards: list.slice(0, 8).map((it) => ({
@@ -140,8 +140,8 @@ async function dance(): Promise<ZoneFeed> {
 }
 
 async function stars(): Promise<ZoneFeed> {
-  const r: any = await getTrending({ period: 'day', limit: 10 }).catch(() => null);
-  const list: any[] = r?.list ?? [];
+  const r = await getTrending({ period: 'day', limit: 10 }).catch(() => null);
+  const list: { id: string | number; title: string; platformLabel?: string; author?: string; cover?: string; rank?: number; contentType: string }[] = r?.list ?? [];
   return {
     title: '全网今日热榜',
     cards: list.map((it) => ({
@@ -158,8 +158,8 @@ async function stars(): Promise<ZoneFeed> {
 
 /** 许愿池旁边的「正在悬赏」:别人的需求,点了去悬赏广场 */
 export async function openBounties(): Promise<FeedCard[]> {
-  const r: any = await listDemands({ scope: 'market', order: 'newest', pageNumber: 1, pageSize: 5 } as any).catch(() => null);
-  const list: any[] = r?.list ?? r?.records ?? [];
+  const r = await listDemands({ scope: 'market', order: 'newest', pageNumber: 1, pageSize: 5 }).catch(() => null);
+  const list = r?.list ?? r?.records ?? [];
   return list.slice(0, 5).map((d) => ({
     key: String(d.id),
     title: d.title,

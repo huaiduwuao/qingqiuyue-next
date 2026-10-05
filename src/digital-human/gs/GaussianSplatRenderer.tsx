@@ -87,7 +87,7 @@ export default function GaussianSplatRenderer({
 
   // 创建 point cloud shader material (performance/balanced 模式)
   const createPointMaterial = useCallback(
-    (THREE: any, asset: GaussianAsset, mode: QualityMode): THREE.ShaderMaterial => {
+    (THREE: typeof import('three'), asset: GaussianAsset, mode: QualityMode): THREE.ShaderMaterial => {
       const isPerf = mode === 'performance';
 
       return new THREE.ShaderMaterial({
@@ -406,7 +406,7 @@ export { GaussianSplatRenderer };
 
 // ─── Geometry 创建 ───
 
-function createGeometry(THREE: any, asset: GaussianAsset, mode: QualityMode): THREE.BufferGeometry {
+function createGeometry(THREE: typeof import('three'), asset: GaussianAsset, mode: QualityMode): THREE.BufferGeometry {
   const count = asset.count;
   const geom = new THREE.BufferGeometry();
 
@@ -459,7 +459,7 @@ function createGeometry(THREE: any, asset: GaussianAsset, mode: QualityMode): TH
 // ─── Pose 更新 (LBS 变形) ───
 
 function updatePose(
-  THREE: any,
+  THREE: typeof import('three'),
   asset: GaussianAsset,
   pose: Float32Array,
   expressions: Float32Array | null,
@@ -631,7 +631,7 @@ function setupSimpleControls(
 
 // ─── Shader GLSL (内联, 避免 import 复杂性) ───
 
-function gaussianVertShaderGLSL(_THREE: any): string {
+function gaussianVertShaderGLSL(_THREE: unknown): string {
   return `
     precision highp float;
     attribute vec3 position;
@@ -698,7 +698,7 @@ function gaussianVertShaderGLSL(_THREE: any): string {
   `;
 }
 
-function gaussianFragShaderGLSL(_THREE: any): string {
+function gaussianFragShaderGLSL(_THREE: unknown): string {
   return `
     precision highp float;
     varying vec4 vColor;
@@ -718,7 +718,7 @@ function gaussianFragShaderGLSL(_THREE: any): string {
   `;
 }
 
-function pointCloudVertShaderGLSL(_THREE: any): string {
+function pointCloudVertShaderGLSL(_THREE: unknown): string {
   return `
     precision highp float;
     attribute vec3 position;
@@ -735,7 +735,7 @@ function pointCloudVertShaderGLSL(_THREE: any): string {
   `;
 }
 
-function pointCloudFragShaderGLSL(_THREE: any): string {
+function pointCloudFragShaderGLSL(_THREE: unknown): string {
   return `
     precision highp float;
     varying vec3 vColor;

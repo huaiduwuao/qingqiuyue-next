@@ -149,7 +149,8 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
 
   const options = useMemo(() => {
     if (asId !== null) {
-      const d = idQuery.data as any;
+      // 详情接口有的版本包了一层 { data },有的直接是条目
+      const d = idQuery.data as (Partial<ModuleContentItem> & { data?: Partial<ModuleContentItem> }) | null | undefined;
       const item = d?.data ?? d;
       return item && item.id ? [item as ModuleContentItem] : [];
     }
@@ -188,7 +189,8 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
     staleTime: 5 * 60_000,
   });
   const sourceOptions = useMemo(() => {
-    const rows: any[] = (sourcesQuery.data as any)?.records || (sourcesQuery.data as any)?.list || [];
+    const page = sourcesQuery.data as { records?: { domain?: string; name?: string }[]; list?: { domain?: string; name?: string }[] } | undefined;
+    const rows = page?.records || page?.list || [];
     return rows
       .filter((r) => r?.domain)
       .map((r) => ({ domain: String(r.domain), name: String(r.name || r.domain) }));
@@ -536,18 +538,25 @@ function GapHint({ stat }: { stat: ContentItemStats }) {
   }
 }
 
+/** /content/backfill/status 里卡片用到的字段 */
+interface BackfillStatus {
+  status?: string;
+  progress?: unknown;
+  error_msg?: string;
+}
+
 /** 单次补全任务的状态卡:运行中每 3s 轮询,跑完停。 */
 function BackfillTaskCard({ taskId, onDone }: { taskId: number; onDone?: () => void }) {
   const q = useQuery({
     queryKey: ['backfill-status', taskId],
     queryFn: () => getContentBackfillStatus(taskId),
     refetchInterval: (query) => {
-      const s = (query.state.data as any)?.status;
+      const s = (query.state.data as BackfillStatus | null | undefined)?.status;
       return s === 'running' || s === 'pending' ? 3000 : false;
     },
   });
 
-  const data = q.data as any;
+  const data = q.data as BackfillStatus | null | undefined;
   const status = data?.status as string | undefined;
   const meta = status ? STATUS_META[status] : undefined;
   const stats = parseStats(data?.progress);
@@ -660,7 +669,7 @@ function BackfillRecentRow({ item }: { item: ContentBackfillRecentItem }) {
 /** crawl_job.progress → { stats: {found, inserted, updated, failed, sources_used} } */
 function parseStats(progress: unknown): Record<string, number> | null {
   if (!progress) return null;
-  if (typeof progress === 'object') return (progress as any).stats ?? null;
+  if (typeof progress === 'object') return (progress as { stats?: Record<string, number> }).stats ?? null;
   if (typeof progress === 'string') {
     try {
       return JSON.parse(progress)?.stats ?? null;
