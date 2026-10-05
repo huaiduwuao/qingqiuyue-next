@@ -4,7 +4,7 @@
  * 设置:项目参数 / 出图参数;管理员可维护 gen-api 的 ComfyUI 工作流模板(导入 JSON、改 ckpt、启用)。
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -31,6 +31,11 @@ import { dramaAPI, genAdminAPI, type GenWorkflowAdmin, type Project } from '@/ap
 import type { SectionProps } from '../Workbench';
 import { qk, useCapabilities, useInvalidate, useOverview } from '../useProject';
 
+/** 设置页能改的项目字段(回填表单 / 判断服务端是否真的改了它们) */
+function projectForm(p: Project): Partial<Project> {
+  return { title: p.title, intent: p.intent, genre: p.genre, style: p.style, tone: p.tone, audience: p.audience, episodes: p.episodes, ep_seconds: p.ep_seconds, aspect: p.aspect, width: p.width, height: p.height };
+}
+
 const KIND_LABEL: Record<string, string> = { t2i: '文生图', i2i: '图生图', t2v: '文生视频', i2v: '图生视频' };
 
 export default function SettingsSection({ projectId }: SectionProps) {
@@ -43,13 +48,17 @@ export default function SettingsSection({ projectId }: SectionProps) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (ov.data) {
-      const p = ov.data.project;
-      setForm({ title: p.title, intent: p.intent, genre: p.genre, style: p.style, tone: p.tone, audience: p.audience, episodes: p.episodes, ep_seconds: p.ep_seconds, aspect: p.aspect, width: p.width, height: p.height });
-      setSettings({ ...(p.settings ?? {}) });
-    }
-  }, [ov.data]);
+  // 只在服务端的「这几个可编辑字段」变了时才回填表单。以前跟着整个 ov.data 走:
+  // 任务运行中 overview 每 5 秒、每个实体事件都会刷新,正在填的表单隔几秒就被冲回服务端的值。
+  const p = ov.data?.project;
+  const serverForm = p ? projectForm(p) : null;
+  const serverKey = p ? JSON.stringify([serverForm, p.settings ?? {}]) : '';
+  const [syncedKey, setSyncedKey] = useState('');
+  if (p && serverKey !== syncedKey) {
+    setSyncedKey(serverKey);
+    setForm(serverForm!);
+    setSettings({ ...(p.settings ?? {}) });
+  }
 
   if (ov.isLoading || !ov.data) return <Skeleton variant="rounded" height={320} />;
   const set = (k: keyof Project, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
