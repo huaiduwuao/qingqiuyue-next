@@ -9,6 +9,7 @@ import { Box, Button, IconButton, ListItemButton, ListItemText, Typography } fro
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import type { ConversationItem } from './useConversationHistory';
 import { relativeTime } from './immersiveUtils';
+import { ConversationCheckpoints } from './ConversationCheckpoints';
 
 export function ImmersiveSessionList({
   open,
@@ -22,6 +23,7 @@ export function ImmersiveSessionList({
   onNew,
   onRetry,
   onOpen,
+  onCheckpointRestored,
 }: {
   open: boolean;
   mounted: boolean;
@@ -34,6 +36,8 @@ export function ImmersiveSessionList({
   onNew: () => void;
   onRetry: () => void;
   onOpen: (cid: string) => void;
+  /** 回到存档后分叉出的新会话 */
+  onCheckpointRestored: (cid: string) => void;
 }) {
   return (
     <Box sx={{
@@ -124,6 +128,7 @@ export function ImmersiveSessionList({
           })
         )}
       </Box>
+      {mounted && <ConversationCheckpoints conversationId={conversationId} onRestored={onCheckpointRestored} />}
     </Box>
   );
 }

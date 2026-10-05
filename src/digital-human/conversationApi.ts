@@ -94,3 +94,38 @@ export function renameConversation(id: string, title: string) {
 export function isServerConversationId(id: string | null | undefined): id is string {
   return !!id && /^\d+$/.test(id);
 }
+
+// ---- 存档 / 回到存档(后端 agentmanager/conversation/checkpoint.go)----
+
+export interface RawCheckpoint {
+  id: number;
+  name: string;
+  messageSeq: number;
+  messageCount: number;
+  preview?: string;
+  createTime?: string;
+}
+
+export function listCheckpoints(id: string) {
+  return call<{ checkpoints: RawCheckpoint[] }>(`/${encodeURIComponent(id)}/checkpoints`);
+}
+
+/** 存在当前最新一条消息处;name 留空由后端起「存档 N」 */
+export function createCheckpoint(id: string, name = '') {
+  return call<{ checkpoint: RawCheckpoint }>(`/${encodeURIComponent(id)}/checkpoints`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function deleteCheckpoint(id: string, checkpointId: number) {
+  return call<unknown>(`/${encodeURIComponent(id)}/checkpoints/${checkpointId}`, { method: 'DELETE' });
+}
+
+/** 回到存档:后端分叉出一条新会话(原会话不动),返回新会话 */
+export function restoreCheckpoint(id: string, checkpointId: number) {
+  return call<{ conversation: RawConversation }>(
+    `/${encodeURIComponent(id)}/checkpoints/${checkpointId}/restore`,
+    { method: 'POST' },
+  );
+}

@@ -172,6 +172,41 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     await agentmAPI.deleteInstance(inst.id).catch((e) => alert(`删除失败: ${e.message}`))
     loadData()
   }
+
+  // 容器运行时:后端配了 AGENTM_CONTAINER_SOCKET 才显示「自动发现」和启停
+  const [containerRuntime, setContainerRuntime] = useState(false)
+  const [instanceBusy, setInstanceBusy] = useState<number | 'discover' | null>(null)
+  useEffect(() => {
+    if (activeTab !== 'instances' || !isAuthenticated || !isAdmin) return
+    agentmAPI.getInstanceCapabilities()
+      .then((r) => setContainerRuntime(!!r.container_runtime))
+      .catch(() => setContainerRuntime(false))
+  }, [activeTab, isAuthenticated, isAdmin])
+  const handleDiscover = async () => {
+    setInstanceBusy('discover')
+    try {
+      const r = await agentmAPI.discoverInstances()
+      const skipped = r.skipped?.length ? `\n跳过:\n${r.skipped.map((s) => `${s.name}:${s.reason}`).join('\n')}` : ''
+      alert(`${r.message}${skipped}`)
+      loadData()
+    } catch (e) {
+      alert(`自动发现失败: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setInstanceBusy(null)
+    }
+  }
+  const handleStartStop = async (inst: Instance, start: boolean) => {
+    if (!start && !confirm(`停止容器「${inst.config?.container_name || inst.name}」?`)) return
+    setInstanceBusy(inst.id)
+    try {
+      await (start ? agentmAPI.startInstance(inst.id) : agentmAPI.stopInstance(inst.id))
+      loadData()
+    } catch (e) {
+      alert(`${start ? '启动' : '停止'}失败: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setInstanceBusy(null)
+    }
+  }
   const handleDeleteSkill = async (s: Skill) => {
     if (!confirm(`删除技能「${s.name}」?`)) return
     await agentmAPI.deleteSkill(s.id).catch((e) => alert(`删除失败: ${e.message}`))
@@ -505,12 +540,18 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography variant="h6">外部运行时</Typography>
-              {/* 「自动发现」按钮已去掉:后端没接容器运行时,/instances/discover 永远 501。外部运行时是可选的遗留登记。 */}
+              {/* 「自动发现」只在后端接了容器运行时(AGENTM_CONTAINER_SOCKET)时出现,否则点了也只会报未配置 */}
+              {containerRuntime && (
+                <Button size="small" variant="outlined" disabled={instanceBusy !== null} onClick={handleDiscover}>
+                  {instanceBusy === 'discover' ? '扫描中…' : '🔍 自动发现'}
+                </Button>
+              )}
             </Box>
             <Alert severity="info" sx={{ mb: 2 }}>
               数字员工、后台运行、工作流都跑在 agentmanager 服务内部,直连「模型供应商」,不经过这里。
               这里只登记可选的外部运行时(Hermes / OpenClaw 容器),每 30 秒探活一次;没有登记属于正常情况。
               状态「异常」只说明那个外部容器连不上,不影响站内 Agent。
+              {containerRuntime && ' 「自动发现」只认带 qingqiuyue.agent-runtime=hermes|openclaw 标签的容器,自动发现登记的才能在这里启停。'}
             </Alert>
             <Box sx={{ display: 'grid', gap: 2 }}>
               {instances.length === 0 && (
@@ -556,6 +597,17 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                                  inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
                           color={inst.health_status === 'healthy' ? 'success' : 'warning'}
                         />
+                        {containerRuntime && inst.config?.container_id && (
+                          inst.status === 'active' ? (
+                            <Button size="small" color="warning" disabled={instanceBusy !== null} onClick={() => handleStartStop(inst, false)}>
+                              {instanceBusy === inst.id ? '停止中…' : '停止'}
+                            </Button>
+                          ) : (
+                            <Button size="small" disabled={instanceBusy !== null} onClick={() => handleStartStop(inst, true)}>
+                              {instanceBusy === inst.id ? '启动中…' : '启动'}
+                            </Button>
+                          )
+                        )}
                         <IconButton size="small" color="error" onClick={() => handleDeleteInstance(inst)} title="删除登记">
                           <DeleteOutlineIcon fontSize="small" />
                         </IconButton>

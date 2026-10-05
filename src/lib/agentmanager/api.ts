@@ -127,8 +127,18 @@ class AgentManagerAPI {
     }>(`/instances/${id}/status`)
   }
 
+  async getInstanceCapabilities() {
+    return this.request<InstanceCapabilities>('/instances/capabilities')
+  }
+
   async discoverInstances() {
-    return this.request<{ discovered: Instance[]; message: string }>('/instances/discover', {
+    return this.request<{
+      discovered: Instance[]
+      created: number
+      updated: number
+      skipped: { name: string; reason: string }[]
+      message: string
+    }>('/instances/discover', {
       method: 'POST',
     })
   }
@@ -695,10 +705,28 @@ class AgentManagerAPI {
     return this.request<{ checkpoints: ConversationCheckpoint[] }>(`/conversations/${uuid}/checkpoints`)
   }
 
-  async replayConversation(uuid: string, params?: { from_checkpoint?: string; from_seq?: number; skip_tool_calls?: boolean }) {
-    return this.request<ReplayResult>(`/conversations/${uuid}/replay`, {
+  /** 存档:seq 省略 = 存在最新一条消息处 */
+  async createConversationCheckpoint(id: number | string, params?: { name?: string; description?: string; seq?: number }) {
+    return this.request<{ checkpoint: ConversationCheckpoint }>(`/conversations/${id}/checkpoints`, {
       method: 'POST',
       body: JSON.stringify(params ?? {}),
+    })
+  }
+
+  async deleteConversationCheckpoint(id: number | string, checkpointId: number) {
+    return this.request<{ ok: boolean }>(`/conversations/${id}/checkpoints/${checkpointId}`, { method: 'DELETE' })
+  }
+
+  /** 回到存档:分叉出新会话(源会话不动) */
+  async restoreConversationCheckpoint(id: number | string, checkpointId: number) {
+    return this.request<ConversationForkResult>(`/conversations/${id}/checkpoints/${checkpointId}/restore`, { method: 'POST' })
+  }
+
+  /** 从第 seq 条消息(含)处分叉,不先存档 */
+  async forkConversation(id: number | string, seq: number) {
+    return this.request<ConversationForkResult>(`/conversations/${id}/fork`, {
+      method: 'POST',
+      body: JSON.stringify({ seq }),
     })
   }
 
@@ -723,6 +751,8 @@ export interface Instance {
   last_health_at?: string
   max_concurrent: number
   runtime_type: string
+  /** 自动发现登记的实例带 container_id / container_name,只有它们能在控制台启停 */
+  config?: { container_id?: string; container_name?: string } & Record<string, unknown>
   total_requests: number
   active_sessions: number
   avg_latency_ms: number
@@ -1051,30 +1081,33 @@ export interface ConversationMessage {
   create_time: string
 }
 
+/** 会话存档(agentm_session_checkpoints;后端 conversation/checkpoint.go,字段是 camelCase) */
 export interface ConversationCheckpoint {
   id: number
-  conversation_id: number
+  conversationId: number
+  userId: number
   name: string
   description: string
-  last_message_seq: number
-  last_message_id: number
-  create_time: string
+  /** 存在第几条消息处(含) */
+  messageSeq: number
+  messageId: number
+  messageCount: number
+  /** 存档处那条消息的前 200 字 */
+  preview: string
+  createTime: string
 }
 
-export interface ReplayResult {
-  conversation_id: number
-  session_uuid: string
-  title: string
-  agent_id: string
-  agent_db_id: number
-  agent_name: string
-  model: string
-  mode: string
-  messages: ConversationMessage[]
-  checkpoints: ConversationCheckpoint[]
-  total_messages: number
-  total_tokens: number
-  duration: number
+/** 回到存档 / 分叉的结果:新会话 + 复制过去的消息,源会话不动 */
+export interface ConversationForkResult {
+  conversation: { id: number; title: string; messageCount: number; metadata?: Record<string, unknown> }
+  messages: { id: number; seq: number; role: string; content: string }[]
+}
+
+/** GET /instances/capabilities:后端有没有接容器运行时(AGENTM_CONTAINER_SOCKET) */
+export interface InstanceCapabilities {
+  container_runtime: boolean
+  label: string
+  runtimes: string[]
 }
 
 // Export singleton

@@ -454,6 +454,13 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     loadConversationMessages?.(cid);
   };
 
+  // 回到存档:后端已分叉出新会话(原会话不动),刷新列表并切过去
+  const openRestoredConversation = (cid: string) => {
+    refreshHistory();
+    switchConversation?.(cid);
+    loadConversationMessages?.(cid);
+  };
+
   // 003:发消息后更新会话标题(第一条用户消息前50字)
   // 需要 realtime-api 部署后支持 PUT /conversations/:id 路由
   const updateConversationTitle = React.useCallback(async (convId: string, title: string) => {
@@ -1074,6 +1081,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
         onNew={handleNewConversation}
         onRetry={retrySessions}
         onOpen={openConversation}
+        onCheckpointRestored={openRestoredConversation}
       />
 
       {/* 底部聊天区:全宽气泡式 */}
