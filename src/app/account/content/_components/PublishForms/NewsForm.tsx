@@ -53,7 +53,7 @@ export default function NewsForm({ onSuccess }: PublishFormProps) {
   } | null>(null);
 
   // 摘要必填(新闻特色 — 没有摘要的平台会显示一大段正文在 feed 里)
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'NEWS',
     maxTitle: MAX_TITLE,
     maxDesc: 200,
@@ -73,7 +73,7 @@ export default function NewsForm({ onSuccess }: PublishFormProps) {
       if (cover && cover.status !== 'uploaded') return '封面上传未完成,请稍候';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: body.slice(0, MAX_BODY),
@@ -83,7 +83,7 @@ export default function NewsForm({ onSuccess }: PublishFormProps) {
       sourceLabel: source.trim() ? extractDomain(source.trim()) : undefined,
       status: 'reviewing',
       tags: normalizeTags(f.tags, MAX_TAGS),
-    } as any),
+    }),
   });
 
   // 工具栏 — 比 article 简化,只保留引用 / 链接 / 代码(新闻最常用的)

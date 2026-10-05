@@ -65,7 +65,7 @@ export default function AnimationForm({ onSuccess }: PublishFormProps) {
     { id: `ep-${Date.now()}`, title: '第 1 话', file: null, status: 'idle', sizeMB: 0 },
   ]);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'ANIMATION',
     maxTitle: MAX_TITLE,
     maxDesc: 200,
@@ -82,7 +82,7 @@ export default function AnimationForm({ onSuccess }: PublishFormProps) {
       if (episodes.some((e) => e.status === 'failed')) return '有话上传失败,请删除后重新上传';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: JSON.stringify({

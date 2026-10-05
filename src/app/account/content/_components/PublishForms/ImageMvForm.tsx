@@ -52,7 +52,7 @@ export default function ImageMvForm({ onSuccess }: PublishFormProps) {
   const [dragOver, setDragOver] = useState(false);
   const [audio, setAudio] = useState<AudioState | null>(null);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'PICTURE',
     maxTitle: 30,
     maxDesc: 200,
@@ -70,7 +70,7 @@ export default function ImageMvForm({ onSuccess }: PublishFormProps) {
       if (audio && audio.status !== 'uploaded') return '背景音乐上传未完成';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: JSON.stringify({

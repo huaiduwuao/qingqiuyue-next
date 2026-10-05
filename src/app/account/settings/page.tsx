@@ -111,7 +111,7 @@ export default function AccountSettingsPage() {
     formData.append('file', file);
     try {
       // 上传到 /file/upload，回填返回的 URL 到头像字段
-      const res = (await fileUpload(formData as any)) as { url?: string };
+      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { url?: string };
       const url = res?.url;
       if (url) {
         setFormValues((prev) => ({ ...prev, avatar: url }));

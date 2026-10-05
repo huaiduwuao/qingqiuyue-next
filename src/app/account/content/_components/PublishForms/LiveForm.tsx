@@ -54,7 +54,7 @@ export default function LiveForm({ onSuccess }: PublishFormProps) {
     sizeMB: number;
   } | null>(null);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'LIVE',
     maxTitle: MAX_TITLE,
     maxDesc: 200,
@@ -71,7 +71,7 @@ export default function LiveForm({ onSuccess }: PublishFormProps) {
       if (!liveStartedAt) return '请选择直播开始时间';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: JSON.stringify({

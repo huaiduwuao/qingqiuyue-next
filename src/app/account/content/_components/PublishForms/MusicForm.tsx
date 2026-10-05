@@ -53,7 +53,7 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
   } | null>(null);
 
   // 音乐:title(歌名)必填,desc/艺人/专辑选填,音频必填
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'MUSIC',
     maxTitle: MAX_TITLE,
     maxDesc: 0, // 不用 hook 的 desc(改用自己加的 artist/album)
@@ -70,7 +70,7 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
       if (lyric.length > MAX_LYRIC) return `歌词超出 ${MAX_LYRIC} 字`;
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: artist.trim().slice(0, MAX_ARTIST) || undefined,
       content: JSON.stringify({

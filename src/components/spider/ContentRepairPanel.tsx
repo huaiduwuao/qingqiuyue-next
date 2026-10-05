@@ -503,7 +503,7 @@ function RepairTaskList({
           </span>
         </Tooltip>
       </Stack>
-      {q.isError && <Alert severity="error">任务列表加载失败:{(q.error as any)?.message || '未知错误'}</Alert>}
+      {q.isError && <Alert severity="error">任务列表加载失败:{errMessage(q.error) || '未知错误'}</Alert>}
       {q.isLoading && <LinearProgress />}
       {!q.isLoading && !q.isError && rows.length === 0 && (
         <Typography variant="body2" color="text.secondary">{status ? '没有该状态的修复任务。' : '还没有修复任务。'}</Typography>

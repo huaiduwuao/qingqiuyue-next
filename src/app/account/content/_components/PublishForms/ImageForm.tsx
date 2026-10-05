@@ -37,7 +37,7 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'PICTURE',
     maxTitle: 30,
     maxDesc: 200,
@@ -53,7 +53,7 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
       if (images.length === 0) return '请至少添加 1 张图片';
       return null;
     },
-    buildPayload: () => {
+    buildPayload: (): Record<string, unknown> => {
       const urls = images.map((i) => i.uploadedUrl).filter((u): u is string => !!u);
       return {
         title: f.title.trim(),
@@ -63,7 +63,7 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
         coverUrl: urls[0],
         status: 'reviewing',
         tags: normalizeTags(f.tags, 8),
-      } as any;
+      };
     },
   });
 

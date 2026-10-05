@@ -125,7 +125,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, l
 
         <Typography variant="subtitle2" sx={{ mb: 1 }}>时间线</Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <TimelineRow label="需求创建" value={fmtDate(demand.createTime as any)} />
+          <TimelineRow label="需求创建" value={fmtDate(demand.createTime as string)} />
           {demand.publishTime && <TimelineRow label="发布并托管" value={fmtDate(demand.publishTime)} />}
           {settlement?.completedAt && <TimelineRow label="最后验收通过" value={fmtDate(settlement.completedAt)} />}
           {settlement?.settledAt && <TimelineRow label="结账时间" value={fmtDate(settlement.settledAt)} highlight />}

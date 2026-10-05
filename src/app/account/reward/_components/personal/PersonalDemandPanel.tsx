@@ -66,7 +66,7 @@ export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDe
   const query = useQuery({
     queryKey: ['personal', 'demands', 'all', currentUserId],
     queryFn: () =>
-      listDemands({ pageSize: 200 } as any).then((r) => {
+      listDemands({ pageSize: 200 }).then((r) => {
         const records = r?.records || r?.list || [];
         return records as DemandItem[];
       }),
@@ -218,7 +218,7 @@ export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDe
                     </Box>
                   )}
                   <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                    {timeAgo(d.createTime as any)}
+                    {timeAgo(d.createTime as string)}
                   </Typography>
                 </Box>
               </Box>

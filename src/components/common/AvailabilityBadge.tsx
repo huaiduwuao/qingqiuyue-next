@@ -25,6 +25,7 @@ import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import type { PlaybackStatus } from '@/apis/recommend';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 export type AvailabilityTone = 'good' | 'partial' | 'external' | 'broken';
 
@@ -47,7 +48,7 @@ export interface AvailabilityBadgeProps {
   left?: number | string;
   right?: number | string;
   bottom?: number | string;
-  sx?: any;
+  sx?: SxProps<Theme>;
 }
 
 type Spec = { label: string; tone: AvailabilityTone; icon: React.ReactElement };

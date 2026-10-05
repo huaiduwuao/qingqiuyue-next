@@ -49,7 +49,7 @@ export default function NovelForm({ onSuccess }: PublishFormProps) {
     { id: `ch-${Date.now()}`, title: '第一章', body: '', wordCount: 0 },
   ]);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'NOVEL',
     maxTitle: MAX_TITLE,
     maxDesc: 200,
@@ -67,7 +67,7 @@ export default function NovelForm({ onSuccess }: PublishFormProps) {
         return `某章超出 ${MAX_CHAPTER_BODY} 字,请精简`;
       return null;
     },
-    buildPayload: () => {
+    buildPayload: (): Record<string, unknown> => {
       const totalWordCount = chapters.reduce((sum, c) => sum + c.wordCount, 0);
       return {
         title: f.title.trim(),

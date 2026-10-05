@@ -31,6 +31,7 @@ import {
   type StartFullSiteParams,
   type StartFullSiteResult,
 } from '@/apis/spider';
+import { errMessage } from '@/lib/errMessage';
 
 export interface RunCrawlerDialogProps {
   open: boolean;
@@ -167,7 +168,7 @@ export function RunCrawlerDialog({
 
           {startMutation.isError && (
             <Alert severity="error">
-              启动失败:{(startMutation.error as any)?.message ?? '未知错误'}
+              启动失败:{errMessage(startMutation.error) ?? '未知错误'}
             </Alert>
           )}
           {startMutation.data && !startMutation.data.success && (

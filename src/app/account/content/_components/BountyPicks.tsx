@@ -34,7 +34,7 @@ export default function BountyPicks({ variant = 'desktop' }: { variant?: 'deskto
   const [detailId, setDetailId] = useState<string | null>(null);
   const q = useQuery({
     queryKey: ['creator', 'bounty-picks'],
-    queryFn: () => getHotBounties({ page: 1, pageSize: 4, order: 'reward' as any }),
+    queryFn: () => getHotBounties({ page: 1, pageSize: 4, order: 'reward' }),
     staleTime: 60_000,
   });
   const items = ((q.data?.list ?? []) as any[]).slice(0, 4);

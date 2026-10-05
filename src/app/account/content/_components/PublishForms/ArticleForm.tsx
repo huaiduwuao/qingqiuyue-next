@@ -52,7 +52,7 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
     uploadedUrl?: string;
   } | null>(null);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'ARTICLE',
     maxTitle: MAX_TITLE,
     maxDesc: 0, // 文章没有 desc 字段,关掉
@@ -69,7 +69,7 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
       if (cover && cover.status !== 'uploaded') return '封面上传未完成,请稍候或重新选择';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: body.replace(/\s+/g, ' ').trim().slice(0, 80),
       content: body.slice(0, MAX_BODY),
@@ -77,7 +77,7 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
       coverUrl: cover?.uploadedUrl,
       status: 'reviewing',
       tags: normalizeTags(f.tags, MAX_TAGS),
-    } as any),
+    }),
   });
 
   // 工具栏:在光标处插入 markdown 标记

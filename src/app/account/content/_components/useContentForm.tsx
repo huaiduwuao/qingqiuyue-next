@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { updateShare } from '@/apis/module-content';
+import { updateShare, type ModuleContentItem } from '@/apis/module-content';
 import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/lib/api/client';
 import { PricingFields } from './PricingFields';
 import { ScheduleFields } from './ScheduleFields';
@@ -159,12 +159,12 @@ export function useContentForm<TPayload = Record<string, unknown>>(
   const createMutation = useMutation({
     mutationFn: () =>
       updateShare({
-        ...(buildPayload() as object),
+        ...(buildPayload() as Partial<ModuleContentItem>),
         price,
         freeItems: price > 0 ? freeItems : 0,
         // 0 时不传:后端把 nil/0/过去的时刻一律当立即发布,少一个字段少一层歧义。
         ...(publishAt > 0 ? { publishAt } : {}),
-      } as any),
+      } as ModuleContentItem),
   });
 
   // canSubmit 不包含 validate 校验结果(validate 由各 view 在 setState 后
@@ -284,7 +284,7 @@ export async function uploadOneFile(file: File): Promise<string | null> {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const res: any = await accountClient.post('/file/upload', formData, {
+    const res = await accountClient.post<{ url?: string } | null>('/file/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res?.url ?? null;

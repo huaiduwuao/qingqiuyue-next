@@ -15,6 +15,7 @@
 import React from 'react';
 import Chip from '@mui/material/Chip';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 export type AIGCBadgeVariant = 'inline' | 'overlay';
 
@@ -28,7 +29,7 @@ export interface AIGCBadgeProps {
   right?: number | string;
   bottom?: number | string;
   /** 自定义 sx (覆盖默认) */
-  sx?: any;
+  sx?: SxProps<Theme>;
 }
 
 const inlineSx = {

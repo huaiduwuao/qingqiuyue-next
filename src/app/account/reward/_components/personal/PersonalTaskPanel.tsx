@@ -45,7 +45,7 @@ export default function PersonalTaskPanel({ currentUserId, onOpenTaskboard }: Pr
   const query = useQuery({
     queryKey: ['personal', 'tasks', 'mine-detail', currentUserId],
     queryFn: () =>
-      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 100 } as any).then((r: any) => {
+      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 100 }).then((r: any) => {
         return mapRewardTaskListFromBackend(r?.records || []);
       }),
     enabled: !!currentUserId,

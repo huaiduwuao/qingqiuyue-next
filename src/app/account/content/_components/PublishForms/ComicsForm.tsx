@@ -50,7 +50,7 @@ export default function ComicsForm({ onSuccess }: PublishFormProps) {
     { id: `pg-${Date.now()}`, file: null, previewUrl: '', status: 'idle', caption: '' },
   ]);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'COMICS',
     maxTitle: MAX_TITLE,
     maxDesc: 200,
@@ -68,7 +68,7 @@ export default function ComicsForm({ onSuccess }: PublishFormProps) {
       if (pages.some((p) => p.status === 'failed')) return '有页上传失败,请删除后重试';
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: JSON.stringify(

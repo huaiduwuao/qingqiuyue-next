@@ -106,7 +106,7 @@ export default function PersonalMobile({
 
   const demandsQ = useQuery({
     queryKey: ['personal', 'demands', 'all', currentUserId],
-    queryFn: () => listDemands({ pageSize: 200 } as any).then((r: any) => (r?.records || r?.list || []) as DemandItem[]),
+    queryFn: () => listDemands({ pageSize: 200 }).then((r: any) => (r?.records || r?.list || []) as DemandItem[]),
     enabled: !!currentUserId,
     placeholderData: [],
   });
@@ -122,7 +122,7 @@ export default function PersonalMobile({
   const tasksQ = useQuery({
     queryKey: ['personal', 'tasks', 'mine-detail', currentUserId],
     queryFn: () =>
-      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 100 } as any).then((r: any) =>
+      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 100 }).then((r: any) =>
         mapRewardTaskListFromBackend(r?.records || []),
       ),
     enabled: !!currentUserId,
@@ -267,7 +267,7 @@ export default function PersonalMobile({
                         {formatDiamonds(demandPayDiamonds(d))}
                       </Box>
                     )}
-                    <span>{timeAgo(d.createTime as any)}</span>
+                    <span>{timeAgo(d.createTime as string)}</span>
                   </Box>
                 }
               />

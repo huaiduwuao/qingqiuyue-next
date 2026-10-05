@@ -54,7 +54,7 @@ export default function FilmForm({ onSuccess }: PublishFormProps) {
     sizeMB: number;
   } | null>(null);
 
-  const f = useContentForm<any>({
+  const f = useContentForm<Record<string, unknown>>({
     contentType: 'FILM',
     maxTitle: MAX_TITLE,
     maxDesc: MAX_DESC,
@@ -74,7 +74,7 @@ export default function FilmForm({ onSuccess }: PublishFormProps) {
         return `电影时长不能超过 ${MAX_DURATION_MIN} 分钟`;
       return null;
     },
-    buildPayload: () => ({
+    buildPayload: (): Record<string, unknown> => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
       content: JSON.stringify({

@@ -42,7 +42,7 @@ export default function RightSidebar() {
   // 真接口:内容侧栏活动 feed
   const { data: feed } = useQuery({
     queryKey: ['content-activity-feed'],
-    queryFn: () => getContentActivityFeed({ limit: 5 } as any),
+    queryFn: () => getContentActivityFeed({ limit: 5 }),
     staleTime: 60 * 1000,
     refetchOnMount: 'always',
   });

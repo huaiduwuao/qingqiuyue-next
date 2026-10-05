@@ -127,7 +127,7 @@ export default function PersonalHero(_props: Props) {
   const myTasksQuery = useQuery({
     queryKey: ['personal', 'tasks', 'mine', currentUserId],
     queryFn: () =>
-      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 1 } as any).then(
+      listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 1 }).then(
         (r: any) => r?.totalRow || 0
       ),
     enabled: !!currentUserId,

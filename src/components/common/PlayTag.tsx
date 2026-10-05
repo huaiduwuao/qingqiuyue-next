@@ -17,6 +17,7 @@ import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import { AvailabilityBadge, specOf } from './AvailabilityBadge';
 import { loadAvailability, peekAvailability, type AvailabilityItem } from '@/apis/availability';
 import type { EntityId } from '@/lib/id';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 /** 这些类型没有能不能播的问题,不必发请求。 */
 const INERT_TYPES = new Set(['WALLPAPER', 'PICTURE', 'PERSON', 'TOPIC', 'USER', 'PLAYLIST']);
@@ -35,7 +36,7 @@ export interface PlayTagProps {
   left?: number | string;
   right?: number | string;
   bottom?: number | string;
-  sx?: any;
+  sx?: SxProps<Theme>;
 }
 
 function usePlayAvailability(id: EntityId | null | undefined, skip: boolean) {
