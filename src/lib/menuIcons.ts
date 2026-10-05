@@ -22,6 +22,7 @@ export const MENU_ICON_MAP: Record<string, SvgIconComponent> = {
   Key: Icons.KeyRounded,
   ManageSearch: Icons.ManageSearchRounded,
   MovieFilter: Icons.MovieFilterRounded,
+  ViewModule: Icons.ViewModuleRounded,
   People: Icons.PeopleRounded,
   SmartToy: Icons.SmartToyRounded,
   MilitaryTech: Icons.MilitaryTechRounded,
