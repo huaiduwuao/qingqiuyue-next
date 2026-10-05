@@ -533,7 +533,7 @@ export function useMessageUnread(): number {
     refetchInterval: dmPoll,
   });
   if (!isAuthenticated) return 0;
-  const dm = (sessions?.list || []).reduce((sum: number, s: any) => sum + (s.unread || 0), 0);
+  const dm = (sessions?.list || []).reduce((sum: number, s: { unread?: number }) => sum + (s.unread || 0), 0);
   return (countData?.total || 0) + dm;
 }
 
@@ -554,7 +554,7 @@ export function DmIconView() {
   // useMemo 必须在条件返回之前，保持 hooks 顺序一致
   const unread = useMemo(() => {
     const list = sessions?.list || [];
-    return list.reduce((sum: number, s: any) => sum + (s.unread || 0), 0);
+    return list.reduce((sum: number, s: { unread?: number }) => sum + (s.unread || 0), 0);
   }, [sessions]);
 
   if (!isAuthenticated) {

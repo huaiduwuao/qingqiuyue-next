@@ -17,14 +17,28 @@ import type { BotItem } from '@/beans/system';
 interface BotFormDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: any) => void;
+  onSubmit: (values: Record<string, unknown>) => void;
   record: BotItem | null;
   isSubmitting?: boolean;
 }
 
+/** 表单里编辑的字段(其余字段原样透传) */
+type BotFormValues = {
+  name?: string;
+  nickname?: string;
+  avatar?: string;
+  personaPrompt?: string;
+  useLlmForComments?: boolean;
+  commentIntervalMinutes?: number;
+  chatEnabled?: boolean;
+  llmModel?: string;
+  status?: string | number;
+  [key: string]: unknown;
+};
+
 export default function BotFormDialog({ open, onClose, onSubmit, record, isSubmitting }: BotFormDialogProps) {
   const isEdit = !!record?.id;
-  const [values, setValues] = useState<Record<string, any>>({});
+  const [values, setValues] = useState<BotFormValues>({});
   const [templatesRaw, setTemplatesRaw] = useState('');
   const [templatesError, setTemplatesError] = useState('');
 
@@ -60,7 +74,7 @@ export default function BotFormDialog({ open, onClose, onSubmit, record, isSubmi
     setTemplatesError('');
   }, [record, open]);
 
-  const set = (k: string, v: any) => setValues((s) => ({ ...s, [k]: v }));
+  const set = (k: string, v: unknown) => setValues((s) => ({ ...s, [k]: v }));
 
   const handleSubmit = () => {
     const templates = templatesRaw

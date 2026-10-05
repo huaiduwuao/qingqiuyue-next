@@ -37,7 +37,7 @@ export function SubscriptionManagerPage() {
 
   const list: SubscriptionItem[] = Array.isArray(data)
     ? (data as SubscriptionItem[])
-    : (data as any)?.list ?? [];
+    : (data as { list?: SubscriptionItem[] } | undefined)?.list ?? [];
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 720, mx: 'auto' }}>

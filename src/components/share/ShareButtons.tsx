@@ -43,14 +43,17 @@ import ShareCardPreview, { type ShareCardData } from './ShareCardPreview';
 import type { EntityId } from '@/lib/id';
 import { errName } from '@/lib/errMessage';
 
+/** 客户端注入的 Tauri 全局对象(只用到 core.invoke) */
+type TauriGlobal = { core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } };
+
 /** 简化版:Tauri 环境检测 */
 function isTauri(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).__TAURI__;
+  return typeof window !== 'undefined' && !!(window as Window & { __TAURI__?: TauriGlobal }).__TAURI__;
 }
 /** 简化版:Tauri 命令调用 */
-async function invokeTauri(cmd: string, args?: Record<string, unknown>): Promise<any> {
+async function invokeTauri(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
   if (typeof window === 'undefined') return null;
-  const t = (window as any).__TAURI__;
+  const t = (window as Window & { __TAURI__?: TauriGlobal }).__TAURI__;
   if (!t?.core?.invoke) return null;
   return t.core.invoke(cmd, args);
 }

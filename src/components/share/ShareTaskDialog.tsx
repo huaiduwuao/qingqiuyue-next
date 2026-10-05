@@ -70,7 +70,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
   const accountsQ = useQuery({
     queryKey: ['share-accounts', platform],
     queryFn: async (): Promise<PlatformAccountBrief[]> => {
-      const data: any = await listAccounts(platform);
+      const data = (await listAccounts(platform)) as PlatformAccountBrief[] | { list?: PlatformAccountBrief[] } | null;
       return Array.isArray(data) ? data : data?.list || [];
     },
     enabled: open,

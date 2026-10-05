@@ -35,11 +35,11 @@ export function SubscribeButton({ targetType, targetKey, variant = 'icon' }: Pro
     queryFn: listSubscriptions,
   });
 
-  const list: any[] = Array.isArray(data)
-    ? (data as any[])
-    : (data as any)?.list ?? [];
+  const list: { id: number; target_type?: string; target_key?: string }[] = Array.isArray(data)
+    ? data
+    : (data as { list?: { id: number; target_type?: string; target_key?: string }[] } | undefined)?.list ?? [];
   const existing = list.find(
-    (s: any) => s.target_type === targetType && s.target_key === targetKey
+    (s) => s.target_type === targetType && s.target_key === targetKey
   );
 
   const create = useMutation({

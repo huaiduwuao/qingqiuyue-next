@@ -187,13 +187,15 @@ function TopicPicker({ open, onClose, onPick, onCreate }: { open: boolean; onClo
 
 function ContentPicker({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (c: ContentPick) => void }) {
   const [q, setQ] = useState('');
+  /** 内容搜索回包里用到的字段 */
+  type PickRow = { id: string | number; title: string; cover?: string; coverUrl?: string; contentType?: string };
   const dq = useDebounced(q.trim(), 400);
   const { data, isFetching } = useQuery({
     queryKey: ['community', 'content-pick', dq],
     enabled: open && dq.length > 0,
     queryFn: async () => {
-      const res: any = await moduleContentPage({ page: 1, pageSize: 12, title: dq });
-      const rows: any[] = res?.list || res?.records || [];
+      const res = (await moduleContentPage({ page: 1, pageSize: 12, title: dq })) as { list?: PickRow[]; records?: PickRow[] } | null;
+      const rows: PickRow[] = res?.list || res?.records || [];
       return rows.map((r) => ({ id: r.id, title: r.title, cover: r.cover || r.coverUrl || '', contentType: String(r.contentType || '').toUpperCase() }));
     },
   });

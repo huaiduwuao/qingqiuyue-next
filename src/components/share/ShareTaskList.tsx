@@ -36,7 +36,7 @@ export default function ShareTaskList({ platform, limit = 20 }: ShareTaskListPro
     queryKey: [...LIST_KEY, platform],
     queryFn: () => listTasks({ page: 1, pageSize: limit, platform }),
     refetchInterval: (query) => {
-      const list: any[] = (query.state.data as any)?.list || [];
+      const list = (query.state.data as { list?: ShareTask[] } | undefined)?.list || [];
       const hasUnfinished = list.some(
         (t) => t.status === 'pending' || t.status === 'uploading' || t.status === 'publishing'
       );
@@ -44,7 +44,7 @@ export default function ShareTaskList({ platform, limit = 20 }: ShareTaskListPro
     },
   });
 
-  const tasks: ShareTask[] = (data as any)?.list || [];
+  const tasks: ShareTask[] = (data as { list?: ShareTask[] } | undefined)?.list || [];
 
   const retryMut = useMutation({
     mutationFn: (id: number) => retryTask(id),
