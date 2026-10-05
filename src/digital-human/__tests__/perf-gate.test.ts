@@ -6,7 +6,7 @@ function fakeGL(renderer: string | null) {
   vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
     if (tag !== 'canvas') return orig(tag);
     const c = orig('canvas') as HTMLCanvasElement;
-    (c as any).getContext = () => (renderer === null ? null : {
+    (c as unknown as { getContext: () => unknown }).getContext = () => (renderer === null ? null : {
       RENDERER: 0x1f01,
       getExtension: (n: string) => (n === 'WEBGL_debug_renderer_info' ? { UNMASKED_RENDERER_WEBGL: 0x9246 } : n === 'WEBGL_lose_context' ? { loseContext() {} } : null),
       getParameter: () => renderer,

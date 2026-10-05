@@ -52,7 +52,7 @@ export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalPr
   useEffect(() => {
     if (ui?.type === 'toast' && ui.body?.content) {
       setToastContent(ui.body.content as string)
-      setToastSeverity((ui.avatar?.expression as any) || 'info')
+      setToastSeverity((ui.avatar?.expression as 'success' | 'info' | 'warning' | 'error' | undefined) || 'info')
       setToastOpen(true)
     }
   }, [ui])
@@ -316,7 +316,7 @@ export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalPr
 function renderBody(body: UIBody | undefined, onAction?: (action: UIAction) => void): React.ReactNode {
   if (!body) return null
 
-  const content = body.content as any
+  const content = body.content as { items?: unknown[]; columns?: number; fields?: unknown[] } | undefined
 
   switch (body.type) {
     case 'text':
@@ -357,7 +357,7 @@ function renderBody(body: UIBody | undefined, onAction?: (action: UIAction) => v
         return (
           <Box style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${(content as any).columns || 3}, 1fr)`,
+            gridTemplateColumns: `repeat(${content.columns || 3}, 1fr)`,
             gap: 8
           }}>
             {(content.items as GridItem[]).map((item, index) => (

@@ -104,7 +104,7 @@ export async function loadKeyFrames(url: string): Promise<KeyFrame[]> {
   const raw = await resp.json();
   if (!Array.isArray(raw)) throw new Error('Keyframe JSON 应为数组');
 
-  return raw.map((f: any) => ({
+  return raw.map((f: { joints?: number[]; pose?: number[]; expression?: number[]; camera?: number[] }) => ({
     joints: f.joints ? new Float32Array(f.joints) : new Float32Array(0),
     pose: f.pose ? new Float32Array(f.pose) : new Float32Array(0),
     expression: f.expression ? new Float32Array(f.expression) : undefined,

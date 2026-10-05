@@ -89,13 +89,13 @@ const seedSQL = readRepoFile('qingqiuyue-go/sql/postgresql/seed.sql');
 
 const actionsJson = JSON.parse(
   readOwnFile('src/data/seed/actions/character.json'),
-) as any[];
+) as { name: string; formula?: unknown; [key: string]: unknown }[];
 const expressionsJson = JSON.parse(
   readOwnFile('src/data/seed/expressions/character.json'),
-) as any[];
+) as { name: string; formula?: unknown; [key: string]: unknown }[];
 const visemesJson = JSON.parse(
   readOwnFile('src/data/seed/visemes/character.json'),
-) as any[];
+) as { name: string; formula?: unknown; [key: string]: unknown }[];
 
 describe.skipIf(!repoRoot)('数字人枚举一致性', () => {
   it('actions 在前端、seed JSON、Go、SQL 中一致', () => {

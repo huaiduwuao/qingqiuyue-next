@@ -66,7 +66,7 @@ export interface VisemeFrame {
  */
 export interface ChatResp {
   text: string;
-  toolCalls?: Array<{ name: string; args?: Record<string, any> }>;
+  toolCalls?: Array<{ name: string; args?: Record<string, unknown> }>;
   emotion?: Record<string, number>;
   action?: string;
   visemes?: VisemeFrame[];
@@ -85,11 +85,11 @@ export function buildRealtimeChatBody(message: string, history: Array<{ role: st
 
 /** 解包 /api/realtime/chat 的 {code, msg, data: {text, toolCalls}};非 2xx 抛出后端 msg。 */
 export async function readRealtimeChatReply(r: Response): Promise<ChatResp> {
-  const body = (await r.json().catch(() => ({}))) as any;
+  const body = (await r.json().catch(() => ({}))) as { code?: unknown; msg?: string; error?: string; data?: unknown; text?: unknown } | null;
   if (!r.ok || (typeof body?.code === 'number' && body.code !== 200 && body.code !== 0)) {
     throw new Error(body?.msg || body?.error || `服务返回 ${r.status}`);
   }
-  const data = body && typeof body === 'object' && body.data && typeof body.data === 'object' ? body.data : body;
+  const data = (body && typeof body === 'object' && body.data && typeof body.data === 'object' ? body.data : body) as { text?: unknown } | null;
   return { ...data, text: typeof data?.text === 'string' ? data.text : '' } as ChatResp;
 }
 

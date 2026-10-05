@@ -27,7 +27,7 @@ export class ConversationApiError extends Error {
 }
 
 /** 把服务端 body 解读成 JSON。空 / HTML / BOM 都不会抛 SYNTAX_ERR。 */
-async function readJson(res: Response): Promise<any> {
+async function readJson(res: Response): Promise<unknown> {
   const text = await res.text();
   // BOM / 前后空白 / 非 JSON 头(HTML 错误页、空白响应)走兜底
   const trimmed = text.replace(/^﻿/, '').trim();
@@ -47,11 +47,11 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) },
   });
   if (!res.ok) {
-    const body = await readJson(res).catch(() => ({}));
+    const body = (await readJson(res).catch(() => ({}))) as { error?: string } | null;
     const msg = res.status === 401 ? '登录已失效,请重新登录' : body?.error || `HTTP ${res.status}`;
     throw new ConversationApiError(msg, res.status);
   }
-  return readJson(res);
+  return readJson(res) as Promise<T>;
 }
 
 export interface RawConversation {

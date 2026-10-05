@@ -179,8 +179,8 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
     const g = handle.getPlacementGroup(selectedId);
     if (!three || !g) return;
     let alive = true;
-    let tc: any = null;
-    let helper: any = null;
+    let tc: import('three/examples/jsm/controls/TransformControls.js').TransformControls | null = null;
+    let helper: import('three').Object3D | null = null;
     let before: Pose | null = null;
     const canvas = three.canvas;
     import('three/examples/jsm/controls/TransformControls.js').then(({ TransformControls }) => {
@@ -200,7 +200,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
         const p = objectsRef.current.items.find((x) => x.id === selectedId);
         before = p ? poseOf(p) : null;
       });
-      tc.addEventListener('dragging-changed', (e: { value: boolean }) => { if (three.controls) three.controls.enabled = !e.value; });
+      tc.addEventListener('dragging-changed', (e: { value: unknown }) => { if (three.controls) three.controls.enabled = !e.value; });
       tc.addEventListener('objectChange', () => {
         // 拖出房间之外就收回来
         const c = clampPose(g.position.x, g.position.z);

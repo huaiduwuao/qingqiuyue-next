@@ -29,7 +29,7 @@ async function jget<T>(url: string): Promise<T | null> {
   }
 }
 
-async function jsend<T>(method: 'POST' | 'PUT' | 'DELETE', url: string, body?: any): Promise<T | null> {
+async function jsend<T>(method: 'POST' | 'PUT' | 'DELETE', url: string, body?: unknown): Promise<T | null> {
   try {
     const res = await authFetch(url, {
       method,
