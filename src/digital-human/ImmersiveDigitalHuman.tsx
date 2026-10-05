@@ -16,16 +16,7 @@ import { devLog } from '@/lib/dev-log';
  */
 
 import React from 'react';
-import { Box, ButtonBase, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import MicRoundedIcon from '@mui/icons-material/MicRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import TvRoundedIcon from '@mui/icons-material/TvRounded';
-import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import { Box, ButtonBase, Typography } from '@mui/material';
 import { useWorldGame } from './scene-ui/useWorldGame';
 import { GameStatusBar, GameToasts, Minimap, QuestPanel, WorldHelp, WorldTools, ZonePrompt, useWorldHelp } from './scene-ui/GameHud';
 import { AuraShop, PlatformTasks, ZonePanel } from './scene-ui/PlazaPanels';
@@ -39,7 +30,7 @@ import { usePlazaScenes } from './scene-ui/usePlazaScenes';
 import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
 import { SCENE_PRESETS } from './vrm/sceneBuilders';
 import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
-import { roomBounds, worldEnv } from './vrm/world/worldLayout';
+import { worldEnv } from './vrm/world/worldLayout';
 import { WORLD_ASSET_BASE } from './vrm/world/realKit';
 import { mediaUrl } from '@/lib/media';
 import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
@@ -57,7 +48,6 @@ import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
-import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
 import { createPortal } from 'react-dom';
@@ -67,15 +57,11 @@ import { ScenePanel } from './scene-ui/ScenePanel';
 import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './scene-state';
-import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
-import ChatRichItem, { isRichItem } from './scene-ui/ChatRichItem';
 import dynamic from 'next/dynamic';
 import ClipAvatar from './ClipAvatar';
-import { probeClips, type AvatarSpeakState } from './clip-avatar';
+import type { AvatarSpeakState } from './clip-avatar';
 // 3DGS 渲染器只能在浏览器里加载(three + WebGL)
 const GaussianSplatRenderer = dynamic(() => import('./gs/GaussianSplatRenderer'), { ssr: false });
-type AvatarMode = 'vrm' | '3dgs' | '2d';
-interface GsAssetItem { id: string; name: string; assetUrl: string }
 import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, resolveIframeUrl, type IframeOpenTarget } from './virtual-browser';
 import SceneDisplay from './scene-ui/SceneDisplay';
@@ -88,7 +74,6 @@ import { createConversation, isServerConversationId, renameConversation } from '
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
-import { logout } from '@/apis/user';
 import { useQuery } from '@tanstack/react-query';
 import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
 import VrmEmotionChips from '@/components/digital-human/VrmEmotionChips';
@@ -98,108 +83,14 @@ import { clearAvatarCache } from './vrm/loadAvatar';
 import type { VrmModelConfig } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
 import { API_PREFIX } from '@/lib/api/prefix';
-import { authFetch } from '@/lib/api/auth'; // realtime-api 全部要登录
-
-// ── 调试：排查 runtime.lastError 来源 ──
-// 只在开发环境,或地址栏带 ?dhdebug=1 时启用。以前模块一加载就给整个 app 挂
-// 全局 keydown、替换 window.requestAnimationFrame、起一个永不清理的 setInterval:
-// 线上用户访问过一次 /digital-human 之后,在任何页面按个「1」都会写进 noThree,
-// 下次刷新 3D 就不渲染了。
-// 操作步骤:
-//   1. 打开 http://localhost:3000/digital-human(线上加 ?dhdebug=1)
-//   2. 先记下控制台错误出现频率
-//   3. 按 1 → 刷新页面 → 看错误是否停止 (排除 Three.js)
-//   4. 按 2 → 刷新页面 → 点麦克风 → 看错误是否出现 (排除 VAD)
-//   5. 按 3 → 刷新页面 → 点麦克风 → 看错误是否出现 (排除 ONNX wake-word)
-//   "开关状态" 会打印在控制台，切换后需手动刷新页面生效
-//   按 0 清除所有开关
-const STORAGE_KEY = 'dh_debug_flags';
-const loadFlags = (): Record<string, boolean> => {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
-};
-const saveFlags = (f: Record<string, boolean>) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(f)); } catch { /* 隐私模式写不进去 */ }
-  devLog.log('[debug] flags saved:', f, '(刷新页面生效)');
-};
-const debugEnabled = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  if (process.env.NODE_ENV !== 'production') return true;
-  try { return new URLSearchParams(window.location.search).has('dhdebug'); } catch { return false; }
-};
-if (typeof window !== 'undefined') {
-  // 子组件(BlenderAvatar / VAD / 唤醒词)在自己的 effect 里读这个开关,比本组件的 effect 早,
-  // 所以开关值要在模块加载时就定好。没开调试时一律视为关闭 —— 即使 localStorage 里
-  // 残留了以前误触写进去的 noThree。
-  const flags = debugEnabled() ? loadFlags() : {};
-  (window as any).__DIGITAL_HUMAN_DEBUG = { noThree: !!flags.noThree, noVoice: !!flags.noVoice, noWake: !!flags.noWake };
-}
-
-/** 调试快捷键 + rAF/音频帧率采样:只在调试开启且本组件挂载期间生效,卸载时全部还原 */
-function useDigitalHumanDebug() {
-  React.useEffect(() => {
-    if (!debugEnabled()) return;
-    devLog.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // 不在输入框里触发
-      if ((e.target as HTMLElement | null)?.isContentEditable) return;
-      const f = loadFlags();
-      switch (e.key) {
-        case '1': f.noThree = !f.noThree; saveFlags(f); break;
-        case '2': f.noVoice = !f.noVoice; saveFlags(f); break;
-        case '3': f.noWake  = !f.noWake;  saveFlags(f); break;
-        case '0': try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ } devLog.log('[debug] all flags cleared'); break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-
-    // 每 2 秒采样一次，统计 rAF / audio 帧率
-    let rAFCount = 0, audioFrameCount = 0;
-    const origRAF = window.requestAnimationFrame;
-    const wrappedRAF = (cb: FrameRequestCallback) => origRAF.call(window, (t: number) => { rAFCount++; cb(t); });
-    window.requestAnimationFrame = wrappedRAF;
-    const timer = setInterval(() => {
-      if (rAFCount > 0 || audioFrameCount > 0) {
-        devLog.debug(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
-        rAFCount = 0; audioFrameCount = 0;
-      }
-    }, 2000);
-    (window as any).__DEBUG_audioFrameInc = () => { audioFrameCount++; };
-
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      clearInterval(timer);
-      // 期间别人又包了一层就不动,免得把别人的包装拆掉
-      if (window.requestAnimationFrame === wrappedRAF) window.requestAnimationFrame = origRAF;
-      delete (window as any).__DEBUG_audioFrameInc;
-    };
-  }, []);
-}
-
-// 相对时间:刚建的会话显示「刚刚」,让"点了新会话"立刻可见
-function relativeTime(iso: string): string {
-  if (!iso) return '';
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '';
-  const diff = Date.now() - t;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return `${min}分钟前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}小时前`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}天前`;
-  return new Date(t).toLocaleDateString('zh-CN');
-}
-
-// 后端/旧版本给会话起的默认名;还叫这些名字的会话,第一条消息到来时改用消息做标题
-const DEFAULT_TITLES = new Set(['新会话', '未命名会话', '(无标题)']);
-
-function conversationTitle(text: string): string {
-  const t = text.trim().replace(/\s+/g, ' ');
-  if (!t) return '新会话';
-  return t.length > 50 ? `${t.slice(0, 50)}…` : t;
-}
+import { buildRoomState, conversationTitle, DEFAULT_TITLES, lastActiveChoicesIndex, nextTimeMode, type AvatarMode } from './immersiveUtils';
+import { useAvatarAssets, useNarrow, useStaffList, useStageStateSync, useSystemIntents } from './useImmersiveEnv';
+import { ImmersiveTopBar } from './ImmersiveTopBar';
+import { ImmersiveSessionList } from './ImmersiveSessionList';
+import { ChatInputBar, ChatMessageList } from './ImmersiveChat';
+import { BreathMeter, TravelOverlay } from './ImmersiveOverlays';
+// 调试开关有模块级副作用,放最后一个 import:求值时机和原来写在本文件里一样(所有依赖之后)
+import { useDigitalHumanDebug } from './immersiveDebug';
 
 /** initialRoom:?room=<uid> 串门链接直达那个人的房间 */
 export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: string | null } = {}) {
@@ -245,14 +136,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   // 言出法随:聊天钩子比场景 / 舞台先建,工具事件经这个 ref 转给 useWorldObjects
   const worldToolRef = React.useRef<((e: WorldToolEvent) => void) | null>(null);
   const worldHelp = useWorldHelp();
-  const [narrow, setNarrow] = React.useState(false);
-  React.useEffect(() => {
-    const mq = window.matchMedia('(max-width: 899px)');
-    const sync = () => setNarrow(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
+  const narrow = useNarrow();
   const openTargetRef = React.useRef<(target: IframeOpenTarget, opts?: { title?: string; slot?: DisplaySlot | null }) => void>(() => {});
   const openOnDisplayRef = React.useRef<(input: string, opts?: { title?: string; slot?: DisplaySlot | null }) => void>(() => {});
   const closeDisplayRef = React.useRef<(slot: DisplaySlot | null) => void>(() => {});
@@ -263,44 +147,12 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   // 形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段;三种共用同一套对话、面板、工具日志。
   // 背景:场景预设,或把一份 3DGS 场景资产垫在 VRM 舞台后面(两层各自的相机,暂不联动)。
   const [avatarMode, setAvatarMode] = React.useState<AvatarMode>('vrm');
-  const [gsAssets, setGsAssets] = React.useState<GsAssetItem[]>([]);
-  const [gsAsset, setGsAsset] = React.useState('');
   const [gsBackdrop, setGsBackdrop] = React.useState('');
   const [speaking, setSpeaking] = React.useState(false);
-  // 2D 片段是否真的能播(mp4 不进仓库,没放文件时静态站回退成 index.html)
-  const [clipsProblem, setClipsProblem] = React.useState<string | null>('检查中');
-  React.useEffect(() => {
-    let alive = true;
-    probeClips('/avatar/clips.json').then((p) => { if (alive) setClipsProblem(p); });
-    return () => { alive = false; };
-  }, []);
-  React.useEffect(() => {
-    const ac = new AbortController();
-    authFetch(API_PREFIX + '/api/realtime/assets', { signal: ac.signal }).then((r) => r.json()).then((d) => {
-      const list = ((d?.data?.list || []) as { id: string; name: string; mode: string; status: string; active?: boolean; assetUrl?: string }[])
-        .filter((a) => a.mode === '3dgs' && a.status === 'ready' && a.assetUrl)
-        .map((a) => ({ id: a.id, name: a.name + (a.active ? '(当前)' : ''), assetUrl: a.assetUrl as string }));
-      setGsAssets((prev) => [...prev.filter((p) => p.id === 'config'), ...list]);
-      const active = list.find((a) => a.name.endsWith('(当前)')) || list[0];
-      if (active) setGsAsset((cur) => cur || active.assetUrl);
-    }).catch(() => {});
-    authFetch(API_PREFIX + '/api/realtime/config', { signal: ac.signal }).then((r) => r.json()).then((d) => {
-      const u = d?.data?.assetUrl as string | undefined;
-      if (u) {
-        setGsAssets((prev) => (prev.some((a) => a.assetUrl === u) ? prev : [{ id: 'config', name: '默认资产', assetUrl: u }, ...prev]));
-        setGsAsset((cur) => cur || u);
-      }
-    }).catch(() => {});
-    return () => ac.abort();
-  }, []);
+  const { gsAssets, gsAsset, setGsAsset, clipsProblem } = useAvatarAssets();
   // 选哪个数字员工对话(worker / frontend / … / builder / 自定义):以前写死 worker,builder 根本没法从这里用
-  const [staffList, setStaffList] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
+  const staffList = useStaffList();
   const [aguiAgent, setAguiAgent] = React.useState('worker');
-  React.useEffect(() => {
-    const ac = new AbortController();
-    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff', { signal: ac.signal }).then((r) => r.json()).then((d) => setStaffList(d.agents || [])).catch(() => {});
-    return () => ac.abort();
-  }, []);
   // 002:全屏页体现多会话能力(放在 chat 之前:发第一条消息建会话后要刷新它)
   const { history, loading: historyLoading, error: historyError, refresh: refreshHistory } = useConversationHistory(20);
   const [sessionError, setSessionError] = React.useState<string | null>(null);
@@ -469,6 +321,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText, conversationId, switchConversation,
     loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
+  // 不用 useCallback:chat 是每次渲染的新对象,React Compiler 判定 sendText 可能被改、记忆不住
+  const sendFromChat = (t: string) => { void sendText(t); };
   // 文本标签 <action:x/> 驱动的动作、面板、内嵌浏览器也要进快照,模型下一轮才看得到
   React.useEffect(() => { sceneRef.current.action = action || 'idle'; }, [action]);
   React.useEffect(() => { sceneRef.current.panel = scenePanel ? { kind: scenePanel.kind, title: scenePanel.title } : null; }, [scenePanel]);
@@ -488,6 +342,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 900px)').matches,
   );
+  const toggleSessions = React.useCallback(() => setSessionDrawerOpen((o) => !o), []);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
 
@@ -547,13 +402,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   }, [stageHandle, audioRef]);
   const [panelOpen, setPanelOpen] = React.useState(false);
   // 只有最新一组快捷选项还能点,而且得是这一轮的(后面用户又说过话就作废)
-  let lastChoicesIndex = -1;
-  for (let i = chatLog.length - 1; i >= 0 && chatLog[i].who !== 'user'; i--) {
-    if (chatLog[i].who === 'choices') {
-      lastChoicesIndex = i;
-      break;
-    }
-  }
+  const lastChoicesIndex = lastActiveChoicesIndex(chatLog);
   // 002:聊天消息区自动滚动到底
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -785,20 +634,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   // 创世四期:房间语音(真人开麦走房间连接;AI 的话服务端合成后也从这条连接来)
   const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });
   function roomStateOf() {
-    const d = scenes.def;
-    const b = roomBounds(d) ?? { hx: 5, hz: 4 };
-    const snap = stageHandleRef.current?.getWorldSnapshot();
-    const r1 = (v: number) => Math.round(v * 10) / 10;
-    return {
-      name: d.name,
-      owner: d.room?.ownerName ?? '',
-      mine: !!d.room?.mine,
-      template: d.room?.template ?? 'study',
-      size: [b.hx * 2, b.hz * 2] as [number, number],
-      me: { x: r1(snap?.x ?? 0), z: r1(snap?.z ?? 0) },
-      objects: worldObjects.items.slice(0, 40).map((p) => ({ id: p.id, label: p.label || p.asset?.nameZh || p.assetKey, x: r1(p.x), z: r1(p.z), deg: Math.round((p.rotY * 180) / Math.PI) % 360, ...(p.scale && p.scale !== 1 ? { scale: r1(p.scale) } : {}) })),
-      people: roomSock.peers.slice(0, 20).map((p) => ({ name: p.nickname, x: r1(p.x), z: r1(p.z), ...(p.owner ? { owner: true } : {}), ...(p.ai ? { ai: true } : {}) })),
-    };
+    return buildRoomState(scenes.def, stageHandleRef.current?.getWorldSnapshot(), worldObjects.items, roomSock.peers);
   }
   // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
   plazaStateRef.current = worldActive ? {
@@ -867,8 +703,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const [worldTime, setWorldTime] = React.useState<TimeMode | null>(null);
   const currentTime = (worldTime ?? worldEnv(scenes.def).time) as TimeMode;
   const cycleTime = () => {
-    const order: TimeMode[] = ['dawn', 'day', 'dusk', 'night', 'auto'];
-    const next = order[(order.indexOf(currentTime) + 1) % order.length];
+    const next = nextTimeMode(currentTime);
     setWorldTime(next);
     game.toast(next === 'night' ? '🌙' : next === 'auto' ? '🕰️' : '☀️', TIME_LABELS[next]);
   };
@@ -913,89 +748,10 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   }, [stageHandle]);
 
   // 把 UI state 推到 VrmStage.handle（每条都打日志，方便排查哪条没生效）
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setScene', stageState.scene, '| handle:', !!stageHandle); stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setCameraPreset', stageState.camera, '| handle:', !!stageHandle); stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setDanceStyle', stageState.danceStyle, '| handle:', !!stageHandle); stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setDancing', stageState.dancing, '| handle:', !!stageHandle); stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setBpm', stageState.bpm, '| handle:', !!stageHandle); stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setDanceAmp', stageState.danceAmp, '| handle:', !!stageHandle); stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setConfetti', stageState.confetti, '| handle:', !!stageHandle); stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
-  React.useEffect(() => { stageHandle?.setYOffset(stageState.yOffset); }, [stageHandle, stageState.yOffset]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setAutoBlink', stageState.autoBlink); }, [stageState.autoBlink]);  // autoBlink 走 prop，不走 handle
-  React.useEffect(() => { devLog.debug('[Immersive→handle] setLookAtCamera', stageState.lookAtCamera); }, [stageState.lookAtCamera]);  // lookAtCamera 走 prop
-  // 唱歌/麦克风：on 触发 start，off 触发 stop
-  React.useEffect(() => { devLog.debug('[Immersive→handle] songOn', stageState.songOn, '| handle:', !!stageHandle); if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
-  React.useEffect(() => { devLog.debug('[Immersive→handle] micOn', stageState.micOn, '| handle:', !!stageHandle); if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
+  useStageStateSync(stageHandle, stageState);
 
   // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
-  const preMuteVolumeRef = React.useRef<number | null>(null)
-  React.useEffect(() => {
-    const applySystem = (e: Event) => {
-      const detail = (e as CustomEvent<import('@/lib/intent/types').Intent>).detail
-      if (!detail || detail.type !== 'system') return
-      const { action: sysAction, params } = detail
-      const audio = audioRef.current
-
-      switch (sysAction) {
-        case 'volume-up': {
-          if (audio) audio.volume = Math.min(1, (audio.volume || 0.5) + 0.1)
-          break
-        }
-        case 'volume-down': {
-          if (audio) audio.volume = Math.max(0, (audio.volume || 0.5) - 0.1)
-          break
-        }
-        case 'volume-set': {
-          const level = typeof params?.level === 'number' ? params.level : Number(params?.level)
-          if (audio && !Number.isNaN(level)) audio.volume = Math.max(0, Math.min(1, level))
-          break
-        }
-        case 'mute': {
-          if (audio) {
-            preMuteVolumeRef.current = audio.volume
-            audio.volume = 0
-          }
-          break
-        }
-        case 'unmute': {
-          if (audio) {
-            const restored = preMuteVolumeRef.current ?? 0.5
-            audio.volume = restored > 0 ? restored : 0.5
-          }
-          break
-        }
-        case 'theme-light':
-          setTheme('light')
-          break
-        case 'theme-dark':
-          setTheme('dark')
-          break
-        case 'fullscreen-on': {
-          const el = document.documentElement as HTMLElement & { requestFullscreen?: () => Promise<void> }
-          el.requestFullscreen?.().catch(() => {})
-          break
-        }
-        case 'fullscreen-off': {
-          const d = document as Document & { exitFullscreen?: () => Promise<void> }
-          d.exitFullscreen?.().catch(() => {})
-          break
-        }
-        case 'reload':
-          window.location.reload()
-          break
-        case 'logout': {
-          logout().catch(() => {}).finally(() => {
-            router.push('/user/login')
-          })
-          break
-        }
-        default:
-          break
-      }
-    }
-    window.addEventListener('digital-human-system', applySystem)
-    return () => window.removeEventListener('digital-human-system', applySystem)
-  }, [audioRef, router, setTheme])
+  useSystemIntents(audioRef, router, setTheme);
 
   // 语音唤醒: 点 mic 一次 → 一直监听 (说"小月"+ 命令 → barge-in 打断)
   const wakePhrases = React.useMemo(() => ['小月', '清秋月', '清秋'], [])
@@ -1010,6 +766,28 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     isAvatarSpeaking: () => chat.isSpeaking(),
     onInterrupt: () => chat.cancel(),
   })
+
+  // 子组件用的稳定回调
+  const onExit = React.useCallback(() => router.back(), [router]);
+  const toggleDisplays = React.useCallback(() => setDisplaysOn((o) => !o), [setDisplaysOn]);
+  const togglePanel = React.useCallback(() => setPanelOpen((o) => !o), [setPanelOpen]);
+  const retrySessions = React.useCallback(() => { setSessionError(null); refreshHistory(); }, [setSessionError, refreshHistory]);
+  const onMicClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('[mic] click, voiceEnabled=', voiceEnabled, 'voice.state=', voice.state);
+    setVoiceEnabled(v => {
+      const newVal = !v;
+      console.log('[mic] toggling to', newVal);
+      if (newVal) {
+        console.log('[mic] calling voice.start()');
+        voice.start();
+      } else {
+        console.log('[mic] calling voice.stop()');
+        voice.stop();
+      }
+      return newVal;
+    });
+  };
 
   // 跑不动:整页换成拦截页,3D 舞台不挂载(不再吃显卡)
   if (blockedBy) {
@@ -1031,14 +809,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       {/* 潜水:泡在液体里时出现,按住往下潜 */}
       {worldActive && <DiveButton handle={stageHandle} />}
       {/* 憋气:头泡在会憋气的液体里,还能憋几秒 */}
-      {roomSock.breath && (
-        <Box sx={{ position: 'absolute', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', px: 1.5, py: 0.75, borderRadius: 3, bgcolor: 'rgba(10,30,60,0.7)', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span>🫧 憋气 {roomSock.breath.left} 秒</span>
-          <Box sx={{ width: 90, height: 6, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
-            <Box sx={{ width: Math.max(0, Math.min(100, (roomSock.breath.left / Math.max(1, roomSock.breath.max)) * 100)) + '%', height: '100%', bgcolor: roomSock.breath.left <= 3 ? '#ff7b7b' : '#7fd3ff', transition: 'width 0.9s linear' }} />
-          </Box>
-        </Box>
-      )}
+      {roomSock.breath && <BreathMeter left={roomSock.breath.left} max={roomSock.breath.max} />}
       {/* 人生场景:规则出的题、选完的一句感悟 */}
       {roomSock.question && <ChoiceCard key={roomSock.question.id} q={roomSock.question} narrow={narrow} onAnswer={(i) => { if (roomSock.question) roomSock.answer(roomSock.question.id, i); }} />}
       {roomSock.insight && <InsightCard key={roomSock.insight.at} insight={roomSock.insight} onClose={roomSock.dismissInsight} />}
@@ -1050,17 +821,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       {roomSock.echo && !roomSock.question && !roomSock.asked && <EchoCard key={roomSock.echo.id} echo={roomSock.echo} narrow={narrow} onClose={roomSock.dismissEcho} />}
       {roomSock.echoLines && <EchoLinesCard key={roomSock.echoLines.id} data={roomSock.echoLines} onClose={roomSock.dismissEchoLines} />}
       {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
-      <Box sx={{
-        position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',
-        bgcolor: '#05060B', opacity: travel ? 1 : 0, transition: 'opacity 0.6s ease',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1.5,
-      }}>
-        <Box sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22, letterSpacing: 6 }}>{travel ? `前往 · ${travel}` : ''}</Box>
-        <Box sx={{ width: 160, height: 2, bgcolor: 'rgba(255,255,255,0.12)', overflow: 'hidden', borderRadius: 1 }}>
-          <Box sx={{ width: '40%', height: '100%', bgcolor: 'rgba(255,220,160,0.8)', animation: travel ? 'dhTravel 1.2s ease-in-out infinite' : 'none',
-            '@keyframes dhTravel': { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(250%)' } } }} />
-        </Box>
-      </Box>
+      <TravelOverlay travel={travel} />
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       {/* 背景层:一份 3DGS 场景资产垫在 VRM 舞台后面(orbit 关掉,当静态布景) */}
       {avatarMode === 'vrm' && gsBackdrop && (
@@ -1156,142 +917,22 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       )}
 
       {/* 顶部:退出按钮 + 模型选择 + 会话列表切换 + 控制台切换 */}
-      <IconButton
-        onClick={() => router.back()}
-        size="medium"
-        aria-label="退出"
-        sx={{
-          position: 'absolute',
-          top: 'calc(12px + var(--sat, 0px))',
-          left: 12,
-          zIndex: 3,
-          color: 'rgba(255,255,255,0.85)',
-          bgcolor: 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(8px)',
-          '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
-        }}
-      >
-        <CloseRoundedIcon />
-      </IconButton>
-
-      {/* 模型选择器 */}
-      {models.length > 1 && (
-        <FormControl
-          size="small"
-          sx={{
-            position: 'absolute',
-            top: 'calc(12px + var(--sat, 0px))',
-            // 手机上会话按钮在 left:60,模型选择器排在它右边,不叠在一起
-            left: { xs: 108, sm: 60 },
-            zIndex: 3,
-            minWidth: { xs: 0, sm: 120 },
-            maxWidth: { xs: 'calc(100vw - 220px)', sm: 'none' }, // 右边让出广场开关 + 控制台两个按钮
-            '& .MuiOutlinedInput-root': {
-              color: 'rgba(255,255,255,0.85)',
-              bgcolor: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
-              '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
-              '&.Mui-focused fieldset': { borderColor: '#25F4EE' },
-            },
-            '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.7)' },
-          }}
-        >
-          <Select
-            value={selectedModel?.id ?? ''}
-            onChange={(e) => {
-              const m = models.find((m) => m.id === e.target.value);
-              if (m) setSelectedModel(m);
-            }}
-            displayEmpty
-            startAdornment={
-              <PersonRoundedIcon sx={{ fontSize: 18, mr: 0.5, color: 'rgba(255,255,255,0.7)' }} />
-            }
-            sx={{ fontSize: 13 }}
-          >
-            {models.map((m) => (
-              <MenuItem key={m.id} value={m.id} sx={{ fontSize: 13 }}>
-                {m.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
-
-      <IconButton
-        onClick={() => setSessionDrawerOpen((o) => !o)}
-        size="medium"
-        aria-label="会话列表"
-        sx={{
-          position: 'absolute',
-          top: 'calc(12px + var(--sat, 0px))',
-          left: { xs: 60, sm: models.length > 1 ? 190 : 60 },
-          zIndex: 3,
-          color: sessionDrawerOpen ? '#25F4EE' : 'rgba(255,255,255,0.85)',
-          bgcolor: sessionDrawerOpen ? 'rgba(37,244,238,0.15)' : 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(8px)',
-          '&:hover': { bgcolor: 'rgba(37,244,238,0.2)' },
-        }}
-      >
-        <ForumRoundedIcon />
-      </IconButton>
-      {avatarMode === 'vrm' && (
-        <IconButton
-          onClick={toggleWorld}
-          size="medium"
-          aria-label={worldOn ? '收起星光广场' : '打开星光广场'}
-          title={worldOn ? '收起星光广场(回到小舞台)' : '打开星光广场'}
-          sx={{
-            position: 'absolute',
-            top: 'calc(12px + var(--sat, 0px))',
-            right: narrow ? 60 : 108,
-            zIndex: 3,
-            color: worldOn ? '#9dffcb' : 'rgba(255,255,255,0.85)',
-            bgcolor: worldOn ? 'rgba(157,255,203,0.15)' : 'rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(8px)',
-            '&:hover': { bgcolor: 'rgba(157,255,203,0.2)' },
-          }}
-        >
-          <ParkRoundedIcon />
-        </IconButton>
-      )}
-      {avatarMode === 'vrm' && !narrow && (
-        <IconButton
-          onClick={() => setDisplaysOn((o) => !o)}
-          size="medium"
-          aria-label={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
-          title={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
-          sx={{
-            position: 'absolute',
-            top: 'calc(12px + var(--sat, 0px))',
-            right: 60,
-            zIndex: 3,
-            color: displaysOn ? '#25F4EE' : 'rgba(255,255,255,0.85)',
-            bgcolor: displaysOn ? 'rgba(37,244,238,0.15)' : 'rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(8px)',
-            '&:hover': { bgcolor: 'rgba(37,244,238,0.2)' },
-          }}
-        >
-          <TvRoundedIcon />
-        </IconButton>
-      )}
-      <IconButton
-        onClick={() => setPanelOpen((o) => !o)}
-        size="medium"
-        aria-label="舞台控制台"
-        sx={{
-          position: 'absolute',
-          top: 'calc(12px + var(--sat, 0px))',
-          right: 12,
-          zIndex: 3,
-          color: panelOpen ? '#ff4fd8' : 'rgba(255,255,255,0.85)',
-          bgcolor: panelOpen ? 'rgba(255,79,216,0.15)' : 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(8px)',
-          '&:hover': { bgcolor: 'rgba(255,79,216,0.2)' },
-        }}
-      >
-        <TuneRoundedIcon />
-      </IconButton>
+      <ImmersiveTopBar
+        models={models}
+        selectedModel={selectedModel}
+        onSelectModel={setSelectedModel}
+        onExit={onExit}
+        sessionDrawerOpen={sessionDrawerOpen}
+        onToggleSessions={toggleSessions}
+        avatarMode={avatarMode}
+        worldOn={worldOn}
+        onToggleWorld={toggleWorld}
+        narrow={narrow}
+        displaysOn={displaysOn}
+        onToggleDisplays={toggleDisplays}
+        panelOpen={panelOpen}
+        onTogglePanel={togglePanel}
+      />
 
       {/* 星光广场 HUD:顶部等级/任务/提示,右侧小地图,走进地标弹互动卡 */}
       {/* 广场 HUD 出错只丢 HUD,不能把整页(对话、语音)带崩 */}
@@ -1421,95 +1062,19 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
 
       {/* 完全自由场景:左侧会话列表(可折叠) + 底部聊天区(气泡式) */}
       {/* 会话列表 */}
-      <Box sx={{
-        position: 'absolute',
-        // 让出顶部的退出/模型/会话按钮;底部让出聊天区(高 40vh,最多 400px)
-        top: 'calc(64px + var(--sat, 0px))',
-        left: { xs: 12, sm: 16 },
-        width: { xs: 'calc(100vw - 24px)', sm: 260 },
-        maxWidth: 260,
-        maxHeight: 'calc(100vh - min(40vh, 400px) - 80px)',
-        zIndex: 3,
-        background: 'rgba(0,0,0,0.5)',
-        borderRadius: 2,
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        display: sessionDrawerOpen ? 'flex' : 'none',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-        <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
-            会话
-            <Box component="span" sx={{ ml: 0.75, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>
-              {mounted ? history.length : ''}
-            </Box>
-          </Typography>
-          <Button size="small" disabled={creatingSession} onClick={handleNewConversation} sx={{ fontSize: 11, color: '#25F4EE', textTransform: 'none' }}>
-            {creatingSession ? '创建中…' : '+ 新会话'}
-          </Button>
-        </Box>
-        {(sessionError || historyError) && (
-          <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography role="alert" sx={{ fontSize: 11, color: '#ff8a80', flex: 1 }}>
-              {sessionError || `会话列表加载失败:${historyError}`}
-            </Typography>
-            <IconButton size="small" aria-label="重新加载会话" onClick={() => { setSessionError(null); refreshHistory(); }} sx={{ color: 'rgba(255,255,255,0.6)', p: 0.25 }}>
-              <RefreshRoundedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Box>
-        )}
-        <Box sx={{ overflowY: 'auto', flex: 1 }}>
-          {!mounted || (historyLoading && history.length === 0) ? (
-            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
-              加载中…
-            </Typography>
-          ) : history.length === 0 ? (
-            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
-              还没有会话,直接提问或点「新会话」开始
-            </Typography>
-          ) : (
-            history.map((h) => {
-              const isCurrent = conversationId === h.id;
-              const timeStr = relativeTime(h.lastMessageAt || h.createTime);
-              return (
-              <ListItemButton
-                key={h.id}
-                selected={isCurrent}
-                onClick={() => openConversation(h.id)}
-                sx={{
-                  py: 1,
-                  px: 1.5,
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  borderLeft: isCurrent ? '2px solid #25F4EE' : '2px solid transparent',
-                  '&.Mui-selected': { bgcolor: 'rgba(37,244,238,0.15)' },
-                }}
-              >
-                <ListItemText
-                  primary={
-                    <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-                      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {h.title}
-                      </Box>
-                      {isCurrent && (
-                        <Box component="span" sx={{ fontSize: 9, color: '#25F4EE', flexShrink: 0, border: '1px solid rgba(37,244,238,0.5)', borderRadius: 0.5, px: 0.5, lineHeight: 1.6 }}>
-                          当前
-                        </Box>
-                      )}
-                    </Box>
-                  }
-                  secondary={timeStr}
-                  slotProps={{
-                    primary: { sx: { fontSize: 12, color: '#fff' }, component: 'div' },
-                    secondary: { sx: { fontSize: 10, color: 'rgba(255,255,255,0.35)' } },
-                  }}
-                />
-              </ListItemButton>
-              );
-            })
-          )}
-        </Box>
-      </Box>
+      <ImmersiveSessionList
+        open={sessionDrawerOpen}
+        mounted={mounted}
+        history={history}
+        historyLoading={historyLoading}
+        historyError={historyError}
+        sessionError={sessionError}
+        creatingSession={creatingSession}
+        conversationId={conversationId}
+        onNew={handleNewConversation}
+        onRetry={retrySessions}
+        onOpen={openConversation}
+      />
 
       {/* 底部聊天区:全宽气泡式 */}
       <Box sx={{
@@ -1525,184 +1090,40 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
         display: 'flex',
         flexDirection: 'column',
       }}>
-        {/* 思考面板 */}
-        {thinkingLog && (
-          <Box sx={{
-            mx: 2,
-            mb: 1,
-            p: 1.5,
-            background: 'rgba(100,100,255,0.12)',
-            borderRadius: 2,
-            border: '1px solid rgba(100,100,255,0.25)',
-          }}>
-            <Typography sx={{ fontSize: 12, color: 'rgba(200,200,255,0.95)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-              💭 {thinkingLog.replace(/<think>|<\/think>/g, '').trim()}
-            </Typography>
-          </Box>
-        )}
-
-        {/* 聊天消息区 */}
-        <Box
-          ref={chatScrollRef}
-          sx={{
-            flex: 1,
-            overflowY: 'auto',
-            px: 2,
-            pb: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-          }}
-        >
-          {chatLog.length === 0 ? (
-            <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', mt: 4 }}>
-              {mounted ? (conversationId ? '这个会话还没有消息，说点什么开始吧~' : '发条消息创建新会话吧~') : '加载中…'}
-            </Typography>
-          ) : (
-            chatLog.map((m, i) => (
-              m.who === 'tool' && m.tool ? (
-                <ToolCallCard key={m.tool.id || i} entry={m.tool} />
-              ) : m.who === 'thought' ? (
-                <ThoughtBubble key={`t-${i}`} text={m.text} />
-              ) : m.who === 'cards' || m.who === 'choices' ? (
-                isRichItem(m) ? (
-                  <ChatRichItem
-                    key={`r-${i}`}
-                    item={m}
-                    active={!chatBusy && i === lastChoicesIndex}
-                    onSend={(t) => void sendText(t)}
-                    onOpen={openContent}
-                  />
-                ) : null
-              ) : (
-              <Box
-                key={i}
-                sx={{
-                  alignSelf: m.who === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: { xs: '86%', md: '70%' },
-                  p: 1.5,
-                  borderRadius: m.who === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: m.who === 'user' ? 'rgba(37,244,238,0.2)' : 'rgba(255,255,255,0.12)',
-                  border: m.who === 'user' ? '1px solid rgba(37,244,238,0.3)' : '1px solid rgba(255,255,255,0.1)',
-                }}
-              >
-                <Typography sx={{ fontSize: 13, color: '#fff', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {m.text}
-                </Typography>
-              </Box>
-              )
-            ))
-          )}
-          {/* AI 思考中 */}
-          {chatBusy && (
-            <Box sx={{ alignSelf: 'flex-start', p: 1.5, borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.1)' }}>
-              <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.7)' }} />
-            </Box>
-          )}
-        </Box>
+        <ChatMessageList
+          thinkingLog={thinkingLog}
+          chatLog={chatLog}
+          chatBusy={chatBusy}
+          lastChoicesIndex={lastChoicesIndex}
+          mounted={mounted}
+          conversationId={conversationId}
+          scrollRef={chatScrollRef}
+          onSend={sendFromChat}
+          onOpen={openContent}
+        />
 
         {/* 输入区 */}
-        <Box sx={{ px: { xs: 1.5, md: 2 }, pb: 'calc(16px + var(--sab, 0px))', display: 'flex', flexWrap: { xs: 'wrap', md: 'nowrap' }, gap: 1, alignItems: 'center' }}>
-          {/* 形象 / 背景 / 数字员工:手机上独占一行(以前和输入框挤一行,输入框被挤成一条缝) */}
-          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', md: 'auto' }, minWidth: 0, flexShrink: 0, '& select': { flex: { xs: '1 1 0', md: '0 0 auto' }, minWidth: 0 } }}>
-          <select
-            aria-label="形象"
-            title="形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段"
-            value={avatarMode}
-            onChange={(e) => setAvatarMode(e.target.value as AvatarMode)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 96 }}
-          >
-            <option value="vrm">VRM</option>
-            <option value="3dgs" disabled={gsAssets.length === 0}>3DGS{gsAssets.length === 0 ? '(无资产)' : ''}</option>
-            <option value="2d" disabled={!!clipsProblem} title={clipsProblem || ''}>2D{clipsProblem ? '(无片段)' : ''}</option>
-          </select>
-          {avatarMode === 'vrm' && gsAssets.length > 0 && (
-            <select
-              aria-label="背景"
-              title="背景:场景预设,或用一份 3DGS 场景资产垫在角色后面"
-              value={gsBackdrop}
-              onChange={(e) => setGsBackdrop(e.target.value)}
-              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}
-            >
-              <option value="">预设场景</option>
-              {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>GS · {a.name}</option>)}
-            </select>
-          )}
-          {avatarMode === '3dgs' && gsAssets.length > 1 && (
-            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}>
-              {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>{a.name}</option>)}
-            </select>
-          )}
-          <select
-            aria-label="数字员工"
-            value={aguiAgent}
-            onChange={(e) => setAguiAgent(e.target.value)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 120 }}
-          >
-            {(staffList.length ? staffList : [{ agentId: 'worker', name: '全能数字员工', description: '' }]).map((st) => (
-              <option key={st.agentId} value={st.agentId}>{st.name}</option>
-            ))}
-          </select>
-          </Box>
-          <TextField
-            fullWidth
-            placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
-            disabled={chatBusy}
-            size="small"
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              width: 'auto',
-              '& .MuiOutlinedInput-root': {
-                color: 'white',
-                bgcolor: 'rgba(255,255,255,0.1)',
-                borderRadius: 2,
-                '& fieldset': { borderColor: voiceEnabled ? (voice.state === 'recording' ? '#3b82f6' : '#a855f7') : 'rgba(255,255,255,0.2)' },
-              },
-              '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
-            }}
-          />
-          <IconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              console.log('[mic] click, voiceEnabled=', voiceEnabled, 'voice.state=', voice.state);
-              setVoiceEnabled(v => {
-                const newVal = !v;
-                console.log('[mic] toggling to', newVal);
-                if (newVal) {
-                  console.log('[mic] calling voice.start()');
-                  voice.start();
-                } else {
-                  console.log('[mic] calling voice.stop()');
-                  voice.stop();
-                }
-                return newVal;
-              });
-            }}
-            sx={{
-              bgcolor: voiceEnabled ? '#a855f7' : 'rgba(255,255,255,0.1)',
-              color: voiceEnabled ? 'white' : 'rgba(255,255,255,0.7)',
-              '&:hover': { bgcolor: voiceEnabled ? '#9333ea' : 'rgba(255,255,255,0.2)' },
-            }}
-          >
-            <MicRoundedIcon sx={{ fontSize: 22, animation: voiceEnabled ? 'pulse 1.2s infinite' : 'none' }} />
-          </IconButton>
-          <IconButton
-            onClick={send}
-            disabled={chatBusy || !text.trim()}
-            sx={{
-              bgcolor: 'rgba(37,244,238,0.2)',
-              color: '#25F4EE',
-              '&:hover': { bgcolor: 'rgba(37,244,238,0.3)' },
-              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)', bgcolor: 'rgba(255,255,255,0.05)' },
-            }}
-          >
-            {chatBusy ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <SendRoundedIcon />}
-          </IconButton>
-        </Box>
+        <ChatInputBar
+          narrow={narrow}
+          avatarMode={avatarMode}
+          onAvatarMode={setAvatarMode}
+          gsAssets={gsAssets}
+          clipsProblem={clipsProblem}
+          gsBackdrop={gsBackdrop}
+          onGsBackdrop={setGsBackdrop}
+          gsAsset={gsAsset}
+          onGsAsset={setGsAsset}
+          aguiAgent={aguiAgent}
+          onAguiAgent={setAguiAgent}
+          staffList={staffList}
+          voiceEnabled={voiceEnabled}
+          voiceState={voice.state}
+          text={text}
+          onText={setText}
+          onSend={send}
+          chatBusy={chatBusy}
+          onMicClick={onMicClick}
+        />
         {voice.error && (
           <Typography sx={{ fontSize: 10, color: 'error.main', textAlign: 'center', pb: 1 }}>
             {voice.error}
