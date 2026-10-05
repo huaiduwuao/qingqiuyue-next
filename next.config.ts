@@ -58,9 +58,10 @@ const nextConfig: NextConfig = {
       ];
     },
   }),
-  // 构建时跳过 ESLint:存量 2000+ 条 warning,lint 在 CI 里单独跑(pnpm lint)
+  // 构建时跑 ESLint:只有 error 会让 next build 失败,warning 只打印不挡构建
+  // (存量 warning 在逐步清理,CI 里仍单独跑 pnpm lint)
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   // 类型检查不再跳过:tsc --noEmit 已清零,构建(网站 build:static 和客户端 app:frontend
   // 共用同一份 tsconfig)遇到类型错误直接失败,别再让带类型错误的包发出去
