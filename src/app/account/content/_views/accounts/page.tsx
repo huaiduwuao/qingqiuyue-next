@@ -4,6 +4,7 @@
  * 创作者中心 · 平台账号(C 端自绑定)
  *
  *   - 用本人抖音/快手/小红书开放平台 client_key / client_secret 接入清秋月
+ *   - YouTube / TikTok:清秋月配了平台应用时「一键绑定」(POST /share/account/bind)直接跳授权,不用自备应用
  *   - OAuth 授权:点击「去授权」→ 调 genAuthUrl → window.open 三方页 → 完成后三方回跳
  *     /api/core/socialshare/callback/:platform?code=...&state=...,后端再 302 回
  *     /account/content?tab=accounts&auth=ok/fail&platform=...,本页面读 searchParams
@@ -55,7 +56,11 @@ import {
   remove as removeAccounts,
   genAuthUrl,
   refreshAuth,
+  bind as bindAccount,
+  platforms as listPlatforms,
+  isIntlPlatform,
   type ShareAccount,
+  type SharePlatformInfo,
 } from '@/apis/share-account';
 import { errMessage } from '@/lib/errMessage';
 
@@ -94,6 +99,19 @@ export default function AccountsPage() {
     queryFn: () => listAccounts({ page: 1, pageSize: 100 }),
   });
   const accounts: ShareAccount[] = useMemo(() => data?.list || [], [data]);
+  // 各平台:有没有清秋月平台应用、是否只能私享(旧后端没有这个接口时当作都没有)
+  const { data: platformInfos } = useQuery({
+    queryKey: ['share-platforms'],
+    queryFn: async () => {
+      try {
+        return (await listPlatforms()) ?? [];
+      } catch {
+        return [] as SharePlatformInfo[];
+      }
+    },
+    staleTime: 5 * 60_000,
+  });
+  const infoOf = (platform: string) => (platformInfos ?? []).find((x) => x.platform === platform);
 
   // 按平台分组(目前只展示抖音 / 快手 / 小红书;视频号/B 站预留无 UI)
   const grouped = useMemo(() => {
@@ -154,6 +172,15 @@ export default function AccountsPage() {
     onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '获取授权链接失败' }),
   });
 
+  const doBind = useMutation({
+    mutationFn: (platform: string) => bindAccount(platform),
+    onSuccess: (res: { url: string }) => {
+      invalidate();
+      window.open(res.url, '_blank', 'width=600,height=800,noopener,noreferrer');
+    },
+    onError: (e: unknown) => setToast({ open: true, severity: 'error', msg: errMessage(e) || '绑定失败' }),
+  });
+
   const doRefresh = useMutation({
     mutationFn: (id: number) => refreshAuth(id),
     onSuccess: () => {
@@ -167,6 +194,7 @@ export default function AccountsPage() {
     <>
         <AccountFormDialog
           state={form}
+          infoOf={infoOf}
           onClose={() => setForm(emptyForm)}
           onSubmit={(payload) => {
             if (form.mode === 'create') doCreate.mutate(payload as Parameters<typeof createAccount>[0]);
@@ -194,7 +222,7 @@ export default function AccountsPage() {
   };
 
   if (isMobile) {
-    const platforms = PLATFORMS.filter((p) => ['douyin', 'kuaishou', 'xiaohongshu'].includes(p.value));
+    const platforms = PLATFORMS;
     const closeMenu = () => setRowMenu(null);
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
@@ -223,6 +251,16 @@ export default function AccountsPage() {
                 }
                 extra={`${list.length} 个账号`}
               >
+                {infoOf(p.value)?.builtinApp && (
+                  <Box sx={{ px: 1.75, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Button size="small" variant="outlined" disabled={doBind.isPending} onClick={() => doBind.mutate(p.value)}>
+                      一键绑定{p.label}
+                    </Button>
+                    {infoOf(p.value)?.privateOnly && (
+                      <Typography sx={{ fontSize: 11, color: 'warning.main' }}>应用审核中,只能私享发布</Typography>
+                    )}
+                  </Box>
+                )}
                 {list.length === 0 ? (
                   <Typography sx={{ fontSize: 12, color: 'text.disabled', px: 1.75, pb: 1.5 }}>
                     暂无账号,点右下「新建账号」添加
@@ -244,7 +282,9 @@ export default function AccountsPage() {
                               {meta.label}
                             </Box>
                             {a.platformUserNickname ? ` · ${a.platformUserNickname}` : ''}
-                            {` · secret ${a.hasClientSecret ? '已配置' : '未配置'} · token ${a.hasAccessToken ? '已缓存' : '无'}`}
+                            {a.usesBuiltinApp
+                              ? ` · 清秋月平台应用 · token ${a.hasAccessToken ? '已缓存' : '无'}`
+                              : ` · secret ${a.hasClientSecret ? '已配置' : '未配置'} · token ${a.hasAccessToken ? '已缓存' : '无'}`}
                           </>
                         }
                         trailing={
@@ -312,7 +352,7 @@ export default function AccountsPage() {
           <DialogTitle>平台账号说明</DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-              绑定你自己的抖音 / 快手 / 小红书开放平台账号;清秋月用你的账号一键把站内作品发布出去。
+              绑定你自己的抖音 / 快手 / 小红书开放平台账号,或一键绑定 YouTube / TikTok;清秋月用你的账号一键把站内作品发布出去。
               作品归属清秋月平台;视频素材请先在抖音创作者中心 / 快手 App 上传,粘贴返回的 video_id。
             </Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
@@ -372,7 +412,7 @@ export default function AccountsPage() {
         </Button>
       </Stack>
       <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
-        绑定你自己的抖音 / 快手 / 小红书开放平台账号;清秋月用你的账号一键把站内作品发布出去。
+        绑定你自己的抖音 / 快手 / 小红书开放平台账号,或一键绑定 YouTube / TikTok;清秋月用你的账号一键把站内作品发布出去。
         作品归属清秋月平台;视频素材请先在抖音创作者中心 / 快手 App 上传,粘贴返回的 video_id。
       </Typography>
 
@@ -384,7 +424,7 @@ export default function AccountsPage() {
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>加载中…</Typography>
       ) : (
         <Stack spacing={2}>
-          {PLATFORMS.filter((p) => ['douyin', 'kuaishou', 'xiaohongshu'].includes(p.value)).map((p) => (
+          {PLATFORMS.map((p) => (
             <PlatformCard
               key={p.value}
               platform={p.value}
@@ -392,6 +432,9 @@ export default function AccountsPage() {
               color={p.color}
               hint={p.hint}
               accounts={grouped.get(p.value) || []}
+              info={infoOf(p.value)}
+              binding={doBind.isPending}
+              onBind={() => doBind.mutate(p.value)}
               onAuth={(id) => doAuth.mutate(id)}
               onRefresh={(id) => doRefresh.mutate(id)}
               onEdit={(a) => setForm({ open: true, mode: 'edit', initial: a })}
@@ -412,12 +455,15 @@ function PlatformCard(props: {
   color: string;
   hint: string;
   accounts: ShareAccount[];
+  info?: SharePlatformInfo;
+  binding: boolean;
+  onBind: () => void;
   onAuth: (id: number) => void;
   onRefresh: (id: number) => void;
   onEdit: (a: ShareAccount) => void;
   onDelete: (id: number) => void;
 }) {
-  const { label, color, hint, accounts, onAuth, onRefresh, onEdit, onDelete } = props;
+  const { label, color, hint, accounts, info, binding, onBind, onAuth, onRefresh, onEdit, onDelete } = props;
   return (
     <Box
       sx={{
@@ -432,6 +478,14 @@ function PlatformCard(props: {
         <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
         <Typography sx={{ fontWeight: 600 }}>{label}</Typography>
         <Chip size="small" label={`${accounts.length} 个账号`} variant="outlined" />
+        {info?.builtinApp && info.privateOnly && (
+          <Chip size="small" color="warning" variant="outlined" label="应用审核中,只能私享发布" sx={{ ml: 1 }} />
+        )}
+        {info?.builtinApp && (
+          <Button size="small" variant="contained" sx={{ ml: 'auto' }} disabled={binding} onClick={onBind}>
+            一键绑定{label}
+          </Button>
+        )}
       </Stack>
       <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>{hint}</Typography>
 
@@ -454,12 +508,19 @@ function PlatformCard(props: {
                       <Chip size="small" variant="outlined" label={a.platformUserNickname} sx={{ height: 18, fontSize: 10 }} />
                     )}
                     <Chip size="small" color={meta.color} label={meta.label} sx={{ height: 18, fontSize: 10 }} />
-                    {!a.hasClientSecret && (
+                    {!a.hasClientSecret && !a.usesBuiltinApp && (
                       <Chip size="small" color="warning" label="无 secret" sx={{ height: 18, fontSize: 10 }} />
                     )}
                   </Stack>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
-                    client_key: <code>{a.clientKey}</code> · secret {a.hasClientSecret ? '已配置' : '未配置'} · token{' '}
+                    {a.usesBuiltinApp ? (
+                      <>清秋月平台应用 · </>
+                    ) : (
+                      <>
+                        client_key: <code>{a.clientKey}</code> · secret {a.hasClientSecret ? '已配置' : '未配置'} ·{' '}
+                      </>
+                    )}
+                    token{' '}
                     {a.hasAccessToken ? '已缓存' : '无'}
                   </Typography>
                 </Box>
@@ -493,6 +554,7 @@ function PlatformCard(props: {
 
 function AccountFormDialog(props: {
   state: FormState;
+  infoOf: (platform: string) => SharePlatformInfo | undefined;
   onClose: () => void;
   onSubmit: (payload: {
     platform: string;
@@ -504,7 +566,7 @@ function AccountFormDialog(props: {
     remark?: string;
   }) => void;
 }) {
-  const { state, onClose, onSubmit } = props;
+  const { state, infoOf, onClose, onSubmit } = props;
   const isEdit = state.mode === 'edit';
   const [platform, setPlatform] = useState<string>('');
   const [accountName, setAccountName] = useState('');
@@ -538,11 +600,13 @@ function AccountFormDialog(props: {
   }, [state]);
 
   const handleSubmit = () => {
-    if (!platform || !accountName.trim() || !clientKey.trim()) {
+    // YouTube / TikTok 在清秋月配了平台应用时 clientKey / secret 都可以不填
+    const builtin = isIntlPlatform(platform) && !!infoOf(platform)?.builtinApp && !clientKey.trim();
+    if (!platform || !accountName.trim() || (!builtin && !clientKey.trim())) {
       setErr('平台 / 账号昵称 / clientKey 必填');
       return;
     }
-    if (!isEdit && !clientSecret.trim()) {
+    if (!isEdit && !builtin && !clientSecret.trim()) {
       setErr('新建账号时 clientSecret 必填');
       return;
     }
@@ -575,7 +639,7 @@ function AccountFormDialog(props: {
             onChange={(e) => setPlatform(e.target.value)}
             disabled={isEdit}
           >
-            {PLATFORMS.filter((p) => ['douyin', 'kuaishou', 'xiaohongshu'].includes(p.value)).map((p) => (
+            {PLATFORMS.map((p) => (
               <MenuItem key={p.value} value={p.value}>
                 {p.label}
               </MenuItem>
@@ -589,7 +653,7 @@ function AccountFormDialog(props: {
           />
           <TextField
             size="small"
-            label="client_key(client_id / AppID)"
+            label={isIntlPlatform(platform) && infoOf(platform)?.builtinApp ? 'client_key(可空,空 = 用清秋月平台应用)' : 'client_key(client_id / AppID)'}
             value={clientKey}
             onChange={(e) => setClientKey(e.target.value)}
           />
@@ -604,6 +668,7 @@ function AccountFormDialog(props: {
           <TextField
             size="small"
             label="redirect_uri(可选,默认由后端按 host 拼)"
+            placeholder={infoOf(platform)?.redirectUri}
             value={redirectUri}
             onChange={(e) => setRedirectUri(e.target.value)}
           />
