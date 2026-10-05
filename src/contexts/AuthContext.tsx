@@ -212,7 +212,7 @@ export function useAuth() {
 export function useAuthority() {
   const { currentUser } = useApp();
   const { permissions } = useAuth();
-  const authorities = currentUser?.roles ?? currentUser?.authorities ?? [];
+  const authorities = useMemo(() => currentUser?.roles ?? currentUser?.authorities ?? [], [currentUser]);
   // 超级管理员(持有内置角色)在后端放行全部功能权限,前端保持一致。
   const isSuperAdmin = Boolean((currentUser as { superAdmin?: boolean } | null)?.superAdmin) || authorities.includes('SUPER_ADMIN');
 

@@ -47,7 +47,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   const listKey = queryKey.join('|');
-  const fresh = freshByKey.key === listKey ? freshByKey.items : [];
+  const fresh = useMemo(() => freshByKey.key === listKey ? freshByKey.items : [], [freshByKey, listKey]);
   const addFresh = (it: FeedItem) => setFreshByKey({ key: listKey, items: [it, ...fresh] });
 
   const focus = useQuery({

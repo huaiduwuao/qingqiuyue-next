@@ -74,7 +74,7 @@ export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDe
     placeholderData: [],
   });
 
-  const records = query.data || [];
+  const records = useMemo(() => query.data || [], [query.data]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: records.length };

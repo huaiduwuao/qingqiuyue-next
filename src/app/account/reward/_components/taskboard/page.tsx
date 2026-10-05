@@ -111,7 +111,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     enabled: !!currentUserId,
     placeholderData: [],
   });
-  const teams = teamsQuery.data || [];
+  const teams = useMemo(() => teamsQuery.data || [], [teamsQuery.data]);
 
   // 需求列表
   const demandsQuery = useQuery({
@@ -119,7 +119,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     queryFn: () => listDemands({ pageSize: 100 }).then((r) => (r?.records || r?.list || []) as DemandItem[]),
     placeholderData: [],
   });
-  const demands: DemandItem[] = demandsQuery.data || [];
+  const demands: DemandItem[] = useMemo(() => demandsQuery.data || [], [demandsQuery.data]);
 
   // 任务列表 — 根据 viewMode 决定过滤维度
   const tasksQuery = useQuery({
@@ -148,7 +148,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
       (viewMode === 'team' && !!teamId),
     placeholderData: [],
   });
-  const tasks: RewardTask[] = tasksQuery.data || [];
+  const tasks: RewardTask[] = useMemo(() => tasksQuery.data || [], [tasksQuery.data]);
   const loading = tasksQuery.isLoading;
 
   // 团队列表到了之后默认选第一支

@@ -49,7 +49,7 @@ export default function PurchasesPage() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const purchases: UnifiedPurchase[] = (purchasesQuery.data?.list ?? []) as UnifiedPurchase[];
+  const purchases: UnifiedPurchase[] = useMemo(() => (purchasesQuery.data?.list ?? []) as UnifiedPurchase[], [purchasesQuery.data]);
   const filtered = useMemo(() => purchases.filter(TABS[tab].match), [purchases, tab]);
   const totalSpent = purchases.reduce((s, p) => s + p.amount, 0);
 

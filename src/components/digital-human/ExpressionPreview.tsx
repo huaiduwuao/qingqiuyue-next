@@ -68,6 +68,7 @@ export default function ExpressionPreview({ active, onChange, onEmotionChange }:
 
   React.useEffect(() => {
     if (active && active !== current) applyTemplate(active);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只响应外部 active 变化;加上 current 会把用户手选的模板又拉回 active
   }, [active]);
 
   return (

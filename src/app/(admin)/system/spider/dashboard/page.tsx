@@ -341,7 +341,7 @@ function TimeseriesChart({ hourly, loading }: { hourly?: CrawlTimeseriesPoint[];
   const PAD_R = 16;
   const PAD_T = 16;
   const PAD_B = 28;
-  const data = hourly || [];
+  const data = useMemo(() => hourly || [], [hourly]);
 
   const max = useMemo(() => {
     if (!data.length) return 1;

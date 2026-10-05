@@ -82,7 +82,7 @@ export default function OrdersPage() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const orders: PaymentOrder[] = (ordersQuery.data?.list ?? []) as PaymentOrder[];
+  const orders: PaymentOrder[] = useMemo(() => (ordersQuery.data?.list ?? []) as PaymentOrder[], [ordersQuery.data]);
   const filtered = useMemo(() => orders.filter(TABS[tab].match), [orders, tab]);
   const paidCents = orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.amountCents, 0);
 

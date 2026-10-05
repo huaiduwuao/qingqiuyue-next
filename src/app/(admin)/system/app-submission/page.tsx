@@ -113,6 +113,7 @@ export default function AppSubmissionPage() {
   const missingOf = (ch: AppSubmissionChannel) =>
     ch.fields.filter((f) => f.required && !valueOf(ch, f).trim()).length;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- missingOf/valueOf 每次渲染新建,真正的输入是 current + drafts
   const missing = useMemo(() => (current ? missingOf(current) : 0), [current, drafts]);
 
   if (isLoading) {

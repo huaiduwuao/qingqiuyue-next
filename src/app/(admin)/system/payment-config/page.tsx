@@ -93,6 +93,7 @@ export default function PaymentConfigPage() {
 
   useEffect(() => {
     loadConfig();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在进页时拉一次配置
   }, []);
 
   const loadConfig = async () => {

@@ -139,6 +139,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
     setActiveNav(urlTab || effectiveTab);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只跟 URL 的 ?tab= 同步,effectiveTab 变化不应覆盖用户点的页签
   }, [urlTab]);
 
   // 把旧的 ?tab=follow / ?tab=friend 改写成 ?tab=feed&scope=…,地址栏和页签对得上
@@ -148,6 +149,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     params.set('tab', 'feed');
     params.set('scope', legacyCircle);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在出现旧参数时改写一次地址,不随 searchParams 反复触发
   }, [legacyCircle]);
 
   // 离开 home 时把主滚动条位置存到 sessionStorage,回来时还原(无动画,即设即生效)

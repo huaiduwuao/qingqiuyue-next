@@ -635,7 +635,7 @@ function DmPanel() {
     // 连接断了才退回轮询,见 usePollFallback。
     refetchInterval: sessionPoll,
   });
-  const sessions: Session[] = sessionData?.list || [];
+  const sessions: Session[] = useMemo(() => sessionData?.list || [], [sessionData]);
 
   const filteredSessions = useMemo(() => {
     if (!keyword.trim()) return sessions;

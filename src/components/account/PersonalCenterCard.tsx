@@ -115,12 +115,12 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     id: l.id, title: l.title, cover: coverBackground(l.cover, gradient2('#C8A882', '#8B6F47')), type: l.type,
   }));
 
+  const savedLoginInfo = (currentUser as { saveLoginInfo?: unknown } | null | undefined)?.saveLoginInfo;
   useEffect(() => {
-    const saved = (currentUser as any)?.saveLoginInfo;
-    if (typeof saved === 'boolean') {
-      setSaveLogin(saved);
+    if (typeof savedLoginInfo === 'boolean') {
+      setSaveLogin(savedLoginInfo);
     }
-  }, [(currentUser as any)?.saveLoginInfo]);
+  }, [savedLoginInfo]);
 
   const handleSaveLoginChange = async (checked: boolean) => {
     setSaveLogin(checked);

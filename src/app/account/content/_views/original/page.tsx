@@ -105,7 +105,7 @@ export default function OriginalPage() {
   const whitelistQ = useQuery({ queryKey: ['original', 'whitelist'], queryFn: listWhitelist, enabled: tab === 3 });
   const worksQ = useQuery({ queryKey: ['creator-my-works'], queryFn: () => getMyWorks(), enabled: addOpen });
 
-  const certs = certsQ.data ?? [];
+  const certs = useMemo(() => certsQ.data ?? [], [certsQ.data]);
   const suspects = suspectsQ.data ?? [];
   const registered = useMemo(() => new Set(certs.map((c) => c.contentId)), [certs]);
   const candidates = ((worksQ.data as any)?.list ?? (worksQ.data as any)?.records ?? []).filter(

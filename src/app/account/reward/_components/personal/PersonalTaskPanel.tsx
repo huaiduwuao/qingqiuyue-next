@@ -52,7 +52,7 @@ export default function PersonalTaskPanel({ currentUserId, onOpenTaskboard }: Pr
     placeholderData: [],
   });
 
-  const tasks: RewardTask[] = query.data || [];
+  const tasks: RewardTask[] = useMemo(() => query.data || [], [query.data]);
 
   // 按状态分桶取最近一条
   const grouped = useMemo(() => {

@@ -72,7 +72,7 @@ export default function VipPage() {
     refetchOnMount: 'always',
   });
 
-  const plans = plansQ.data ?? [];
+  const plans = useMemo(() => plansQ.data ?? [], [plansQ.data]);
   const periods = useMemo(
     () => (['monthly', 'yearly'] as Period[]).filter((p) => plans.some((plan) => plan.period === p)),
     [plans],

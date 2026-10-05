@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -166,7 +166,7 @@ export default function HomeRecommendPage() {
   });
 
   // 合并所有页面的数据
-  const contentList = contentData?.pages.flatMap(page => page.records) || [];
+  const contentList = useMemo(() => contentData?.pages.flatMap(page => page.records) || [], [contentData]);
 
   // 调试：监控数据变化
   console.log('[HomeRecommend] data changed:', {

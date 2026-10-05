@@ -100,7 +100,7 @@ export default function PersonalMobile({
   const st: Partial<MyStats> = statsQ.data || {};
 
   const teamsQ = useQuery({ queryKey: ['team', 'mine'], queryFn: () => myTeams().then((r) => r.list || []) });
-  const allTeams = teamsQ.data || [];
+  const allTeams = useMemo(() => teamsQ.data || [], [teamsQ.data]);
   const teams = allTeams.filter((t) => t.myStatus === 'active');
   const invites = allTeams.filter((t) => t.myStatus === 'invited').length;
 
@@ -128,7 +128,7 @@ export default function PersonalMobile({
     enabled: !!currentUserId,
     placeholderData: [],
   });
-  const tasks: RewardTask[] = tasksQ.data || [];
+  const tasks: RewardTask[] = useMemo(() => tasksQ.data || [], [tasksQ.data]);
   // 待办:进行中 → 待验收 → 被驳回 → 待领,已完成的不算
   const todo = useMemo(() => {
     const rank: Record<RewardTaskStatus, number> = { CLAIMED: 0, SUBMITTED: 1, REJECTED: 2, OPEN: 3, APPROVED: 9 };

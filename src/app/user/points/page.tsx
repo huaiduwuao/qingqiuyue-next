@@ -72,7 +72,7 @@ export default function PointsPage() {
 
   const available = pointQuery.data?.point ?? 0;
   const lifetime = pointQuery.data?.totalPoint ?? 0;
-  const records = recordsQuery.data ?? [];
+  const records = useMemo(() => recordsQuery.data ?? [], [recordsQuery.data]);
   const achievements = achievementsQuery.data ?? [];
 
   // 今日 / 近 7 天获得:由最近 100 条流水里的正数部分汇总

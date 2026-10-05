@@ -40,6 +40,7 @@ export default function SandboxMonitor({ token }: Props) {
     } finally { setLoading(false) }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载时加载一次,load 每次渲染新建
   useEffect(() => { load() }, [])
 
   const releaseContainer = async (containerId: string) => {

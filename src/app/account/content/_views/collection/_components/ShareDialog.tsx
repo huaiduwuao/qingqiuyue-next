@@ -97,6 +97,7 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
       setConfirmClose(false);
       setCopied(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在打开或换了目标 / 价格时重置表单,target 对象本身每次渲染都是新的
   }, [open, target?.id, target?.price]);
 
   // ─── mutations ───

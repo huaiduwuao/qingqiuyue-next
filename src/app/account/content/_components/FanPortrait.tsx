@@ -27,7 +27,7 @@ export default function FanPortrait() {
     refetchOnMount: 'always',
   });
 
-  const all = ((query.data?.records ?? query.data?.list ?? []) as FanStat[]);
+  const all = useMemo(() => ((query.data?.records ?? query.data?.list ?? []) as FanStat[]), [query.data]);
   const genderData = useMemo(() => all.filter((s) => s.category === 'gender'), [all]);
   const ageData = useMemo(() => all.filter((s) => s.category === 'age'), [all]);
   const regionData = useMemo(() => all.filter((s) => s.category === 'region'), [all]);
