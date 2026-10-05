@@ -82,7 +82,7 @@ export class AlwaysListening {
   // 当前 VAD 段 (VAD 检测到一段人声期间的累计音频)
   private candidateChunks: Float32Array[] = []
   // 段结束处理定时器 (等 500ms 确认没有新的人声)
-  private segmentEndTimer: any = null
+  private segmentEndTimer: ReturnType<typeof setTimeout> | null = null
   // 唤醒后累积的命令 buffer (跨多个 VAD 段)
   private commandBuffer: Float32Array[] = []
   // 主动作开关
@@ -94,14 +94,14 @@ export class AlwaysListening {
   private recentFilled = false
   private verifying = false
   // 2s 静默检测: 唤醒后无新段时触发命令处理
-  private silenceTimer: any = null
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null
   // 静默阈值 (ms) — 用户停止说话 2s 就认为说完了
   private static readonly SILENCE_MS = 2000
   // VAD 屏蔽时间戳 (毫秒) — "我在听" TTS 播放期间屏蔽 VAD, 防止它把 cue 音频当命令
   private muteVadUntilMs = 0
   // 唤醒后最久等待 (用户可能走开), 超时放弃
   private static readonly MAX_WAIT_MS = 30000
-  private maxWaitTimer: any = null
+  private maxWaitTimer: ReturnType<typeof setTimeout> | null = null
   // openWakeWord 工作模式
   private wakeMode: 'openwakeword' | 'vad-fallback' = 'vad-fallback'
   private wakeConfig: WakeWordConfig = getDefaultWakeWordConfig()

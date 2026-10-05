@@ -212,9 +212,9 @@ export function useAuth() {
 export function useAuthority() {
   const { currentUser } = useApp();
   const { permissions } = useAuth();
-  const authorities = (currentUser as any)?.roles ?? currentUser?.authorities ?? [];
+  const authorities = currentUser?.roles ?? currentUser?.authorities ?? [];
   // 超级管理员(持有内置角色)在后端放行全部功能权限,前端保持一致。
-  const isSuperAdmin = Boolean((currentUser as any)?.superAdmin) || authorities.includes('SUPER_ADMIN');
+  const isSuperAdmin = Boolean((currentUser as { superAdmin?: boolean } | null)?.superAdmin) || authorities.includes('SUPER_ADMIN');
 
   const hasAuthority = useCallback(
     (auth: string) => authorities.includes(auth),

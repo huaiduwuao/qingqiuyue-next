@@ -31,7 +31,7 @@ const PLATFORM_BY_ALIAS: Record<string, ClientPlatform> = PLATFORMS.reduce((acc,
 export function detectPlatform(): ClientPlatform | 'unknown' {
   if (typeof navigator === 'undefined') return 'unknown';
   const ua = navigator.userAgent.toLowerCase();
-  const plat = (navigator as any).platform?.toLowerCase?.() || '';
+  const plat = (navigator as Partial<Navigator>).platform?.toLowerCase?.() || '';
   // 移动优先(否则 iPad 在桌面 UA 里可能误判为 Mac)
   if (/iphone|ipad|ipod/.test(ua)) return 'ios';
   if (/android/.test(ua)) return 'android';

@@ -47,7 +47,7 @@ export interface VADCallbacks {
 /** Wake Word 回调 */
 export interface WakeWordCallbacks {
   onWake: (label: string, confidence: number) => void
-  onError?: (err: any) => void
+  onError?: (err: Error) => void
 }
 
 export interface VoiceAgentOptions {

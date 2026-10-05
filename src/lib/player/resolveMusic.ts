@@ -23,7 +23,22 @@ export function parseLrc(value: unknown): LyricLine[] {
   });
 }
 
-function extractHash(data: any): string | null {
+/** 音乐详情里本文件用到的字段(详情接口未建类型,只列这里读的)。 */
+export interface MusicDetailLike {
+  title?: string;
+  artist?: string;
+  author?: string;
+  album?: string;
+  cover?: string;
+  coverUrl?: string;
+  audioStatus?: string;
+  audioUrl?: string;
+  source?: string;
+  sourceUrl?: string;
+  playSources?: Array<{ source?: string; sourceUrl?: string }>;
+}
+
+function extractHash(data: MusicDetailLike | null | undefined): string | null {
   const playSources = (data?.playSources || []) as Array<{ source?: string; sourceUrl?: string }>;
   const urls = [data?.source, data?.sourceUrl, ...playSources.map((p) => p.source || p.sourceUrl)].filter(Boolean);
   for (const url of urls) {
@@ -34,7 +49,7 @@ function extractHash(data: any): string | null {
 }
 
 /** 返回可直接交给 <audio> 的地址(已过 mediaUrl)和实时歌词;都拿不到时为空。 */
-export async function resolveMusic(data: any): Promise<{ src: string; lyrics: LyricLine[] }> {
+export async function resolveMusic(data: MusicDetailLike | null | undefined): Promise<{ src: string; lyrics: LyricLine[] }> {
   if (data?.audioUrl) return { src: mediaUrl(data.audioUrl), lyrics: [] };
   const hash = extractHash(data);
   if (!hash) return { src: '', lyrics: [] };
@@ -42,9 +57,9 @@ export async function resolveMusic(data: any): Promise<{ src: string; lyrics: Ly
   let src = '';
   let lyrics: LyricLine[] = [];
   try {
-    const audioRes: any = await spiderClient(`/music/audio/${hash}`);
+    const audioRes = await spiderClient<{ data?: { audio_url?: string } } | null>(`/music/audio/${hash}`);
     if (audioRes?.data?.audio_url) src = mediaUrl(audioRes.data.audio_url);
-    const detailRes: any = await spiderClient(`/music/detail/${hash}`);
+    const detailRes = await spiderClient<{ data?: { lyrics_lrc?: unknown; lyrics?: unknown } } | null>(`/music/detail/${hash}`);
     lyrics = parseLrc(detailRes?.data?.lyrics_lrc || detailRes?.data?.lyrics);
   } catch (err) {
     console.warn('获取音频/歌词失败:', err);
@@ -64,7 +79,7 @@ export async function resolveTrackById(id: string): Promise<{
   cover?: string;
   preview: boolean;
 }> {
-  const data: any = await contentDetail('music', { id });
+  const data: MusicDetailLike | null = await contentDetail('music', { id });
   const { src } = await resolveMusic(data);
   return {
     src,
@@ -78,6 +93,6 @@ export async function resolveTrackById(id: string): Promise<{
 
 /** 按内容 id 重新拉详情再解析 —— 全局播放器换链用。 */
 export async function resolveMusicById(id: string): Promise<string> {
-  const res: any = await contentDetail('music', { id });
+  const res: MusicDetailLike | null = await contentDetail('music', { id });
   return (await resolveMusic(res)).src;
 }

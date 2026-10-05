@@ -25,6 +25,11 @@ export interface StreamInfo {
   region?: 'mainland' | 'overseas' | string;
 }
 
+/** 挂在 <video> 上的流播放器(hls.js 实例或 lib/localStream 的 MediaSource 播放器),小窗只需要销毁它 */
+export interface DockStreamPlayer {
+  destroy(): void;
+}
+
 export interface DockEntry {
   el: HTMLVideoElement;
   title: string;
@@ -39,7 +44,7 @@ export interface DockEntry {
   onClose?: () => void;
   // ---- orphan 才有:接回去时恢复播放器状态 ----
   key?: string;
-  hls?: any;
+  hls?: DockStreamPlayer | null;
   streams?: StreamInfo[];
   currentStream?: number;
   platformName?: string;
@@ -66,7 +71,7 @@ export function park(v: HTMLVideoElement) {
   if (v.parentNode !== lot) lot.appendChild(v);
 }
 
-export function destroyVideo(v: HTMLVideoElement, hls?: any) {
+export function destroyVideo(v: HTMLVideoElement, hls?: DockStreamPlayer | null) {
   releaseMediaSession(v);
   if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
   v.pause();
@@ -154,21 +159,28 @@ export const videoDock = {
 // 画中画 + 系统媒体控制
 // ---------------------------------------------------------------------------
 
+/** Safari 的私有画中画接口(webkitPresentationMode 等),标准类型里没有 */
+interface WebkitPipVideo extends HTMLVideoElement {
+  webkitSupportsPresentationMode?: (mode: string) => boolean;
+  webkitPresentationMode?: string;
+  webkitSetPresentationMode?: (mode: string) => void;
+}
+
 export function pipSupported(v?: HTMLVideoElement | null): boolean {
   if (typeof document === 'undefined') return false;
   if (document.pictureInPictureEnabled && !v?.disablePictureInPicture) return true;
-  const w = v as any;
+  const w = v as WebkitPipVideo | null | undefined;
   return typeof w?.webkitSupportsPresentationMode === 'function' && w.webkitSupportsPresentationMode('picture-in-picture');
 }
 
 export function inPip(v: HTMLVideoElement | null): boolean {
   if (!v) return false;
-  return document.pictureInPictureElement === v || (v as any).webkitPresentationMode === 'picture-in-picture';
+  return document.pictureInPictureElement === v || (v as WebkitPipVideo).webkitPresentationMode === 'picture-in-picture';
 }
 
 export async function togglePip(v: HTMLVideoElement | null) {
   if (!v) return;
-  const w = v as any;
+  const w = v as WebkitPipVideo;
   try {
     if (document.pictureInPictureElement === v) {
       await document.exitPictureInPicture();

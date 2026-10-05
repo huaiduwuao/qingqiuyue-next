@@ -62,10 +62,22 @@ export function queueTracks(seeds: TrackSeed[]): number {
 export const LIKED_MUSIC_ID = 'liked';
 export const LIKED_MUSIC_NAME = '我喜欢的音乐';
 
+/** /account/likes/page 一行里这里用到的字段。 */
+interface LikedRow {
+  id: string | number;
+  category?: string;
+  contentType?: string;
+  title?: string;
+  cover?: string;
+  name?: string;
+  views?: number;
+  likes?: number;
+}
+
 /** 点过赞的歌,按点赞时间倒序(后端最多给最近 100 条赞,再从里面挑音乐)。 */
 export async function getLikedMusic(): Promise<MyListContentItem[]> {
-  const res: any = await accountClient('/account/likes/page');
-  const list: any[] = res?.list ?? [];
+  const res = await accountClient<{ list?: LikedRow[] } | null>('/account/likes/page');
+  const list: LikedRow[] = res?.list ?? [];
   return list
     .filter((c) => String(c.category || c.contentType || '').toUpperCase() === 'MUSIC')
     .map((c) => ({

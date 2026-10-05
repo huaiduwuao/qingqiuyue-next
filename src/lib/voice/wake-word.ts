@@ -24,7 +24,7 @@ import type { WakeWordConfig } from './types'
 
 export interface WakeWordCallbacks {
   onWake: (label: string, confidence: number) => void
-  onError?: (err: any) => void
+  onError?: (err: Error) => void
 }
 
 const STEP = 1280            // 80ms @16kHz
@@ -264,7 +264,7 @@ export async function startWakeWord(
 ): Promise<{ mode: 'openwakeword' | 'vad-fallback' }> {
   stopWakeWord()
 
-  const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noWake?: boolean } | undefined
+  const debug = (typeof window !== 'undefined' && (window as Window & { __DIGITAL_HUMAN_DEBUG?: unknown }).__DIGITAL_HUMAN_DEBUG) as { noWake?: boolean } | undefined
   if (debug?.noWake) {
     voiceLog('info', 'wake', 'noWake flag set, using vad-fallback')
     return { mode: 'vad-fallback' }

@@ -39,7 +39,7 @@ export function useShare(args: UseShareArgs) {
 
   const share = useCallback(async () => {
     try {
-      const nav: any = typeof navigator !== 'undefined' ? navigator : {};
+      const nav: Partial<Pick<Navigator, 'share' | 'clipboard'>> = typeof navigator !== 'undefined' ? navigator : {};
       if (nav.share) {
         await nav.share({ title: args.title, text: args.desc || args.title, url });
       } else if (nav.clipboard?.writeText) {

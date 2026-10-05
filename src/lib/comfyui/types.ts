@@ -22,7 +22,7 @@ export interface ComfyUIHistoryItem {
   status: {
     status_str: string
     completed: boolean
-    messages: Array<[string, any]>
+    messages: Array<[string, unknown]>
   }
 }
 
@@ -35,7 +35,15 @@ export interface ComfyUIOutputNode {
 
 export interface ComfyUIProgressEvent {
   type: 'status' | 'progress' | 'executing' | 'execution_start' | 'execution_cached' | 'executed' | 'execution_error'
-  data: any
+  /** 各事件 data 的字段并集(progress: value/max/node_id;executing: node;execution_error: exception_message) */
+  data: {
+    value?: number
+    max?: number
+    node_id?: string
+    node?: string | null
+    exception_message?: string
+    [key: string]: unknown
+  }
 }
 
 export interface ComfyUIGenerateOptions {

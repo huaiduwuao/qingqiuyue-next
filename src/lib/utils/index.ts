@@ -41,13 +41,16 @@ export const os = function () {
 
 export const isImg = /^http(s)?:\/\/([\w-]+\.)+[\w-]+(\/[\w-./?%&=]*)?/;
 
-export const toTree = (data: any[]): any[] => {
+/** toTree 的行:按 id / pid 建树,value 复制成 name */
+type TreeRow = Record<string, unknown> & { id?: unknown; pid?: unknown; value?: unknown; children?: TreeRow[] };
+
+export const toTree = (data: TreeRow[]): TreeRow[] => {
   if (data == null) {
     return [];
   }
 
-  function loop(pid: any): any[] {
-    const res = [];
+  function loop(pid: unknown): TreeRow[] {
+    const res: TreeRow[] = [];
     for (let i = 0; i < data.length; i += 1) {
       const item = data[i];
       if (item.pid === pid) {
@@ -66,8 +69,8 @@ export const toTree = (data: any[]): any[] => {
 
 export const fallbackImg = '/placeholder-cover.svg';
 
-export const groupBy = (array: any[], f: (item: any) => string): Record<string, any[]> => {
-  const map: Record<string, any[]> = {};
+export const groupBy = <T>(array: T[], f: (item: T) => string): Record<string, T[]> => {
+  const map: Record<string, T[]> = {};
 
   array.forEach(function (obj) {
     const key = f(obj);

@@ -44,13 +44,14 @@ export const ONBOARDING_DEFAULTS: OnboardingPrefs = {
 const KEY = 'qq-onboarding';
 const EVENT = 'qq-onboarding-change';
 
-function normalize(stored: any): OnboardingPrefs {
+function normalize(raw: unknown): OnboardingPrefs {
   const base: OnboardingPrefs = { ...ONBOARDING_DEFAULTS };
-  if (!stored || typeof stored !== 'object') return base;
+  if (!raw || typeof raw !== 'object') return base;
+  const stored = raw as Partial<Record<keyof OnboardingPrefs, unknown>>;
   if (typeof stored.completed === 'boolean') base.completed = stored.completed;
   if (typeof stored.dismissedAt === 'number') base.dismissedAt = stored.dismissedAt;
   if (Array.isArray(stored.interests)) {
-    base.interests = stored.interests.filter((c: unknown) => typeof c === 'string').slice(0, 5);
+    base.interests = stored.interests.filter((c: unknown): c is string => typeof c === 'string').slice(0, 5);
   }
   if (typeof stored.seenWelcome === 'boolean') base.seenWelcome = stored.seenWelcome;
   base.version = ONBOARDING_VERSION;
@@ -61,7 +62,7 @@ let cache: OnboardingPrefs | null = null;
 
 function read(): OnboardingPrefs {
   if (cache) return cache;
-  let stored: any = null;
+  let stored: unknown = null;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) stored = JSON.parse(raw);

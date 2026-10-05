@@ -3,10 +3,10 @@
 import { detail as contentDetail } from '@/apis/content-music';
 import { mediaUrl } from '@/lib/media';
 import { musicPlayer, type MusicTrack } from './musicPlayer';
-import { resolveMusic } from './resolveMusic';
+import { resolveMusic, type MusicDetailLike } from './resolveMusic';
 
 /** 详情数据 + 已解析好的音源 → 全局播放器曲目 */
-export function trackFromDetail(id: string, data: any, src: string): MusicTrack {
+export function trackFromDetail(id: string, data: MusicDetailLike | null | undefined, src: string): MusicTrack {
   return {
     id,
     title: data?.title || '未知歌曲',
@@ -25,7 +25,7 @@ export function trackFromDetail(id: string, data: any, src: string): MusicTrack 
  */
 export async function playMusicById(id: string | number): Promise<boolean> {
   const key = String(id);
-  const data: any = await contentDetail('music', { id: key });
+  const data: MusicDetailLike | null = await contentDetail('music', { id: key });
   if (!data) return false;
   const { src } = await resolveMusic(data);
   if (!src) return false;

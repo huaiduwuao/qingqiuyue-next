@@ -50,11 +50,12 @@ export interface SpiderWSState {
   revision: number;
 }
 
-interface WSMessage {
-  type: 'health' | 'stats' | 'task' | 'tasks';
-  payload: any;
-  ts: number;
-}
+type WSMessage = { ts: number } & (
+  | { type: 'health'; payload: SpiderHealth }
+  | { type: 'stats'; payload: SpiderStats }
+  | { type: 'tasks'; payload: { list?: CrawlTaskFromWS[] } | null | undefined }
+  | { type: 'task'; payload: CrawlTaskFromWS }
+);
 
 /**
  * 换一张 spider WS 的一次性票(60 秒、用过即失效)。
@@ -173,7 +174,8 @@ export function useSpiderWebSocket(): SpiderWSState {
             } else if (msg.type === 'stats') {
               next.stats = msg.payload as SpiderStats;
             } else if (msg.type === 'tasks') {
-              next.tasks = Array.isArray(msg.payload?.list) ? msg.payload.list : [];
+              const list = msg.payload?.list;
+              next.tasks = Array.isArray(list) ? list : [];
               next.revision = prev.revision + 1;
             } else if (msg.type === 'task') {
               const updated: CrawlTaskFromWS = msg.payload;

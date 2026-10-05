@@ -78,7 +78,7 @@ function normalize(list: unknown): HomeSection[] {
 
 function read(): HomeSectionPrefs {
   if (cache) return cache;
-  let stored: any = null;
+  let stored: { sections?: unknown; touched?: unknown } | null = null;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) stored = JSON.parse(raw);

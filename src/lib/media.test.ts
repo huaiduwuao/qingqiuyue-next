@@ -105,7 +105,7 @@ describe('normalizeMediaUrls', () => {
   });
 
   it('环形引用不炸(深度上限保护)', () => {
-    const a: any = { cover: 'http://10.9.1.2:10000/qq-media/a.jpg' };
+    const a: { cover: string; self?: unknown } = { cover: 'http://10.9.1.2:10000/qq-media/a.jpg' };
     a.self = a;
     expect(() => normalizeMediaUrls(a)).not.toThrow();
     expect(a.cover).toBe('/qq-media/a.jpg');

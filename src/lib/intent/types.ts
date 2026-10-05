@@ -11,7 +11,7 @@ export type Intent =
   | { type: 'switch'; agentId: string }                   // 切换当前对话角色
   | { type: 'return' }                                    // 返回上一个角色
   | { type: 'cron'; cronExpr: string; prompt: string; agentId?: string }
-  | { type: 'system'; action: SystemAction; params?: Record<string, any> }
+  | { type: 'system'; action: SystemAction; params?: Record<string, unknown> }
   | { type: 'query'; kind: 'conversation' | 'task' | 'artifact'; query: string }
   | { type: 'multi'; intents: Intent[] }                  // 复合意图
 
