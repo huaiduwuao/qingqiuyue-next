@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -27,18 +27,15 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
-import Chip from '@mui/material/Chip'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
-import DeleteIcon from '@mui/icons-material/Delete'
 import CloseIcon from '@mui/icons-material/Close'
 
 import CanvasNode from './CanvasNode'
 import { canvasAPI } from './api'
 import { agentmAPI } from '@/lib/agentmanager/api'
 import { agentmExtendedAPI } from '@/lib/agentmanager/api-extended'
-import type { AgentAssociations, CanvasNodeType, AgentSkillInfo, AgentMCPInfo, AgentWorkflowInfo, AgentMemoryInfo } from './types'
+import type { AgentAssociations, CanvasNodeType } from './types'
 import { NODE_TYPE_META as META } from './types'
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode }
@@ -233,8 +230,8 @@ export default function CanvasFlow({ agentId, agentName }: CanvasFlowProps) {
 
   // 弹窗状态
   const [selectDialog, setSelectDialog] = useState<SelectDialogType>(null)
-  const [createWorkflowDialog, setCreateWorkflowDialog] = useState(false)
-  const [createMemoryDialog, setCreateMemoryDialog] = useState(false)
+  const [, setCreateWorkflowDialog] = useState(false)
+  const [, setCreateMemoryDialog] = useState(false)
 
   // 加载画布 + 关联信息
   useEffect(() => {

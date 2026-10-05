@@ -364,19 +364,3 @@ export default function AIChatPage() {
     </Box>
   )
 }
-
-// 提取响应内容
-function extractContent(response: any): string {
-  if (!response) return '无响应'
-  if (typeof response === 'string') return response
-
-  if (response.choices?.[0]?.message?.content) {
-    return response.choices[0].message.content
-  }
-
-  if (response.content) return response.content
-  if (response.text) return response.text
-  if (response.message) return response.message
-
-  return JSON.stringify(response, null, 2)
-}

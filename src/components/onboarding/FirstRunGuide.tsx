@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -71,7 +70,6 @@ interface Props {
 }
 
 export default function FirstRunGuide({ noDelay }: Props = {}) {
-  const router = useRouter();
   const { isMobile } = useResponsive();
   const [prefs] = useOnboarding();
   const [, sectionApi] = useHomeSections();

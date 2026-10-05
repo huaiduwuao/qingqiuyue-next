@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCreatorWipList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
@@ -28,8 +28,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import { useActiveTab } from '../ActiveTabContext';
-import { gradient2, gradient3 } from '@/constants/gradients';
-import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { gradient2 } from '@/constants/gradients';
+import { accountClient, isAuthError, formatApiError } from '@/lib/api/client';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
@@ -137,7 +137,7 @@ export default function NewCreationSection({ compact = false }: { compact?: bool
       setSnack(`已重新定时到 ${new Date(ts).toLocaleString('zh-CN')}`);
       setRescheduleOpen(null);
       setRescheduleAt('');
-      setWip((p) => []);
+      setWip((_p) => []);
     } catch (err) {
       setSnack(formatApiError(err));
     }

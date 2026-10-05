@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, ReactNode } from 'react'
+import { useCallback, useState } from 'react'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import type { AlertColor } from '@mui/material'

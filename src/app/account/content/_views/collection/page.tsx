@@ -280,25 +280,6 @@ export default function CollectionPage() {
     deleteM.mutate(id);
   };
 
-  /**
-   * 公开合集直接复制 /playlist?id=;私密合集要求用户走 ShareDialog 主动开 share token
-   * —— 默认不开启分享,这里只是入口。
-   */
-  const handleCopyLink = async (c: Collection) => {
-    setAnchorEl(null);
-    if (!c.isPublic) {
-      setShareTarget({ id: c.id, name: c.title, isPublic: false, shareToken: c.shareToken, price: c.price });
-      return;
-    }
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/playlist?id=${encodeURIComponent(String(c.id))}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setSnack('链接已复制');
-    } catch {
-      setSnack('复制失败');
-    }
-  };
-
   /** 统一入口:公开/私密都进 ShareDialog,里面支持开 share token 和改价 */
   const openShareDialog = (c: Collection) => {
     setAnchorEl(null);

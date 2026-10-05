@@ -13,7 +13,6 @@
  *   - getBone(humanoid, name)  → 兼容 camelCase/PascalCase
  */
 
-import type { VRMExpressionPresetName } from '@pixiv/three-vrm';
 
 /** ARKit 52 维 → VRM 1.0 预设表情的映射 */
 const ARKIT_TO_VRM1_PRESET: Record<string, string> = {
@@ -60,18 +59,6 @@ const ARKIT_TO_VRM0: Record<string, string> = {
   // VRM 1.0 旧版别名
   blinkLeft: 'blinkLeft',
   blinkRight: 'blinkRight',
-};
-
-/** VRM 0.0 → ARKit 反向映射（用于 0.0 preset 读出后转 ARKit） */
-const VRM0_TO_ARKIT: Record<string, string> = {
-  joy: 'happy',
-  sorrow: 'sad',
-  fun: 'surprised',
-  viseme_aa: 'aa',
-  viseme_ih: 'ih',
-  viseme_ou: 'ou',
-  viseme_E: 'ee',
-  viseme_O: 'oh',
 };
 
 /** 推断 VRM 版本：1 = VRM 1.0，0 = VRM 0.0 */

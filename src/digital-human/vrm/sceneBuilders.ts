@@ -51,17 +51,6 @@ function makeLEDRing(THREE_NS: typeof THREE, rIn: number, rOut: number, color: n
   return ring;
 }
 
-function makeLightBeam(THREE_NS: typeof THREE, color: number, height = 4, radius = 0.9) {
-  const g = new THREE_NS.CylinderGeometry(0.02, radius, height, 24, 1, true);
-  const m = new THREE_NS.MeshBasicMaterial({
-    color, transparent: true, opacity: 0.18,
-    blending: THREE_NS.AdditiveBlending, depthWrite: false, side: THREE_NS.DoubleSide,
-  });
-  const mesh = new THREE_NS.Mesh(g, m);
-  mesh.position.y = height / 2;
-  return mesh;
-}
-
 function makeParticles(THREE_NS: typeof THREE, count = 180, area = 20, palette: number[] = [0xff4fd8, 0x4fd8ff, 0xffb74f, 0x9b6bff, 0xffffff]) {
   const g = new THREE_NS.BufferGeometry();
   const pos = new Float32Array(count * 3);
@@ -227,15 +216,6 @@ function makeCurvedPaper(THREE_NS: typeof THREE, w: number, h: number, color: nu
   g.computeVertexNormals();
   const m = new THREE_NS.Mesh(g, new THREE_NS.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0 }));
   m.position.y = h / 2;
-  return m;
-}
-
-function makeFloorCircle(THREE_NS: typeof THREE, radius: number, color: number, roughness: number, metalness: number) {
-  const m = new THREE_NS.Mesh(
-    new THREE_NS.CircleGeometry(radius, 64),
-    new THREE_NS.MeshStandardMaterial({ color, roughness, metalness }),
-  );
-  m.rotation.x = -Math.PI / 2; m.receiveShadow = true;
   return m;
 }
 

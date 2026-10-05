@@ -11,7 +11,6 @@ import {
   Grid,
   Chip,
   Avatar,
-  AvatarGroup,
   LinearProgress,
   List,
   ListItem,
@@ -21,7 +20,6 @@ import {
   Skeleton,
   Alert,
   Tooltip,
-  IconButton,
   Button,
   ToggleButtonGroup,
   ToggleButton,
@@ -33,7 +31,6 @@ import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
 import AttachMoneyRoundedIcon from '@mui/icons-material/AttachMoneyRounded';
 import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import { useQuery } from '@tanstack/react-query';
 import { adminClient } from '@/lib/api/client';
 import { alpha } from '@mui/material/styles';
@@ -152,28 +149,6 @@ function fmtMoney(n: number): string {
   if (n >= 10000) return '¥' + (n / 10000).toFixed(1) + '万';
   if (n >= 1000) return '¥' + n.toLocaleString();
   return '¥' + n;
-}
-
-// ── 简易趋势柱子 ──
-function MiniBarChart({ data, height = 60, color = '#FE2C55' }: { data: number[]; height?: number; color?: string }) {
-  const max = Math.max(...data, 1);
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height, mt: 1 }}>
-      {data.map((v, i) => (
-        <Box
-          key={i}
-          sx={{
-            flex: 1,
-            height: `${Math.max(2, (v / max) * height)}px`,
-            bgcolor: color,
-            borderRadius: '1px 1px 0 0',
-            opacity: 0.8,
-            transition: 'height 0.3s',
-          }}
-        />
-      ))}
-    </Box>
-  );
 }
 
 // ── 简易趋势折线(48 小时内) ──

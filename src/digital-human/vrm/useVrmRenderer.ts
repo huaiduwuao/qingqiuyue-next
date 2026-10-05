@@ -121,7 +121,7 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
 
   // 外部接管渲染(广场的后期:泛光 / 调色);返回 false = 这一帧照常画
   const renderOverrideRef = useRef<((r: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, t: number) => boolean) | null>(null);
-  function tickFn(dt: number) {
+  function tickFn(_dt: number) {
     const s = stateRef.current;
     if (!s) return;
     if (s.controls) s.controls.update();

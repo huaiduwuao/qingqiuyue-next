@@ -10,7 +10,7 @@
 // - 右上:群名 + 在线人数 + 公开/私密标识 + 加入/退出/解散
 // - 右下抽屉:成员列表 + (团队专属)分账面板
 
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
@@ -25,7 +25,6 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Drawer from '@mui/material/Drawer';
-import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import List from '@mui/material/List';
@@ -40,7 +39,6 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import GroupAddRoundedIcon from '@mui/icons-material/GroupAddRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
@@ -67,7 +65,6 @@ import {
   kickGroupMember,
   settleTeam,
   listTeamSettlements,
-  type ChatGroup,
   type GroupMember,
   type GroupMessage,
   type GroupView,

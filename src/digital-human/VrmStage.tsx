@@ -55,7 +55,7 @@ import type { BlockHit } from './vrm/world/blockLayer';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
 import type { AvatarParams } from '@/apis/world';
-import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
+import { detectVrmVersion, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
 
@@ -310,7 +310,6 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     modelUrl = '/avatars/character.vrm',
     emotion = {},
     viseme = {},
-    currentAction = 'idle',
     autoBlink = true,
     lookAtCamera = true,
     background = 'transparent',
@@ -343,7 +342,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // Phase 2：父组件可以传 config prop 覆盖
   // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
   const [configBundle, setConfigBundle] = useState(() => configProp ?? loadConfigBundle());
-  const [currentScene, setCurrentScene] = useState<string>('concert');  // 默认场景
+  const [currentScene] = useState<string>('concert');  // 默认场景
   useEffect(() => {
     if (configProp) {
       setConfigBundle(configProp);

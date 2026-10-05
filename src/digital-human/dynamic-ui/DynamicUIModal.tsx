@@ -45,7 +45,7 @@ interface DynamicUIModalProps {
 
 export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalProps) {
   const [toastOpen, setToastOpen] = useState(false)
-  const [toastContent, setToastContent] = useState('')
+  const [, setToastContent] = useState('')
   const [toastSeverity, setToastSeverity] = useState<'success' | 'info' | 'warning' | 'error'>('info')
 
   // Toast 类型的特殊处理

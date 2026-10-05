@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { loginHref } from '@/lib/auth/redirect';
 import { useAIPrefs } from '@/lib/aiPrefs';
-import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CircularProgress from '@mui/material/CircularProgress';

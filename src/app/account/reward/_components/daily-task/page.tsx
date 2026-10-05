@@ -29,9 +29,7 @@ import {
   getDailyTaskStats,
   completeDailyTask,
   DailyTask,
-  DailyTaskStats,
 } from '@/apis/reward-center';
-import { getWalletSummary } from '@/apis/reward-center';
 import { useResponsive } from '@/hooks/useResponsive';
 import { MobileListRow, MobileSection } from '@/components/mobile/MobileSection';
 import { MobileEmpty, RowIcon, StatusTag } from '../personal/mobileKit';

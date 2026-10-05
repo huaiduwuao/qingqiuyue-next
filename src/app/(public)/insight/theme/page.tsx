@@ -28,7 +28,6 @@ import {
   theme as fetchTheme,
   pushRecentTheme,
   type InsightAvail,
-  type InsightTheme,
 } from '@/apis/insight';
 import { accentOf, EssayCard, Epigraph, StoryCard } from '@/components/insight/InsightCards';
 import { AvailFilter, TimelineTab, WorksTab } from '@/components/insight/ThemeWorks';

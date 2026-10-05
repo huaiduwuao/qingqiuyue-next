@@ -74,7 +74,7 @@ export interface UseContentFormOptions<TPayload> {
   requireDesc?: boolean;
 }
 
-export interface UseContentFormReturn<TPayload> {
+export interface UseContentFormReturn<_TPayload> {
   // 字段
   title: string;
   setTitle: (v: string) => void;

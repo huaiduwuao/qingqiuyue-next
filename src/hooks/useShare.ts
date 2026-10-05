@@ -18,7 +18,7 @@
  *   <ShareButtons />  // 这一组已经在 hook 里组装好
  */
 
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 
 export interface UseShareArgs {
   contentType: string;

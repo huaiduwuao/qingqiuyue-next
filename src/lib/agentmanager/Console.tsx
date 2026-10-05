@@ -159,7 +159,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
   const [costStats, setCostStats] = useState<CostStats | null>(null)
-  const [gatewayModels, setGatewayModels] = useState<{ id: string; name: string }[]>([])
+  const [, setGatewayModels] = useState<{ id: string; name: string }[]>([])
 
   // 删除 Agent / 技能
   const handleDeleteAgent = async (a: Agent) => {

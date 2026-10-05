@@ -55,7 +55,6 @@ import type {
 type HourlyStatsResponse = Awaited<ReturnType<typeof getHourlyStats>>;
 type HourlySourceHealth = Awaited<ReturnType<typeof getHourlySourceHealth>>;
 type ContentTrendItem = NonNullable<Awaited<ReturnType<typeof getContentTrend>>['items']>[number];
-type ContentTrend = ContentTrendItem[];
 type ContentStatsEnhanced = Awaited<ReturnType<typeof getEnhancedStats>>;
 
 const EVENT_SEVERITY_COLOR: Record<string, 'default' | 'info' | 'warning' | 'error' | 'success'> = {

@@ -2,7 +2,7 @@
  * gaussianLoader — 从 URL/文件加载 3DGS 资产
  */
 
-import type { MetaJSON, SMPLXJSON, GaussianAsset, SkinningData } from './assetFormat';
+import type { MetaJSON, SMPLXJSON, GaussianAsset } from './assetFormat';
 import { parseGaussianBinary, parseSkinningBinary } from './assetFormat';
 
 export interface LoadOptions {

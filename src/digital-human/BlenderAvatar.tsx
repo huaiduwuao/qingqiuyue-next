@@ -40,7 +40,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 //   "Unexpected import of module ... which was deleted by an HMR update"
 // 导致整个 BlenderAvatar 组件挂掉, VRM 不动 → T-pose
 import * as THREE_VRM from '@pixiv/three-vrm';
-const { VRMLoaderPlugin, VRMHumanBoneName } = THREE_VRM;
+const { VRMHumanBoneName } = THREE_VRM;
 
 // 注: three.js / VRM 对象在运行时动态加载, 很多内部类型无法静态精确表达;
 // 本文件里保留的 `any` 仅用于胶水代码, 不影响业务行为。
@@ -198,7 +198,6 @@ function VrmAvatar({
    * (例如 face.setExpression / body.playAction) 时, 直接调这个 callback。
    * — 默认空 noop, 让 BlenderAvatar 保持纯展示层
    */
-  onToolCall,
   sx,
 }: BlenderAvatarProps) {
   // canvas 由初始化 effect 自己创建 / 移除(见 effectCanvas.ts),这里只留宿主节点

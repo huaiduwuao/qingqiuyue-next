@@ -148,11 +148,6 @@ export default function NovelForm({ onSuccess }: PublishFormProps) {
       prev.map((c) => (c.id === id ? { ...c, body: trimmed, wordCount } : c)),
     );
   };
-
-  const totalWordCount = useMemo(
-    () => chapters.reduce((sum, c) => sum + c.wordCount, 0),
-    [chapters],
-  );
   const totalChapterCount = chapters.length;
   const canSubmitFinal = useMemo(
     () =>

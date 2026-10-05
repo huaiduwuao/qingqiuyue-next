@@ -14,8 +14,6 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
@@ -39,7 +37,6 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { gradient2 } from '@/constants/gradients';
 import { getReviewQueue, doReview, type ReviewRequest } from '@/apis/review';
 import {
@@ -855,7 +852,6 @@ function ReviewPanel({
   submitting?: boolean;
   onViewHistory: () => void;
 }) {
-  const router = useRouter();
   const risk = computeRiskLevel(video);
   const checks = video.review?.checks ?? [];
   const passed = checks.filter((c) => c.status === 'passed').length;

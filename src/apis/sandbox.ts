@@ -1,7 +1,6 @@
 import { adminClient } from '@/lib/api/client';
 import type {
   SandboxImageCreateReq,
-  SandboxImageUpdateReq,
   SandboxImageResp,
   SandboxTaskCreateReq,
   SandboxTaskResp,

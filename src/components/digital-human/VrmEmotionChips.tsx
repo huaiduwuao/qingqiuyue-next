@@ -9,7 +9,7 @@
 import React from 'react';
 import { Box, Chip, Stack, Tooltip } from '@mui/material';
 import { EMOTION_PRESETS } from '@/digital-human/vrm/types';
-import { buildExpressionFromPreset, EXPRESSION_PRESETS, type ExpressionTemplateName } from '@/digital-human/tools/expressions';
+import { buildExpressionFromPreset, type ExpressionTemplateName } from '@/digital-human/tools/expressions';
 import type { VrmStageHandle } from '@/digital-human/VrmStage';
 
 interface Props {

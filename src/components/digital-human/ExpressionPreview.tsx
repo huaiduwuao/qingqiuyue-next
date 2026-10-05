@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Box, Grid, Chip, Typography, Stack } from '@mui/material';
+import { Box, Chip, Typography, Stack } from '@mui/material';
 import {
   EXPRESSION_PRESETS,
   EXPRESSION_PRESET_LABELS,

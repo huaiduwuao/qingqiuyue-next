@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlwaysListening } from '@/lib/voice/always-listening'
 import { getDefaultWakeWordConfig } from '@/lib/voice/wake-word'
-import type { VoiceEvent, VoiceState, WakeWordConfig } from '@/lib/voice/types'
+import type { VoiceState, WakeWordConfig } from '@/lib/voice/types'
 
 export interface UseVoiceAgentOptions {
   asrGatewayUrl?: string

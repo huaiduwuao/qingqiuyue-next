@@ -113,7 +113,7 @@ interface ChipGroupProps<T extends string | number> {
   size?: 'small' | 'medium';
 }
 
-function ChipGroup<T extends string | number>({ options, value, onChange, size = 'small' }: ChipGroupProps<T>) {
+function ChipGroup<T extends string | number>({ options, value, onChange }: ChipGroupProps<T>) {
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
       {options.map((o) => {

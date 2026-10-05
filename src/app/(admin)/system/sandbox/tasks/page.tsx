@@ -375,7 +375,6 @@ function CreateTaskDialog({ open, onClose, onSubmit, loading, images }: CreateTa
 }
 
 function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | null; onClose: () => void }) {
-  const [logs, setLogs] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
   const open = !!viewing;
 

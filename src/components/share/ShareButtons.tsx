@@ -56,8 +56,6 @@ async function invokeTauri(cmd: string, args?: Record<string, unknown>): Promise
 
 /** 小红书 App 唤起 scheme + 兜底 URL(用户没装 App 时跳应用商店) */
 const XHS_SCHEME = 'xhsdiscover://';
-const DOUYIN_SCHEME = 'snssdk1128://';
-const KUAISHOU_SCHEME = 'kwaiyewen://';
 
 export interface ShareButtonsProps {
   contentType: string;
@@ -178,7 +176,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
           showToast('已下载分享卡 + 复制链接;请在小红书发布页上传图片并粘贴链接', 'info');
         }
       }
-    } catch (e: any) {
+    } catch {
       // html-to-image 失败时降级复制链接
       try {
         await navigator.clipboard?.writeText(url);

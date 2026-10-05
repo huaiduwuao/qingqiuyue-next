@@ -27,7 +27,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { adminClient } from '@/lib/api/client';
-import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
@@ -76,14 +75,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 
 const PRIORITY_COLORS: Record<string, string> = { P0: '#FE2C55', P1: '#FFB400', P2: '#5DDB96' };
 const PRIORITY_LABELS: Record<string, string> = { P0: '紧急', P1: '高', P2: '中' };
-const STATUS_LABELS: Record<string, string> = {
-  pending: '待领取', claimed: '进行中', submitted: '待审核', reviewing: '审核中',
-  approved: '已完成', rejected: '已拒绝', completed: '已完成',
-};
-const STATUS_COLORS: Record<string, 'warning' | 'info' | 'success' | 'error'> = {
-  pending: 'warning', claimed: 'info', submitted: 'info', reviewing: 'info',
-  approved: 'success', rejected: 'error', completed: 'success',
-};
 const DONE_STATUSES = new Set(['approved', 'completed', 'rejected']);
 
 function useWorkplace() {

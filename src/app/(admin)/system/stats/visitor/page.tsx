@@ -42,27 +42,7 @@ function fmt(n: number): string {
   return String(n);
 }
 
-function SmallBarChart({ data, height = 48, color = '#5B8DEF' }: { data: number[]; height?: number; color?: string }) {
-  const max = Math.max(...data, 1);
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height }}>
-      {data.map((v, i) => (
-        <Box
-          key={i}
-          sx={{
-            flex: 1,
-            height: `${Math.max(2, (v / max) * height)}px`,
-            bgcolor: color,
-            borderRadius: '1px 1px 0 0',
-            opacity: 0.75,
-          }}
-        />
-      ))}
-    </Box>
-  );
-}
-
-function TrendChart({ data, height = 160, label }: { data: { date: string; pv: number; uv: number }[]; height?: number; label: string }) {
+function TrendChart({ data, height = 160 }: { data: { date: string; pv: number; uv: number }[]; height?: number; label: string }) {
   const max = Math.max(...data.map(d => d.pv), 1);
   const stepX = 800 / (data.length - 1 || 1);
   const w = 800;
@@ -137,8 +117,6 @@ export default function VisitorStatsPage() {
   }
 
   const s = stats.data;
-  const pvData = (s?.pvTrend || []).map((p) => p.pv);
-  const uvData = (s?.pvTrend || []).map((p) => p.uv);
 
   return (
     <Container maxWidth="xl">

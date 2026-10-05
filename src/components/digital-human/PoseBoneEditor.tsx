@@ -8,7 +8,7 @@
  * - 右侧：选中骨骼的详细信息和手动输入
  */
 
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import {
   Box, Stack, Typography, Slider, Button, Divider, Paper,
 } from '@mui/material';

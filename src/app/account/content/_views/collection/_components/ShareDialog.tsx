@@ -37,7 +37,6 @@ import {
   createShareToken,
   deleteShareToken,
   setListPrice,
-  type MyListItem,
 } from '@/apis/my-list';
 import { formatApiError } from '@/lib/api/client';
 

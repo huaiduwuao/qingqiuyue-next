@@ -1,42 +1,6 @@
-import { test, expect, request as pwRequest } from '@playwright/test';
-import * as fs from 'fs';
+import { test, expect } from '@playwright/test';
 import { gotoRewardView } from '../fixtures/nav';
-import { ensureGroup, ensureProject } from '../fixtures/api';
 import { S } from '../fixtures/selectors';
-
-const SEED_FILE = 'e2e/.auth/demand-seed.json';
-
-async function ensureDemandSeed(): Promise<{ demandTitle: string; ts: string }> {
-  try {
-    const cached = JSON.parse(fs.readFileSync(SEED_FILE, 'utf-8'));
-    if (cached.demandTitle && Date.now() - cached.createdAt < 5 * 60_000) {
-      return { demandTitle: cached.demandTitle, ts: cached.ts };
-    }
-  } catch { /* fresh */ }
-  // 复用 auth.setup 已建好的 group/project（如有）;无则重 ensure
-  const api = await pwRequest.newContext({
-    baseURL: 'http://localhost:3000',
-    extraHTTPHeaders: { Authorization: (await fs.promises.readFile('e2e/.auth/storageState.json', 'utf-8').then((s) => {
-      const parsed = JSON.parse(s);
-      const token = parsed?.origins?.[0]?.localStorage?.find((kv: any) => kv.name === 'token')?.value;
-      return `Bearer ${token}`;
-    }).catch(() => 'Bearer ')), 'Content-Type': 'application/json' },
-  });
-  try {
-    const ts = Date.now().toString(36);
-    const groupName = `E2E-Demand-Group-${ts}`;
-    const projectName = `E2E-Demand-Project-${ts}`;
-    const demandTitle = `E2E-需求-Seed-${ts}`;
-    const groupId = await ensureGroup(api, groupName);
-    const projectId = await ensureProject(api, groupId, projectName);
-    // 创建 demand 走 POST /demand，createUser 从 JWT 拿（admin userId=1）
-    const resp = await api.post('/api/core/demand', { data: { groupId, projectId, title: demandTitle, content: 'e2e seed', pay: 0, status: 'PENDING' } });
-    fs.writeFileSync(SEED_FILE, JSON.stringify({ demandTitle, ts, groupId, projectId, createdAt: Date.now() }));
-    return { demandTitle, ts };
-  } finally {
-    await api.dispose();
-  }
-}
 
 test.describe('悬赏中心 · 需求管理', () => {
   test.beforeEach(async ({ page }) => {

@@ -15,7 +15,7 @@ import Alert from '@mui/material/Alert';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { fetchTopic } from '@/apis/community';
-import { updateTopicByOwner, type Topic } from '@/apis/topic';
+import { updateTopicByOwner } from '@/apis/topic';
 import { useAuth } from '@/contexts/AuthContext';
 import { topicHref } from '@/components/community/format';
 

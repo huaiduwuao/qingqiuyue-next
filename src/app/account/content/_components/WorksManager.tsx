@@ -47,7 +47,6 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useActiveTab } from '../ActiveTabContext';
 import { process, saveOrUpdate, remove } from '@/apis/content-video';
 import type { ContentType } from '@/apis/content-video';
-import { gradient2, gradient3 } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
 
 type WorkType = 'video' | 'image' | 'article';

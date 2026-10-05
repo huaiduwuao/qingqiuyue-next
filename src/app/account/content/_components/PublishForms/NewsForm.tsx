@@ -33,7 +33,6 @@ import type { PublishFormProps } from './types';
 const MAX_TITLE = 40;
 const MAX_BODY = 5000;
 const MAX_TAGS = 6;
-const MAX_SUMMARY = 200;
 
 type CoverStatus = 'idle' | 'uploading' | 'uploaded' | 'failed';
 

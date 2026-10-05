@@ -31,7 +31,6 @@ import ShareButtons from '@/components/share/ShareButtons';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
-import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { mediaUrl } from '@/lib/media';
@@ -48,7 +47,6 @@ import { DetailFooter } from '@/components/detail/DetailFooter';
 function MusicDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
-  const playlistId = searchParams.get('playlistId');
 
   const query = useQuery({
     queryKey: ['detail', 'music', id],
@@ -122,7 +120,7 @@ function MusicDetailContent() {
   }, []);
 
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
-  const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
+  const { liked, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';

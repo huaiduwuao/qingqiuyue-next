@@ -22,7 +22,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useQuery } from '@tanstack/react-query';
 import { claimTask, submitTask, reviewTask, disputeTask } from '@/apis/reward-task';
 import { myTeams } from '@/apis/team';
-import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
+import type { RewardTask } from '@/beans/reward';
 import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
 import { DeliveredWork, useGoCreateForTask, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
@@ -153,7 +153,7 @@ const res = await claimTask(task.id!, claimAs || undefined);
     if (!window.confirm('确认删除此任务?此操作不可撤销。')) return;
     const { deleteTask } = await import('@/apis/reward-task');
     try {
-      const res = await deleteTask(task.id!);
+      await deleteTask(task.id!);
       onDeleted(task.id!);
     } catch (e: any) {
       onError(e?.message || '删除失败');

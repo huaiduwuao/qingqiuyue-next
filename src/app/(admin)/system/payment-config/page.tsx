@@ -128,10 +128,6 @@ export default function PaymentConfigPage() {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
-  const toggleSecret = (field: string) => {
-    setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
-  };
-
   const isWechatPayValid = () => config.wechatAppId && config.wechatMchId && config.wechatApiV3Key && config.wechatPrivateKey;
   const isAlipayValid = () => config.alipayAppId && config.alipayPrivateKey && config.alipayPublicCert;
 

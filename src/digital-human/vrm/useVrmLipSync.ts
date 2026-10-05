@@ -7,7 +7,7 @@
  *   // audio 由 VrmStage 创建并传入（与 useVrmAnimation 共享同一 AudioContext）
  */
 
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useRef, useState, type MutableRefObject } from 'react';
 import type { AudioHandle, LipFrame } from './audio';
 import { setExpression } from './vrmCompat';
 

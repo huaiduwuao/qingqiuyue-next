@@ -21,7 +21,6 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupsIcon from '@mui/icons-material/Groups';
-import FolderIcon from '@mui/icons-material/Folder';
 import {
   DndContext,
   DragOverlay,
@@ -304,13 +303,13 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
 
-  const handleTaskDeleted = (id: number) => {
+  const handleTaskDeleted = (_id: number) => {
     setDetailTask(null);
     showMessage('已删除');
     qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
 
-  const handleSaved = (t: RewardTask) => {
+  const handleSaved = (_t: RewardTask) => {
     setEditOpen(false);
     setEditRecord(null);
     showMessage('保存成功');

@@ -16,7 +16,6 @@ import {
   Typography,
 } from '@mui/material';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import DeveloperBoardRoundedIcon from '@mui/icons-material/DeveloperBoardRounded';
 import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
 import { fleet, type StewardNode, type NodeReport } from '@/apis/steward';

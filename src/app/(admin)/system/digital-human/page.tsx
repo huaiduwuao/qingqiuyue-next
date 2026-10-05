@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Chip,
   LinearProgress,
   List,
@@ -25,8 +24,6 @@ import {
   Snackbar,
   Tabs,
   Tab,
-  IconButton,
-  Tooltip,
   Drawer,
   TextField,
   Select,
@@ -39,7 +36,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
@@ -194,7 +190,7 @@ export default function SystemDigitalHumanPage() {
   });
 
   // 查询任务列表
-  const { data: jobsData, isLoading: jobsLoading, isError: jobsError, refetch: refetchJobs } = useQuery({
+  const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs } = useQuery({
     queryKey: ['avatar-jobs'],
     queryFn: fetchJobs,
     refetchInterval: 5_000, // 任务状态变化快，更频繁轮询

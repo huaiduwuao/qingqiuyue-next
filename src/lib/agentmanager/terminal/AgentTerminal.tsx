@@ -18,8 +18,6 @@ import InputLabel from '@mui/material/InputLabel'
 import { API_PREFIX } from '@/lib/api/prefix'
 import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
-import Divider from '@mui/material/Divider'
-import Alert from '@mui/material/Alert'
 import Tooltip from '@mui/material/Tooltip'
 
 interface TerminalLine {
@@ -39,7 +37,7 @@ const RUNTIME_LABELS: Record<string, string> = {
   openclaw: '🦞 OpenClaw',
 }
 
-export default function AgentTerminal({ token, hermesBaseURL }: AgentTerminalProps) {
+export default function AgentTerminal({ token }: AgentTerminalProps) {
   const [runtime, setRuntime] = useState<string>('claude')
   const [command, setCommand] = useState('')
   const [lines, setLines] = useState<TerminalLine[]>([])

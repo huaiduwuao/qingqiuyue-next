@@ -34,7 +34,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
-import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { isAuthError, formatApiError } from '@/lib/api/client';
 import { FEN_PER_DIAMOND, getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
 import { createOrder, getDiamondPackages, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
 import {

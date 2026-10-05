@@ -30,7 +30,7 @@
  */
 
 import { startVAD, stopVAD } from './vad'
-import { transcribe, encodeWAV } from './asr-stream'
+import { transcribe } from './asr-stream'
 import { voiceLog } from './logger'
 import {
   startWakeWord,

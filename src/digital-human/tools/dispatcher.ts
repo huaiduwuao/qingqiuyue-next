@@ -11,8 +11,8 @@
  *   const result = dispatchToolCall(call, sinks);
  */
 
-import { CAMERA_PRESET_NAMES, TOOLS_BY_NAME, type ToolDefinition } from './tools';
-import { ALL_ACTIONS, type ActionController } from './actions';
+import { CAMERA_PRESET_NAMES, TOOLS_BY_NAME } from './tools';
+import { ALL_ACTIONS } from './actions';
 import { buildExpressionFromPreset, EXPRESSION_PRESETS } from './expressions';
 import type { BlendshapeDict, ExpressionTemplateName } from './expressions';
 import type { VisemeName } from './visemes';

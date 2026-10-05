@@ -82,7 +82,6 @@ for (const [vb, m] of Object.entries(MAP)) {
   rest[vb] = { b, Ws0inv: Ws0.clone().invert(), A };
 }
 const legLen = wpos(byName.LeftUpLeg).distanceTo(wpos(byName.LeftLeg)) + wpos(byName.LeftLeg).distanceTo(wpos(byName.LeftFoot));
-const hipsRestY = 0; // BVH 里 Hips 的 rest 在原点,高度在动作通道里
 
 // 按时间采样:返回各规范化骨骼的世界旋转 Wt + 髋部位置
 function sample(t) {

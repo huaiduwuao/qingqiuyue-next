@@ -93,9 +93,6 @@ export async function createPhysicsWorld(
 
   // step + sync
   const step = (dt: number, targetPos: { x: number; y: number; z: number; ground?: number }, sceneObj: THREE.Object3D) => {
-    // targetPos 是脚本想要的位置（来自 VrmStage move/setPosition）
-    // kinematic body: 直接 setNextKinematicTranslation，物理 step 处理碰撞（撞墙会卡住）
-    const cur = character.translation();
     const desiredX = targetPos.x;
     const desiredZ = targetPos.z;
     const desiredY = metrics.height / 2 + (targetPos.ground ?? 0);  // 胶囊底部贴地(地面 y=0;十二期:站在积木上时抬高)

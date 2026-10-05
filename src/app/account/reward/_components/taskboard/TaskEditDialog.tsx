@@ -42,7 +42,7 @@ interface Props {
  * 新建 / 编辑任务。挂到需求下的任务由需求发布者拆分,可以标价,赏金从需求托管中支付;
  * 不挂需求的是团队内部的独立任务,没有赏金。任务被认领后不能再改所属需求和标价。
  */
-export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClose, onSaved, onError }: Props) {
+export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved, onError }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('P1');

@@ -31,7 +31,6 @@ import { agentmAPI, type Agent, type ModelProvider } from '../api'
 import { agentmExtendedAPI } from '../api-extended'
 import { canvasAPI } from '../canvas/api'
 import type { AgentAssociations } from '../canvas/types'
-import StudioLayout from './StudioLayout'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
 
 const NODE_PALETTE = [
@@ -474,41 +473,6 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     draftRef.current = { nodes, edges }
     setDirty(true)
   }, [])
-
-  const manualForm = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          {agentId ? `编辑 Agent #${agentId}` : '新 Agent 草稿'}
-        </Typography>
-        {dirty && <Chip size="small" label="未保存" color="warning" />}
-      </Box>
-      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
-      <TextField size="small" label="角色" value={role} onChange={(e) => { setRole(e.target.value); setDirty(true) }} />
-      <TextField
-        select
-        size="small"
-        label="绑定模型(大脑)"
-        value={model}
-        onChange={(e) => { setModel(e.target.value); setDirty(true) }}
-        helperText={providers.length === 0 ? '未配置模型供应商,请先到「🧠 模型管理」添加' : '来自模型管理的 LLM / CodingPlan 供应商'}
-      >
-        {providers.map((p) => (
-          <MenuItem key={p.id} value={p.model}>
-            {p.name} · {p.model}{p.is_default ? ' (默认)' : ''}
-          </MenuItem>
-        ))}
-        {model && !providers.some((p) => p.model === model) && (
-          <MenuItem value={model}>{model}(当前)</MenuItem>
-        )}
-      </TextField>
-      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
-      <TextField size="small" label="System Prompt" value={prompt} onChange={(e) => { setPrompt(e.target.value); setDirty(true) }} multiline rows={5} />
-      <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
-        {saving ? '保存中…' : agentId ? '💾 保存修改' : '💾 保存 Agent'}
-      </Button>
-    </Box>
-  )
 
   // 消息回调
   const [studioMsg, setStudioMsg] = useState('')

@@ -15,7 +15,6 @@ import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import { alpha } from '@mui/material/styles';
 import GroupsIcon from '@mui/icons-material/Groups';
-import FolderIcon from '@mui/icons-material/Folder';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
@@ -27,7 +26,6 @@ import { getMyStats, type MyStats } from '@/apis/dashboard';
 import { listDemands } from '@/apis/reward-demand';
 import { listRealizations, myTeams } from '@/apis/team';
 import { listTasks } from '@/apis/reward-task';
-import { mapRewardTaskListFromBackend } from '../taskboard/status';
 import { useApp } from '@/contexts/AppContext';
 import { formatDiamonds, formatDiamondsShort } from '@/apis/wallet';
 

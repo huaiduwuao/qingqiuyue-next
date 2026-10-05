@@ -55,7 +55,7 @@ const Z = 1150;
 const VT_NAME = 'qq-music-bar';
 
 function Cover({ track, size, spin }: { track: MusicTrack; size: number; spin: boolean }) {
-  const [broken, setBroken] = useState(false);
+  const [broken] = useState(false);
   return (
     <Box
       sx={{

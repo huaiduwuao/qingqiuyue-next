@@ -41,7 +41,6 @@ import {
 import { useHomeSections } from '@/lib/sectionPrefs';
 import { useHomeSectionSync } from '@/lib/sectionSync';
 import SectionManagerDialog from '@/components/home/SectionManagerDialog';
-import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import FadeContent from '@/components/reactbits/FadeContent';
@@ -100,8 +99,6 @@ type FeedItem = {
   /** 集数角标「全81集 / 更新至12集 / 全308章 / 更新至37话」,/module/content/list 下发 */
   episodeLabel?: string;
 };
-
-type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
 
 // 精选流参与交错的类型。NEWS 不在内:它基本是热搜词条,没有封面。
 const RECOMMEND_TYPES = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'COMICS', 'MUSIC', 'NOVEL', 'SHORT_DRAMA', 'ARTICLE', 'LIVE'];

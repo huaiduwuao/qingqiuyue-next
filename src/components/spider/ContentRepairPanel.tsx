@@ -68,7 +68,7 @@ const ACTION_LABEL: Record<string, string> = {
 /** 当前跟踪的修复任务。存 sessionStorage:切菜单回来按 taskId 接着轮询 / 取报告。 */
 type RepairRun = { taskId: number; dryRun: boolean };
 
-export default function ContentRepairPanel({ compact = false }: { compact?: boolean }) {
+export default function ContentRepairPanel(_props: { compact?: boolean }) {
   const [keyword, setKeyword] = useState('');
   // 选中的书、源、上限、正在跑的任务都存 sessionStorage —— 后台切菜单会卸载本面板,
   // 以前这些全在组件 state 里,切回来任务在后端照跑,面板却是空的,看着像丢了。

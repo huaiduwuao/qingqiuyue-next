@@ -18,13 +18,6 @@ import type {
   MePageItem,
   MePageResp,
 } from "@/apis/dashboard";
-import {
-  getFavoritesPage,
-  getHistoryPage,
-  getLikesPage,
-  getWatchlaterPage,
-  getReservationsPage,
-} from "@/apis/dashboard";
 
 // 5 个分区配置:label / API / 渲染规则 / 空态文案
 type MainTab = "likes" | "collect" | "history" | "later" | "order";
@@ -64,7 +57,7 @@ function GridSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
-function GridView({ items, tab }: { items: MePageItem[]; tab: MainTab }) {
+function GridView({ items }: { items: MePageItem[]; tab: MainTab }) {
   if (!items.length) return null;
   return (
     <ListLayout minColumnWidth={110} minColumns={3} gap={8}>

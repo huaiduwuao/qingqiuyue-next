@@ -152,7 +152,6 @@ export function createActionController(): ActionController {
   function tick(dt: number, vrm: any) {
     if (!vrm?.humanoid) return;
     const { bones } = getBones(vrm);
-    const def = ACTION_METADATA[current.name] || ACTION_METADATA.idle;
 
     // 复位 bone 然后应用自然姿态
     for (const node of Object.values<any>(bones)) {
@@ -165,7 +164,7 @@ export function createActionController(): ActionController {
     const actionFn = ACTION_UPDATERS[current.name] || ACTION_UPDATERS.idle;
     try {
       actionFn(current.t, 1, vrm.scene, bones);
-    } catch (e) {
+    } catch {
       // ignore single-frame failure
     }
   }
@@ -229,7 +228,6 @@ function setNaturalPose(bones: Record<string, any>) {
 /* ─── 动作定义（Phase 1.5：从 ConfigBundle formula 动态生成） ─── */
 import { loadConfigBundle } from '../vrm/config/loader';
 import { safeEvalFormula } from '../vrm/config/loader';
-import { getBone } from '../vrm/vrmCompat';
 
 const _actionBundle = loadConfigBundle();
 const _actionsByName = new Map(_actionBundle.actions.map((a) => [a.name, a]));

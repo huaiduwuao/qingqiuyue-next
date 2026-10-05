@@ -41,7 +41,7 @@ export async function suggestRole(params: Record<string, unknown>) {
 }
 
 // 删除用户角色 - 设为空角色列表
-export async function removeRole(userId: number, roleId: number) {
+export async function removeRole(userId: number, _roleId: number) {
   return adminClient(`/user/${userId}/roles`, { method: 'POST', data: { roleIds: [] } });
 }
 

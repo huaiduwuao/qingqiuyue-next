@@ -59,7 +59,7 @@ function useSpiderDashboard() {
 }
 
 export default function SpiderDashboardPage() {
-  const { health, stats, timeseries, activity, tasks } = useSpiderDashboard();
+  const { health, stats, activity, tasks } = useSpiderDashboard();
   const router = useRouter();
   const [runDialogOpen, setRunDialogOpen] = useState(false);
 

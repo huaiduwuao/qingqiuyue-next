@@ -37,7 +37,7 @@ import {
   createTask,
   type PlatformAccountBrief,
 } from '@/apis/share';
-import { PLATFORMS, platformLabel } from '@/apis/share-account';
+import { PLATFORMS } from '@/apis/share-account';
 import type { EntityId } from '@/lib/id';
 
 export interface ShareTaskDialogProps {
@@ -60,7 +60,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
   const {
     open, onClose, platform,
     contentType, contentId,
-    defaultTitle, defaultVideoUrl, defaultCoverUrl, defaultTags, topicId,
+    defaultTitle, defaultCoverUrl, defaultTags, topicId,
     onSuccess,
   } = props;
 

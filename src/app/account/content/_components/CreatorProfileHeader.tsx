@@ -6,7 +6,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import EditIcon from '@mui/icons-material/Edit';
 import ShareButtons from '@/components/share/ShareButtons';
@@ -29,7 +28,7 @@ const BadgeIcon = ({ id }: { id: string }) => {
 export default function CreatorProfileHeader() {
   const router = useRouter();
   const { setActiveTab } = useActiveTab();
-  const [snack, setSnack] = React.useState<string | null>(null);
+  const [snack] = React.useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ['creator-profile'],

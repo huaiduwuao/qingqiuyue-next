@@ -226,8 +226,6 @@ export function deformGaussianRotations(
       qy = (r12 + r21) / s;
       qz = 0.25 * s;
     }
-
-    const orig = rotations.subarray(i * 4, i * 4 + 4);
     outRot[i * 4] = qx;  // 直接替换(不 blend with 原始 rotation)
     outRot[i * 4 + 1] = qy;
     outRot[i * 4 + 2] = qz;

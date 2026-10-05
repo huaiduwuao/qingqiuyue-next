@@ -10,7 +10,17 @@ const eslintConfig = defineConfig([
     // 降为 warning:保留提示但不让 `npm run lint` 因存量代码失败。
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
+      // 下划线开头 = 故意不用(占位参数、解构剔除字段);rest 解构的兄弟字段同理
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
       // React Compiler 实验性规则:对未启用 RC 的存量代码误报率高,降为提示
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/purity': 'warn',

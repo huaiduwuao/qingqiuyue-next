@@ -13,7 +13,6 @@ import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
-import Skeleton from '@mui/material/Skeleton';
 import CircularProgress from '@mui/material/CircularProgress';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -325,23 +324,6 @@ function WallpaperPageContent() {
       setMyWallpapers(prev);
       setToast({ open: true, msg: formatApiError(err) });
     }
-  };
-
-  // 下载壁纸:后端没有 /wallpaper/download(只有 /wallpaper/list),图片地址就在列表数据里。
-  const handleDownload = (wp: Wallpaper) => {
-    if (!wp.bg) {
-      setToast({ open: true, msg: '这张壁纸暂无可下载的图片' });
-      return;
-    }
-    const a = document.createElement('a');
-    a.href = wp.bg;
-    a.download = `${wp.title}.png`;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setToast({ open: true, msg: `已下载《${wp.title}》` });
   };
 
 
@@ -1300,7 +1282,7 @@ function DetailContent({
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             {wp.sizes.map((s) => {
-              const { Icon, label } = SIZE_ICON[s];
+              const { Icon } = SIZE_ICON[s];
               return (
                 <Box
                   key={s}

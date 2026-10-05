@@ -6,8 +6,6 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
-import Divider from '@mui/material/Divider';
-import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -75,8 +73,6 @@ function VideoDetailContent() {
       recordHistory(id);
     }
   }, [id]);
-
-  const [favorited, setFavorited] = React.useState(false);
   const [followOverride, setFollowOverride] = React.useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = React.useState(false);
@@ -91,7 +87,7 @@ function VideoDetailContent() {
   }, []);
 
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
-  const { liked, likeDelta: optimisticLikes, toggleLike: handleLike } = useContentInteraction(id, { notify });
+  const { liked, likeDelta: optimisticLikes } = useContentInteraction(id, { notify });
 
   const handleFollow = async () => {
     const userId = query.data?.uploaderId;

@@ -7,7 +7,7 @@
  *   const { task, logs, error, connection, progress } = useTaskEngine(taskId)
  */
 
-import { useEffect, useReducer, useRef, useCallback } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import type {
   TaskState,
   TaskStatus,

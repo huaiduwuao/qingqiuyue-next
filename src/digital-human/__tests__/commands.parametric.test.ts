@@ -285,12 +285,12 @@ describe('dispatchToolCalls 只处理形象类工具', () => {
 describe('formula 安全求值', () => {
   const bundle = loadConfigBundle();
 
-  it.each(bundle.actions)('action "$name" formula 不抛异常', ({ name, formula }) => {
+  it.each(bundle.actions)('action "$name" formula 不抛异常', ({ formula }) => {
     expect(() => safeEvalFormula(formula as string | undefined, { t: 0 })).not.toThrow();
     expect(() => safeEvalFormula(formula as string | undefined, { t: 1, blend: 1 })).not.toThrow();
   });
 
-  it.each(bundle.danceStyles)('dance style "$name" formula 不抛异常', ({ name, formula }) => {
+  it.each(bundle.danceStyles)('dance style "$name" formula 不抛异常', ({ formula }) => {
     expect(() =>
       safeEvalFormula(formula as string, { t: 0, b: 0, A: 1, bass: 0, phase: 0 }),
     ).not.toThrow();

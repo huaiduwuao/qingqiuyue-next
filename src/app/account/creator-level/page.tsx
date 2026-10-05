@@ -12,7 +12,6 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
-import Avatar from '@mui/material/Avatar';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { getCreatorLevelInfo, getScoreHistory, LEVEL_CONFIG, type CreatorLevelInfo, type ScoreHistory } from '@/apis/creator-level';
 
@@ -49,7 +48,6 @@ function LevelBadge({ level, size = 40 }: { level: number; size?: number }) {
 }
 
 function LevelCard({ info }: { info: CreatorLevelInfo }) {
-  const config = LEVEL_CONFIG.find(l => l.level === info.level) || LEVEL_CONFIG[0];
   const nextConfig = info.nextLevel ? LEVEL_CONFIG.find(l => l.level === info.nextLevel?.level) : null;
 
   return (

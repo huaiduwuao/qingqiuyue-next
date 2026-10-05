@@ -90,7 +90,7 @@ export default function CrawledPage() {
         setPublishedCount(pub);
 
         return { records, totalRow: total };
-      } catch (err: any) {
+      } catch {
         return { records: [], totalRow: 0 };
       }
     },

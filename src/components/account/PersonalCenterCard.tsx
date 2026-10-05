@@ -94,7 +94,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
   const [saveLogin, setSaveLogin] = useState(true);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const router = useRouter();
-  const { isAdmin, isSuperAdmin } = useAuthority();
+  const { isAdmin } = useAuthority();
   const { logout } = useAuth();
   const { currentUser } = useApp();
 

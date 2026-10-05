@@ -56,7 +56,7 @@ import StoryboardSection from './sections/StoryboardSection';
 import PostSection from './sections/PostSection';
 import TasksSection from './sections/TasksSection';
 import SettingsSection from './sections/SettingsSection';
-import { BOARD_STEPS, FiveStepBoard } from './FiveStepBoard';
+import { FiveStepBoard } from './FiveStepBoard';
 
 export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'post' | 'tasks' | 'settings';
 

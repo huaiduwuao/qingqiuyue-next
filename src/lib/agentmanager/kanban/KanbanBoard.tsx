@@ -13,7 +13,6 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import IconButton from '@mui/material/IconButton'
 import TextField from '@mui/material/TextField'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
@@ -22,7 +21,6 @@ import DialogActions from '@mui/material/DialogActions'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import AddIcon from '@mui/icons-material/Add'
-import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import type { KanbanTask, KanbanBoard } from '../api-extended'
 import { agentmanagerClient, formatApiError } from '@/lib/api/client'
@@ -53,7 +51,7 @@ interface Props {
   onOpenRun?: (runId: string) => void
 }
 
-export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, onRunAgent, onOpenRun }: Props) {
+export default function KanbanBoard({ boardId: fixedBoardId, token, onRunAgent, onOpenRun }: Props) {
   const [boards, setBoards] = useState<{ id: number; name: string; slug: string }[]>([])
   const [pickedBoard, setPickedBoard] = useState<number | null>(null)
   const boardId = fixedBoardId ?? pickedBoard
@@ -139,16 +137,6 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
       await agentmanagerClient.patch(`/kanban/tasks/${taskId}/move`, { status })
     } catch (e) {
       setRunError(`移动任务失败: ${formatApiError(e)}`)
-    }
-    load()
-  }
-
-  const deleteTask = async (taskId: number) => {
-    if (!confirm('确认删除?')) return
-    try {
-      await agentmanagerClient.delete(`/kanban/tasks/${taskId}`)
-    } catch (e) {
-      setRunError(`删除任务失败: ${formatApiError(e)}`)
     }
     load()
   }

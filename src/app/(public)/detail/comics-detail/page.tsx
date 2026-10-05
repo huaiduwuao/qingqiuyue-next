@@ -26,7 +26,6 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-comics';
 import { page as itemPage } from '@/apis/content-comics-item';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
-import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';

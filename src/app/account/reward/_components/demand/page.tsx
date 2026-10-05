@@ -37,7 +37,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import { myPage, process, remove, save, update, settleDemand } from '@/apis/reward-demand';
+import { myPage, process, save, update, settleDemand } from '@/apis/reward-demand';
 import RealmSelect from '@/components/reward/RealmSelect';
 // 封面上传复用创作者中心的现成实现(accountClient POST /file/upload → 返回 url)
 import { uploadOneFile } from '@/app/account/content/_components/useContentForm';
@@ -208,7 +208,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     if (!selectedRecord?.id) return;
     setSettling(true);
     try {
-      const res = await settleDemand(selectedRecord.id);
+      await settleDemand(selectedRecord.id);
       // 拦截器已在 code !== 0 时 reject,成功则直接走业务路径
       showMessage('结账成功,赏金已发放给贡献者');
       setSettleVisible(false);
@@ -276,17 +276,6 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       query.refetch();
     } catch (err: any) {
       showMessage(err.message || '操作失败', 'error');
-    }
-  };
-
-  const handleDelete = async (record: DemandItem) => {
-    if (!confirm('确定删除吗？')) return;
-    try {
-      await remove([record.id as number]);
-      showMessage('删除成功');
-      query.refetch();
-    } catch (err: any) {
-      showMessage(err.message || '删除失败', 'error');
     }
   };
 

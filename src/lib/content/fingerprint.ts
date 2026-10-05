@@ -114,7 +114,7 @@ export function createFingerprintIndex(threshold = DEFAULT_HAMMING_THRESHOLD): F
   return {
     add(text, id) {
       const h = simHash(text)
-      for (const [existingId, existingHash] of store) {
+      for (const [, existingHash] of store) {
         if (hammingDistance(h, existingHash) <= threshold) {
           return true
         }

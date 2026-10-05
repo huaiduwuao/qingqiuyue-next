@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'fs';
 import { gotoTaskboard } from '../fixtures/nav';
-import { waitList, waitAction, waitDelete, RX } from '../fixtures/api';
+import { waitAction, waitDelete, RX } from '../fixtures/api';
 import { S } from '../fixtures/selectors';
 
 function readSeed() {

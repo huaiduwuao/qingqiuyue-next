@@ -9,7 +9,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
-import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
@@ -17,7 +16,7 @@ import Chip from '@mui/material/Chip'
 
 import { agentmAPI, type Agent } from '../api'
 import { canvasAPI } from '../canvas/api'
-import type { AgentWorkflowInfo, WorkflowType, WorkflowResult } from '../canvas/types'
+import type { AgentWorkflowInfo, WorkflowType } from '../canvas/types'
 import StudioLayout, { type ChatMessage } from './StudioLayout'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
 

@@ -50,13 +50,11 @@ import { chromium } from 'playwright';
       'a:has-text("抖音")',
     ];
 
-    let foundSelector = null;
     for (const sel of selectors) {
       try {
         const el = page.locator(sel).first();
         if (await el.isVisible({ timeout: 2000 })) {
           console.log(`  找到入口: ${sel}`);
-          foundSelector = sel;
           break;
         }
       } catch {}

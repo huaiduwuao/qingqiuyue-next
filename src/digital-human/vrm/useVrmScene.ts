@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE_NS from 'three';
-import { buildScene, buildSceneByName, type SceneHandle, type ScenePresetName } from './sceneBuilders';
+import { buildSceneByName, type SceneHandle, type ScenePresetName } from './sceneBuilders';
 
 export interface UseVrmSceneOptions {
   rendererState: { THREE_NS: typeof THREE_NS; scene: THREE_NS.Scene } | null;

@@ -38,8 +38,6 @@ import {
   listSourceDrafts,
   applyDraftsBatch,
   discardSourceDraft,
-  type SourceCandidate,
-  type SourceDraft,
 } from '@/apis/spider';
 
 const CAND_KEY = ['spider', 'source-candidates'];
@@ -53,8 +51,6 @@ const CAND_STATUS: Record<string, { label: string; color: 'default' | 'info' | '
   skipped: { label: '已跳过', color: 'default' },
   existing: { label: '已接入', color: 'warning' },
 };
-
-const CATEGORIES = ['NOVEL', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'SHORT_DRAMA', 'VIDEO', 'MUSIC', 'COMICS', 'WALLPAPER', 'ARTICLE', 'NEWS'];
 
 export default function SourceSetupPage() {
   const qc = useQueryClient();

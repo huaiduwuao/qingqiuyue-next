@@ -19,9 +19,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Box, CircularProgress, Typography, Slider, IconButton } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import type { GaussianAsset, PoseFrame } from './assetFormat';
+import type { GaussianAsset } from './assetFormat';
 import { loadGaussianAsset } from './gaussianLoader';
-import { sortGaussiansByDepth, sortGaussiansFast } from './gaussianSorter';
+import { sortGaussiansFast } from './gaussianSorter';
 import { mountEffectCanvas } from '../effectCanvas';
 import type * as THREE from 'three';
 
@@ -231,7 +231,7 @@ export default function GaussianSplatRenderer({
 
           // 深度排序 (quality/balanced 模式)
           if (effectiveQuality !== 'performance' && assetRef.current) {
-            const sorted = sortGaussiansFast(
+            const _sorted = sortGaussiansFast(
               asset.positions,
               asset.count,
               new Float32Array(camera.matrixWorldInverse.elements),
@@ -572,7 +572,7 @@ function multiply4x4(
 function setupSimpleControls(
   canvas: HTMLCanvasElement,
   camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer,
+  _renderer: THREE.WebGLRenderer,
 ): () => void {
   let isDragging = false;
   let prevX = 0, prevY = 0;
@@ -630,7 +630,7 @@ function setupSimpleControls(
 
 // ─── Shader GLSL (内联, 避免 import 复杂性) ───
 
-function gaussianVertShaderGLSL(THREE: any): string {
+function gaussianVertShaderGLSL(_THREE: any): string {
   return `
     precision highp float;
     attribute vec3 position;
@@ -697,7 +697,7 @@ function gaussianVertShaderGLSL(THREE: any): string {
   `;
 }
 
-function gaussianFragShaderGLSL(THREE: any): string {
+function gaussianFragShaderGLSL(_THREE: any): string {
   return `
     precision highp float;
     varying vec4 vColor;
@@ -717,7 +717,7 @@ function gaussianFragShaderGLSL(THREE: any): string {
   `;
 }
 
-function pointCloudVertShaderGLSL(THREE: any): string {
+function pointCloudVertShaderGLSL(_THREE: any): string {
   return `
     precision highp float;
     attribute vec3 position;
@@ -734,7 +734,7 @@ function pointCloudVertShaderGLSL(THREE: any): string {
   `;
 }
 
-function pointCloudFragShaderGLSL(THREE: any): string {
+function pointCloudFragShaderGLSL(_THREE: any): string {
   return `
     precision highp float;
     varying vec3 vColor;

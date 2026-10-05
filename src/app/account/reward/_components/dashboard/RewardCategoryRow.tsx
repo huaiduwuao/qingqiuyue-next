@@ -92,9 +92,9 @@ export default function RewardCategoryRow({ onSelect, selectedCode }: { onSelect
                   transition: 'all 0.2s',
                   border: '2px solid',
                   borderColor: active ? 'primary.main' : 'transparent',
-                  bgcolor: active ? (theme) => `${c.color}14` : 'transparent',
+                  bgcolor: active ? (_theme) => `${c.color}14` : 'transparent',
                   boxShadow: active
-                    ? (theme) => `0 6px 16px ${c.color}40`
+                    ? (_theme) => `0 6px 16px ${c.color}40`
                     : 'none',
                   '&:hover': active
                     ? { filter: 'brightness(1.04)' }

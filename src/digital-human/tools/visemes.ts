@@ -5,7 +5,7 @@
  * 兼容：VISEME_NAMES / VISEME_BLENDSHAPES 形状不变。
  */
 
-import { loadConfigBundle, buildLookups } from '../vrm/config/loader';
+import { loadConfigBundle } from '../vrm/config/loader';
 import type { BlendshapeDict, VisemeName as VName } from '../vrm/config/types';
 
 export type VisemeName = VName;
@@ -73,7 +73,7 @@ export function textToVisemeTimeline(text: string, charMs = 150): { t: number; s
 }
 
 /** 频谱能量 → viseme (驱动口型同步兜底) */
-export function lipEnergyToViseme(rms: number, lastTone: VisemeName): VisemeName {
+export function lipEnergyToViseme(rms: number, _lastTone: VisemeName): VisemeName {
   if (rms < 0.01) return 'sil';
   const r = Math.random();
   if (rms < 0.03) return r < 0.5 ? 'E' : 'I';

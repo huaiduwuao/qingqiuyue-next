@@ -332,13 +332,10 @@ export const VrmBoneEditor = forwardRef<VrmBoneEditorHandle, VrmBoneEditorProps>
       transformControls.addEventListener('change', onTransformChange);
 
       // 当 TransformControls 拖拽时禁用 OrbitControls
-      let isTransformDragging = false;
       transformControls.addEventListener('mouseDown', () => {
-        isTransformDragging = true;
         orbitControls.enabled = false;
       });
       transformControls.addEventListener('mouseUp', () => {
-        isTransformDragging = false;
         orbitControls.enabled = true;
       });
 

@@ -174,7 +174,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     }
   }
 
-  function applyActionFormula(cfg: ActionConfig, t: number, H: (n: string) => any, sceneObj: any) {
+  function applyActionFormula(cfg: ActionConfig, t: number, H: (n: string) => any, _sceneObj: any) {
     if (!cfg.formula) return;
     const result = safeEvalFormula(cfg.formula, { t, blend: 1 });
     if (result.bones) applyBoneRotations(result.bones, H);
@@ -202,17 +202,6 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       o.rotation.x = o.rotation.x * (1 - blend) + rot[0] * blend;
       o.rotation.y = o.rotation.y * (1 - blend) + rot[1] * blend;
       o.rotation.z = o.rotation.z * (1 - blend) + rot[2] * blend;
-    }
-  }
-
-  function resetBonesToNatural(H: (n: string) => any) {
-    // Use the configured idle pose as the natural baseline instead of hardcoded angles.
-    const idle = lookups.poseByName.get('idle');
-    if (idle) {
-      for (const [boneName, rot] of Object.entries(idle.boneRotations)) {
-        const o = H(boneName);
-        if (o && o.rotation) o.rotation.set(rot[0], rot[1], rot[2]);
-      }
     }
   }
 

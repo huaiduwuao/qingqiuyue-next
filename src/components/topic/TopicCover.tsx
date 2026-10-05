@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
