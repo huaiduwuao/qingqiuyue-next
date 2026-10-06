@@ -198,6 +198,14 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
               自问 · {n.themeName || n.theme}
             </Typography>
           )}
+          {n.kind === 'life' && (
+            <Typography
+              onClick={() => router.push('/life')}
+              sx={{ fontSize: 11, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+            >
+              人生轮回{n.ending ? ` · ${n.ending}` : ''}
+            </Typography>
+          )}
           {n.kind === 'scene' && (
             <Typography
               onClick={() => { const o = n.space?.startsWith('room:') ? n.space.slice(5) : ''; if (o) router.push(`/digital-human?room=${encodeURIComponent(o)}`); }}

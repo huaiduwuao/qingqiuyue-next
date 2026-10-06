@@ -279,6 +279,12 @@ export default function InsightHomePage() {
           >
             我的心路 →
           </Typography>
+          <Typography
+            onClick={() => router.push('/life')}
+            sx={{ fontSize: 13, color: 'primary.main', mt: 1.5, ml: 2, cursor: 'pointer', display: 'inline-block' }}
+          >
+            人生轮回 →
+          </Typography>
           {isStaff && (
             <Typography
               onClick={() => router.push('/civ/insights')}

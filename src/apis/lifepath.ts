@@ -19,7 +19,9 @@ export interface LifeAxisMeta {
 export interface LifePathNode {
   id: number;
   /** scene:虚拟世界的人生场景里留下的一句感悟(space = room:房主) */
-  kind: 'journey' | 'moment' | 'scene' | 'ask';
+  /** life:人生轮回里活完一世写下的那句(universe = 哪个宇宙,ending = 怎么走的,prompt = 第几世) */
+  kind: 'journey' | 'moment' | 'scene' | 'ask' | 'life';
+  universe?: string;
   axis: LifeAxis | '';
   feel: string;
   text: string;
