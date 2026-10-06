@@ -4,6 +4,7 @@ import { formatDuration } from '@/lib/utils/format';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
+import { alpha } from '@mui/material/styles';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -32,7 +33,7 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { AsyncState } from '@/components/common/AsyncState';
-import { CoverImage } from '@/components/common/CoverImage';
+import { VinylRecord } from '@/components/player/VinylRecord';
 import { mediaUrl } from '@/lib/media';
 import { resolveMusic, parseLrc, type LyricLine } from '@/lib/player/resolveMusic';
 import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/lib/player/musicPlayer';
@@ -94,6 +95,11 @@ function MusicDetailContent() {
   const audioFailed = !!playerError;
 
   const lyrics = realLyrics.length > 0 ? realLyrics : parseLrc(query.data?.lyrics);
+  // 只有纯文本歌词(没有时间轴)时照样整篇显示,只是不跟着播放滚动
+  const plainLyrics: string[] =
+    lyrics.length === 0 && typeof query.data?.lyrics === 'string'
+      ? query.data.lyrics.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean)
+      : [];
   // 歌词同步跟着全局播放进度走
   const activeLyric = React.useMemo(() => {
     const idx = lyrics.findIndex((l, i) => {
@@ -226,19 +232,37 @@ function MusicDetailContent() {
       <AsyncState query={query} isEmpty={(d) => !d}>
         {(data) => (
           <Container maxWidth="lg" sx={{ py: 3 }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '280px 1fr' }, gap: 3, mb: 3 }}>
+            {/* 封面糊成一层环境光垫在唱片和歌词后面,像灯光照在唱机台面上 */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: '300px 1fr' },
+                gap: 3,
+                mb: 3,
+                p: { xs: 2, sm: 3 },
+                position: 'relative',
+                isolation: 'isolate',
+                overflow: 'hidden',
+                borderRadius: 3,
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  inset: -60,
+                  zIndex: -1,
+                  backgroundImage: data.cover ? `url("${mediaUrl(data.cover)}")` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  filter: 'blur(60px) saturate(1.3)',
+                  opacity: 0.3,
+                },
+              }}
+            >
               <Box>
-                <CoverImage
-                  src={data.cover}
+                <VinylRecord
+                  cover={data.cover}
                   alt={data.title}
-                  sx={{
-                    width: '100%',
-                    aspectRatio: '1/1',
-                    borderRadius: 2,
-                    boxShadow: '0 8px 32px rgba(254, 44, 85, 0.25)',
-                    animation: playing ? 'spin 20s linear infinite' : 'none',
-                    '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } },
-                  }}
+                  playing={playing}
+                  progress={duration ? currentTime / duration : 0}
                 />
                 <Typography variant="h6" sx={{ color: 'text.primary', mt: 2, fontWeight: 700 }}>
                   {data.title}
@@ -246,9 +270,11 @@ function MusicDetailContent() {
                 <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>
                   {data.artist} · {data.album}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-                  <Chip label={data.release} size="small" variant="outlined" sx={{ borderColor: 'divider', color: 'text.secondary' }} />
-                </Box>
+                {data.release ? (
+                  <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+                    <Chip label={data.release} size="small" variant="outlined" sx={{ borderColor: 'divider', color: 'text.secondary' }} />
+                  </Box>
+                ) : null}
               </Box>
 
               <Box
@@ -256,16 +282,24 @@ function MusicDetailContent() {
                 sx={{
                   height: { xs: 280, sm: 380 },
                   overflow: 'auto',
-                  bgcolor: 'background.paper',
+                  // 半透明磨砂:后面的封面环境光透上来,不是一块白板
+                  bgcolor: (t) => alpha(t.palette.background.paper, 0.5),
+                  backdropFilter: 'blur(12px)',
                   border: '1px solid',
-                  borderColor: 'divider',
+                  borderColor: (t) => alpha(t.palette.divider, 0.5),
                   borderRadius: 2,
                   p: 2,
                   '&::-webkit-scrollbar': { width: 4 },
                   '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 2 },
                 }}
               >
-                {lyrics.length === 0 ? (
+                {lyrics.length === 0 && plainLyrics.length > 0 ? (
+                  plainLyrics.map((l, idx) => (
+                    <Typography key={idx} sx={{ py: 0.75, textAlign: 'center', color: 'text.secondary', fontSize: 14 }}>
+                      {l}
+                    </Typography>
+                  ))
+                ) : lyrics.length === 0 ? (
                   <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
                     暂无歌词
                   </Typography>
