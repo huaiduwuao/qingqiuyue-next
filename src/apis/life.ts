@@ -223,4 +223,4 @@ export const lifePlace = (id: string, key: string) => accountClient.post<LifeSte
 export const createUniverse = (text: string) => accountClient.post<{ universe: LifeUniverseBrief }>('/life/create', { text });
 
 /** 删掉自己造的宇宙 */
-export const deleteMadeUniverse = (key: string) => accountClient.delete(`/life/universes/${encodeURIComponent(key)}`);
+export const deleteMadeUniverse = (key: string) => accountClient.delete(`/life/made/${encodeURIComponent(key)}`);
