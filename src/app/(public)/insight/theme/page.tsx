@@ -22,6 +22,7 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
 import DetailHeader from '@/components/detail/DetailHeader';
+import ThemeInsights from '@/components/cog/ThemeInsights';
 import { EmptyState } from '@/components/common/AsyncState';
 import {
   overview,
@@ -213,6 +214,8 @@ function ThemeInner() {
       ) : (
         <TimelineTab key={t.key} t={t} avail={avail} accent={accent} />
       )}
+
+      <ThemeInsights theme={t.key} accent={accent} />
 
       <Box sx={{ mt: 5 }}>
         <AskBox t={t} accent={accent} />

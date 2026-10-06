@@ -9,6 +9,7 @@ import { PaywallGate } from './PaywallGate';
 import { TipButton } from './TipButton';
 import { GiftButton } from './GiftButton';
 import { RelatedContent } from './RelatedContent';
+import { WorkCognition } from '@/components/cog/WorkCognition';
 
 /** 详情接口里本组件用到的字段(各类型详情共有)。 */
 export interface DetailFooterData {
@@ -32,7 +33,7 @@ interface DetailFooterProps {
 }
 
 /**
- * 所有详情页共用的正文之后区域:付费解锁 → 打赏创作者 → 相关推荐。
+ * 所有详情页共用的正文之后区域:付费解锁 → 打赏创作者 → 这部作品里的世界与一生 → 相关推荐。
  *
  * 解锁成功后让所有 ['detail', ...] 查询失效重拉 —— 全文由服务端在解锁后才下发。
  */
@@ -59,6 +60,8 @@ export function DetailFooter({ contentId, detail: raw, kind = 'read' }: DetailFo
           <GiftButton creatorId={creatorId} contentId={contentId} creatorName={detail?.author} />
         </Box>
       )}
+      {/* 作品解析引擎拆出来的世界、人物的一生、感悟;没解析过就不显示 */}
+      <WorkCognition contentId={contentId} />
       <RelatedContent contentId={contentId} contentType={contentType} />
     </Box>
   );
