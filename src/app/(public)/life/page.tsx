@@ -22,6 +22,7 @@ import {
   createUniverse,
   deleteMadeUniverse,
   deleteMark,
+  forkUniverse,
   getUniverse,
   lifeMe,
   listUniverses,
@@ -123,6 +124,14 @@ function UniverseCard({
     await deleteMadeUniverse(u.key);
     void qc.invalidateQueries({ queryKey: ['life-universes'] });
   };
+  const fork = async () => {
+    try {
+      const r = await forkUniverse(u.key);
+      router.push('/life/edit?key=' + r.key);
+    } catch (e) {
+      window.alert(errMessage(e) || '这个宇宙还不能改编');
+    }
+  };
   return (
     <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 2, background: 'linear-gradient(160deg, #1b1622 0%, #3e2632 60%, #6a3c30 100%)' }}>
       <Typography sx={{ fontSize: 12, color: ACCENT, letterSpacing: '0.2em' }}>
@@ -130,9 +139,23 @@ function UniverseCard({
         {mine && (
           <Box component="span" sx={{ ml: 1.5, color: 'rgba(255,255,255,0.6)', letterSpacing: 0 }}>
             你造的 ·{' '}
+            <Box component="span" onClick={() => router.push(`/life/edit?key=${u.key}`)} sx={{ cursor: 'pointer', textDecoration: 'underline' }}>
+              完善
+            </Box>
+            {' · '}
             <Box component="span" onClick={drop} sx={{ cursor: 'pointer', textDecoration: 'underline' }}>
               删掉
             </Box>
+          </Box>
+        )}
+        {!mine && u.forkable && !!currentUser && (
+          <Box component="span" onClick={fork} sx={{ ml: 1.5, color: 'rgba(255,255,255,0.6)', letterSpacing: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+            改编成我的
+          </Box>
+        )}
+        {!!u.plays && (
+          <Box component="span" sx={{ ml: 1.5, color: 'rgba(255,255,255,0.45)', letterSpacing: 0 }}>
+            有人在这里活过 {u.plays} 世
           </Box>
         )}
       </Typography>

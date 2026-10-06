@@ -15,6 +15,12 @@ export interface LifeUniverseBrief {
   secretTotal?: number;
   /** 用户造的宇宙:作者 */
   authorId?: string;
+  /** 别人在里面活过几世 */
+  plays?: number;
+  /** 改编自哪个宇宙 */
+  parentKey?: string;
+  /** 有大纲,可以改编 */
+  forkable?: boolean;
 }
 
 export interface LifeOriginField {
@@ -224,3 +230,58 @@ export const createUniverse = (text: string) => accountClient.post<{ universe: L
 
 /** 删掉自己造的宇宙 */
 export const deleteMadeUniverse = (key: string) => accountClient.delete(`/life/made/${encodeURIComponent(key)}`);
+
+// ── 共创:宇宙的大纲(后端 internal/lifeapp/outline.go、edit.go) ──
+
+export interface OutlineLaw {
+  text: string;
+  domain?: string;
+}
+export interface OutlineEvent {
+  who?: string;
+  stage: string;
+  situation: string;
+  choice: string;
+  alternatives: string[];
+  consequence?: string;
+  axis?: string;
+  feel?: string;
+}
+export interface OutlineSecret {
+  key?: string;
+  text: string;
+  hint: string;
+}
+export interface OutlinePlace {
+  name: string;
+  description?: string;
+  secrets?: OutlineSecret[];
+}
+export interface UniverseOutline {
+  name: string;
+  era?: string;
+  summary?: string;
+  laws: OutlineLaw[];
+  births: string[];
+  events: OutlineEvent[];
+  places: OutlinePlace[];
+}
+
+export type AssistKind = 'laws' | 'events' | 'place' | 'births' | 'summary';
+
+/** 作者取自己宇宙的大纲 */
+export const getMade = (key: string) =>
+  accountClient.get<{ key: string; outline: UniverseOutline; version: number; parentKey?: string; plays: number; status: string }>(
+    `/life/made/${encodeURIComponent(key)}`,
+  );
+
+/** 改大纲 → 重新拼成宇宙 */
+export const putMade = (key: string, outline: UniverseOutline) =>
+  accountClient.put<{ universe: LifeUniverseBrief; version: number }>(`/life/made/${encodeURIComponent(key)}`, { outline });
+
+/** 把一个宇宙改编成自己的一份 */
+export const forkUniverse = (key: string) => accountClient.post<{ key: string }>('/life/fork', { key });
+
+/** AI 帮写一块:给候选,自己挑 */
+export const assistOutline = (kind: AssistKind, outline: UniverseOutline, hint: string) =>
+  accountClient.post<{ kind: AssistKind; items: unknown[] }>('/life/assist', { kind, outline, hint });
