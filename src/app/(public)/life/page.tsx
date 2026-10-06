@@ -74,7 +74,7 @@ function Birth({ u, onBorn }: { u: LifeUniverse; onBorn: (id: string) => void })
                     onClick={() => toggle(f.key, o)}
                     variant={on ? 'filled' : 'outlined'}
                     disabled={!on && !picks[f.key] && used >= u.origin.choosable}
-                    sx={{ borderColor: on ? ACCENT : 'rgba(255,255,255,0.2)', bgcolor: on ? ACCENT : 'transparent', color: on ? '#1a1410' : 'rgba(255,255,255,0.85)' }}
+                    sx={{ borderColor: on ? ACCENT : 'rgba(255,255,255,0.2)', bgcolor: on ? ACCENT : 'transparent', color: on ? '#1a1410' : 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: on ? ACCENT : 'rgba(255,255,255,0.08)' } }}
                   />
                 );
               })}
