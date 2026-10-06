@@ -128,6 +128,7 @@ export interface DiscoverStats {
   blocked: number;
   existing: number;
   skipped: number;
+  expanded?: number; // 从几个已知站的友情链接扩散
   errors?: string[];
 }
 export interface SourceCandidate {
@@ -167,7 +168,23 @@ export interface DraftBatchStats {
   per_error?: Record<string, string>;
 }
 
-export async function discoverSites(params: { seeds?: DiscoverSeed[]; max_per_seed?: number; concurrency?: number }): Promise<DiscoverStats> {
+/** 发现 / 批量起草的后台任务进度(GET /source-setup/job)。 */
+export interface SourceJob<S = unknown> {
+  kind: 'discover' | 'draft';
+  running: boolean;
+  started_at: string;
+  finished_at?: string;
+  total: number;
+  done: number;
+  current?: string;
+  stats?: S;
+}
+export interface SourceJobStart<S = unknown> {
+  started: boolean; // false = 已有同类任务在跑,返回的是那个任务
+  job: SourceJob<S>;
+}
+
+export async function discoverSites(params: { seeds?: DiscoverSeed[]; max_per_seed?: number; concurrency?: number; max_sites?: number; no_friend_links?: boolean; category?: string }): Promise<SourceJobStart<DiscoverStats>> {
   return spiderClient('/source-setup/discover', { method: 'POST', data: params });
 }
 
@@ -175,8 +192,15 @@ export async function listCandidates(params?: { status?: string; category?: stri
   return spiderClient('/source-setup/candidates', { method: 'GET', params });
 }
 
-export async function draftBatch(params: { candidate_ids?: number[]; limit?: number }): Promise<DraftBatchStats> {
+/** candidate_ids 是雪花 id,必须按字符串传(Number() 会丢精度,后端一个也匹配不上);留空 = 全部待起草。 */
+export async function draftBatch(params: { candidate_ids?: string[]; limit?: number }): Promise<SourceJobStart<DraftBatchStats>> {
   return spiderClient('/source-setup/draft-batch', { method: 'POST', data: params });
+}
+
+export async function getSourceJob(kind: 'discover'): Promise<SourceJob<DiscoverStats> | null>;
+export async function getSourceJob(kind: 'draft'): Promise<SourceJob<DraftBatchStats> | null>;
+export async function getSourceJob(kind: 'discover' | 'draft'): Promise<SourceJob | null> {
+  return spiderClient('/source-setup/job', { method: 'GET', params: { kind } });
 }
 
 export async function listSourceDrafts(params?: { status?: string; category?: string; ok?: string; limit?: number }): Promise<{ list: SourceDraft[]; count: number }> {
@@ -184,7 +208,7 @@ export async function listSourceDrafts(params?: { status?: string; category?: st
 }
 
 export async function applyDraftsBatch(ids: Array<string | number>): Promise<{ applied: number; failed: number; results: unknown[] }> {
-  return spiderClient('/source-setup/drafts/apply-batch', { method: 'POST', data: { ids: ids.map((x) => Number(x)) } });
+  return spiderClient('/source-setup/drafts/apply-batch', { method: 'POST', data: { ids: ids.map((x) => String(x)) } });
 }
 
 export async function discardSourceDraft(id: string | number): Promise<unknown> {

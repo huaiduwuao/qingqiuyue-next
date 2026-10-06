@@ -3,12 +3,13 @@
 /**
  * 全网内容源搜集 + 一键入库
  *
- * 链路:发现(DDG 搜索 + CMS 指纹打分)→ 候选清单 → 批量起草(套模板/LLM + 试跑)→
+ * 链路:发现(DDG 搜索 + 已知站友情链接扩散 + CMS 指纹打分)→ 候选清单 → 批量起草(套模板/LLM + 试跑)→
  * 草稿(试跑通过)→ 多选一键入库(apply-batch 写 module_source + module_template)。
- * 后端:internal/crawler/source_discovery.go / source_draft_batch.go。
+ * 发现和起草都是后台任务(一批要跑几分钟到几十分钟),页面轮询 /source-setup/job 看进度。
+ * 后端:internal/crawler/source_discovery.go / source_draft_batch.go / source_jobs.go。
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
@@ -25,6 +26,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
@@ -38,6 +40,8 @@ import {
   listSourceDrafts,
   applyDraftsBatch,
   discardSourceDraft,
+  getSourceJob,
+  type SourceJob,
 } from '@/apis/spider';
 import { errMessage } from '@/lib/errMessage';
 
@@ -72,22 +76,55 @@ export default function SourceSetupPage() {
   const cands = useQuery({ queryKey: CAND_KEY, queryFn: () => listCandidates({ limit: 200 }) });
   const drafts = useQuery({ queryKey: DRAFT_KEY, queryFn: () => listSourceDrafts({ limit: 200 }) });
 
+  // 后台任务进度:在跑时 2 秒一轮,跑完停。跑的过程中候选 / 草稿也跟着刷新,逐条看到结果。
+  const jobPoll = (q: { state: { data?: SourceJob | null } }) => (q.state.data?.running ? 2000 : false);
+  const discoverJob = useQuery({ queryKey: ['spider', 'source-job', 'discover'], queryFn: () => getSourceJob('discover'), refetchInterval: jobPoll });
+  const draftJob = useQuery({ queryKey: ['spider', 'source-job', 'draft'], queryFn: () => getSourceJob('draft'), refetchInterval: jobPoll });
+  const discovering = !!discoverJob.data?.running;
+  const drafting = !!draftJob.data?.running;
+
+  // 任务从「在跑」变成「跑完」时报一次结果
+  const wasRunning = useRef({ discover: false, draft: false });
+  useEffect(() => {
+    const dj = discoverJob.data;
+    const finished = wasRunning.current.discover && !!dj && !dj.running;
+    if (finished) {
+      const r = dj.stats;
+      show(r ? `搜集完成:评估 ${r.found} 个站(友链扩散 ${r.expanded ?? 0} 个站),新入库 ${r.new} 个,已接入 ${r.existing} 个,被拦 ${r.blocked} 个` : '搜集结束');
+    }
+    if (dj?.running || finished) refresh();
+    wasRunning.current.discover = !!dj?.running;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discoverJob.data]);
+  useEffect(() => {
+    const dj = draftJob.data;
+    const finished = wasRunning.current.draft && !!dj && !dj.running;
+    if (finished) {
+      const r = dj.stats;
+      show(r ? `起草完成:${r.picked} 个,试跑通过 ${r.drafted} 个,失败 ${r.failed} 个(失败原因见候选「说明」)` : '起草结束', r && r.drafted === 0 && r.picked > 0 ? 'info' : 'success');
+    }
+    if (dj?.running || finished) refresh();
+    wasRunning.current.draft = !!dj?.running;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftJob.data]);
+
   const discoverMut = useMutation({
     mutationFn: () =>
       discoverSites(keyword.trim() ? { seeds: [{ keyword: keyword.trim(), type: seedType }], max_per_seed: 10 } : { max_per_seed: 8 }),
     onSuccess: (r) => {
-      show(`发现完成:搜到 ${r.found} 个,新入库 ${r.new} 个,已接入 ${r.existing} 个,被拦 ${r.blocked} 个`);
-      refresh();
+      show(r.started ? '已开始搜集,在后台跑,进度见下方' : '已有搜集任务在跑,等它跑完', 'info');
+      qc.setQueryData(['spider', 'source-job', 'discover'], r.job);
     },
     onError: (e: unknown) => show(errMessage(e) || '发现失败', 'error'),
   });
 
+  // ids 为空 = 全部待起草。id 按字符串传:雪花 id 超过 2^53,Number() 会丢精度。
   const draftMut = useMutation({
-    mutationFn: () => draftBatch({ candidate_ids: [...selCands].map((x) => Number(x)), limit: 20 }),
+    mutationFn: (ids: string[]) => draftBatch({ candidate_ids: ids }),
     onSuccess: (r) => {
-      show(`起草完成:选中 ${r.picked} 个,通过试跑 ${r.drafted} 个,失败 ${r.failed} 个`);
+      show(r.started ? '已开始起草,在后台逐个起草并试跑' : '已有起草任务在跑,等它跑完', 'info');
       setSelCands(new Set());
-      refresh();
+      qc.setQueryData(['spider', 'source-job', 'draft'], r.job);
     },
     onError: (e: unknown) => show(errMessage(e) || '起草失败', 'error'),
   });
@@ -111,6 +148,8 @@ export default function SourceSetupPage() {
   const candList = cands.data?.list || [];
   const draftList = drafts.data?.list || [];
   const newCands = candList.filter((c) => c.status === 'new' && !c.blocked);
+  // 「已跳过」= 上次起草失败,可以再选中重新起草
+  const canDraft = (c: { status: string; blocked: boolean }) => (c.status === 'new' || c.status === 'skipped') && !c.blocked;
   const applicableDrafts = draftList.filter((d) => d.ok && d.status === 'draft');
 
   const toggleSet = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
@@ -156,14 +195,16 @@ export default function SourceSetupPage() {
             {CONTENT_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
           </TextField>
           <Button
-            variant="contained" startIcon={discoverMut.isPending ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
-            onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending}
+            variant="contained" startIcon={discoverMut.isPending || discovering ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+            onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending || discovering}
           >
-            {discoverMut.isPending ? '搜集中…' : '开始搜集'}
+            {discovering ? '搜集中…' : '开始搜集'}
           </Button>
         </Box>
+        <JobProgress job={discoverJob.data} />
         <Typography variant="caption" sx={{ color: 'var(--text)', opacity: 0.6, display: 'block', mt: 1.5 }}>
-          用 DDG 全网搜,抓首页按 CMS 指纹 / 苹果CMS 接口 / 搜索表单打分。robots 禁或人机验证的站自动排除。
+          DDG 全网搜 + 从已接入源和已有候选首页的友情链接扩散,抓首页按 CMS 指纹 / 苹果CMS 接口 / 搜索表单打分。
+          robots 禁或人机验证的站自动排除。在后台跑,关掉页面也不影响。
         </Typography>
       </Paper>
 
@@ -173,15 +214,25 @@ export default function SourceSetupPage() {
           <Typography variant="subtitle1" sx={{ color: 'var(--text)', fontWeight: 600 }}>
             2. 候选清单({newCands.length} 个待起草)
           </Typography>
-          <Button
-            variant="contained" color="secondary"
-            startIcon={draftMut.isPending ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
-            disabled={selCands.size === 0 || draftMut.isPending}
-            onClick={() => draftMut.mutate()}
-          >
-            {draftMut.isPending ? '起草中…' : `批量起草(${selCands.size})`}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined" color="secondary"
+              disabled={newCands.length === 0 || draftMut.isPending || drafting}
+              onClick={() => draftMut.mutate([])}
+            >
+              全部待起草({newCands.length})
+            </Button>
+            <Button
+              variant="contained" color="secondary"
+              startIcon={draftMut.isPending || drafting ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+              disabled={selCands.size === 0 || draftMut.isPending || drafting}
+              onClick={() => draftMut.mutate([...selCands])}
+            >
+              {drafting ? '起草中…' : `批量起草(${selCands.size})`}
+            </Button>
+          </Box>
         </Box>
+        <JobProgress job={draftJob.data} />
         {candList.length === 0 ? (
           <Typography variant="body2" sx={{ color: 'var(--text)', opacity: 0.6 }}>暂无候选,先点「开始搜集」。</Typography>
         ) : (
@@ -194,7 +245,7 @@ export default function SourceSetupPage() {
             </thead>
             <tbody>
               {candList.map((c) => {
-                const selectable = c.status === 'new' && !c.blocked;
+                const selectable = canDraft(c) && !drafting;
                 return (
                   <tr key={c.id} style={{ opacity: c.blocked ? 0.5 : 1 }}>
                     <td>
@@ -209,7 +260,7 @@ export default function SourceSetupPage() {
                     <td>{c.cms_hint || '—'}</td>
                     <td>{c.score}</td>
                     <td><Chip label={CAND_STATUS[c.status]?.label || c.status} color={CAND_STATUS[c.status]?.color || 'default'} size="small" /></td>
-                    <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.reason || '—'}</td>
+                    <td title={c.reason || ''} style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.reason || '—'}</td>
                   </tr>
                 );
               })}
@@ -279,6 +330,21 @@ export default function SourceSetupPage() {
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
+    </Box>
+  );
+}
+
+/** 后台任务进度条:在跑时显示「第几个 / 共几个 · 当前站」,没在跑时不占位。 */
+function JobProgress({ job }: { job: SourceJob | null | undefined }) {
+  if (!job?.running) return null;
+  const pct = job.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
+  return (
+    <Box sx={{ mt: 1.5, mb: 1 }}>
+      <LinearProgress variant={job.total > 0 ? 'determinate' : 'indeterminate'} value={pct} />
+      <Typography variant="caption" sx={{ color: 'var(--text)', opacity: 0.7, display: 'block', mt: 0.5 }}>
+        {job.total > 0 ? `${job.done} / ${job.total}` : '准备中'}
+        {job.current ? ` · ${job.current}` : ''}
+      </Typography>
     </Box>
   );
 }
