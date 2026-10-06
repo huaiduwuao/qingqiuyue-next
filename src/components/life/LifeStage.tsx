@@ -21,8 +21,11 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
   getRun,
   lifeChoose,
+  lifeChooseFree,
+  lifeExplore,
   lifeFinish,
   lifeNext,
+  lifePlace,
   lifeReflect,
   lifeReview,
   lifeTap,
@@ -31,7 +34,9 @@ import {
   type LifeFrame,
   type LifeHistEntry,
   type LifeMark,
+  type LifePlace,
   type LifeRun,
+  type LifeSecret,
   type LifeStepResult,
   type LifeView,
 } from '@/apis/life';
@@ -40,6 +45,7 @@ import { errMessage } from '@/lib/errMessage';
 export const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 const ACCENT = '#C8A27A';
 const WORDS_MAX = 300;
+const FREE_MAX = 200;
 
 /** 镜头底色:没有画面素材时就靠它 */
 const TONES: Record<string, string> = {
@@ -176,24 +182,94 @@ function ReflectBox({ question, busy, onReflect }: { question: string; busy: boo
   );
 }
 
+/** 用自己的话:回答一道题,或在这里做点什么。交给这个宇宙推演(要等一会儿) */
+function FreeBox({ hint, busy, onSubmit }: { hint: string; busy: boolean; onSubmit: (text: string) => void }) {
+  const [text, setText] = React.useState('');
+  return (
+    <Box sx={{ mt: 2, display: 'flex', gap: 1, alignItems: 'flex-start' }} onClick={(e) => e.stopPropagation()}>
+      <TextField
+        size="small"
+        fullWidth
+        multiline
+        maxRows={4}
+        value={text}
+        onChange={(e) => setText(e.target.value.slice(0, FREE_MAX))}
+        placeholder={hint}
+        sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'rgba(0,0,0,0.35)', fontSize: 14 } }}
+      />
+      <Button
+        variant="outlined"
+        disabled={busy || !text.trim()}
+        onClick={() => onSubmit(text.trim())}
+        sx={{ flexShrink: 0, borderColor: ACCENT, color: ACCENT, minWidth: 64, py: 0.9 }}
+      >
+        推演
+      </Button>
+    </Box>
+  );
+}
+
+/** 见到了一个奥秘 */
+function Unveiled({ list }: { list: LifeSecret[] }) {
+  return (
+    <>
+      {list.map((s) => (
+        <Box
+          key={s.key}
+          sx={{ my: 2, p: 2, borderRadius: 1, border: '1px solid', borderColor: ACCENT, bgcolor: 'rgba(200,162,122,0.08)', animation: 'lifeIn 1.2s ease both' }}
+        >
+          <Typography sx={{ fontSize: 11, color: ACCENT, letterSpacing: '0.3em', mb: 0.8 }}>{s.all ? '跨宇宙的奥秘' : '奥秘'} · {s.key}</Typography>
+          <Typography sx={{ fontFamily: SERIF, fontSize: 16, lineHeight: 1.9 }}>{s.text}</Typography>
+        </Box>
+      ))}
+    </>
+  );
+}
+
+/** 两场之间能去的地方 */
+function Places({ places, busy, onPlace }: { places: LifePlace[]; busy: boolean; onPlace: (key: string) => void }) {
+  if (places.length === 0) return null;
+  return (
+    <Box sx={{ mt: 3, mb: 1 }}>
+      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', mb: 1 }}>往下活之前,也可以去</Typography>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {places.map((p) => (
+          <Button key={p.key} size="small" variant="outlined" disabled={busy} onClick={() => onPlace(p.key)} title={p.intro}
+            sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.85)' }}>
+            {p.name}
+          </Button>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 function Scene({
   frame,
   busy,
   echo,
   care,
+  places,
   onTap,
   onChoose,
   onReflect,
   onNext,
+  onFree,
+  onExplore,
+  onPlace,
 }: {
   frame: LifeFrame;
   busy: boolean;
   echo?: { echo: LifeEcho; options: string[] };
   care: boolean;
+  places: LifePlace[];
   onTap: () => void;
   onChoose: (i: number) => void;
   onReflect: (text: string) => void;
   onNext: () => void;
+  onFree: (text: string) => void;
+  onExplore: (text: string) => void;
+  onPlace: (key: string) => void;
 }) {
   const shot = frame.shot;
   const choice = frame.choice;
@@ -221,6 +297,8 @@ function Scene({
           </Box>
         )}
 
+        {!!frame.unveiled?.length && <Unveiled list={frame.unveiled} />}
+
         {choice && (
           <Box sx={{ mt: 3 }} onClick={(e) => e.stopPropagation()}>
             <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', mb: 1.5 }}>{choice.text}</Typography>
@@ -238,6 +316,7 @@ function Scene({
                 </Button>
               ))}
             </Box>
+            {choice.free && <FreeBox key={choice.id} hint={choice.free} busy={busy} onSubmit={onFree} />}
           </Box>
         )}
 
@@ -246,14 +325,17 @@ function Scene({
         {echo && !choice && <EchoLine echo={echo.echo} options={echo.options} />}
         {care && <Care />}
 
+        {frame.explore && !waiting && !frame.ended && <FreeBox key={(shot?.id || '') + frame.juncture} hint="在这里,你想做点什么……" busy={busy} onSubmit={onExplore} />}
+        {frame.ended && !frame.died && <Places places={places} busy={busy} onPlace={onPlace} />}
+
         {!waiting && (
           <Box sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
             {frame.ended ? (
               <Button variant="contained" disabled={busy} onClick={onNext} sx={{ minWidth: 180, bgcolor: ACCENT, color: '#1a1410', '&:hover': { bgcolor: ACCENT, filter: 'brightness(1.08)' } }}>
-                {frame.died ? '这一生' : '往下活'}
+                {frame.died ? '这一生' : frame.place ? '离开这里,往下活' : '往下活'}
               </Button>
             ) : (
-              <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.2em' }}>{busy ? '…' : '点一下,往下走'}</Typography>
+              <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.2em' }}>{busy ? '这个世界在想……' : frame.place && !shot?.hasNext ? '点一下,离开这里' : '点一下,往下走'}</Typography>
             )}
           </Box>
         )}
@@ -264,7 +346,21 @@ function Scene({
 
 // ── 两场之间 / 一世开头 ────────────────────────────────────────────────
 
-function Interlude({ life, says, busy, onNext }: { life?: LifeView; says: string[]; busy: boolean; onNext: () => void }) {
+function Interlude({
+  life,
+  says,
+  busy,
+  places,
+  onNext,
+  onPlace,
+}: {
+  life?: LifeView;
+  says: string[];
+  busy: boolean;
+  places: LifePlace[];
+  onNext: () => void;
+  onPlace: (key: string) => void;
+}) {
   return (
     <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', px: { xs: 2.5, md: 8 } }}>
       <Box sx={{ maxWidth: 640, width: '100%', mx: 'auto' }}>
@@ -277,6 +373,7 @@ function Interlude({ life, says, busy, onNext }: { life?: LifeView; says: string
           </Typography>
         )}
         <Says lines={says} />
+        <Places places={places} busy={busy} onPlace={onPlace} />
         <Button variant="contained" disabled={busy} onClick={onNext} sx={{ mt: 2, minWidth: 180, bgcolor: ACCENT, color: '#1a1410', '&:hover': { bgcolor: ACCENT, filter: 'brightness(1.08)' } }}>
           {busy ? '…' : '往下活'}
         </Button>
@@ -339,11 +436,16 @@ function Review({ runId, onAgain }: { runId: string; onAgain: () => void }) {
               </Typography>
               <Typography sx={{ fontFamily: SERIF, fontSize: 18, mb: 0.5 }}>{h.name}</Typography>
               {h.choices?.map((c, k) => (
-                <Typography key={k} sx={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', lineHeight: 1.8 }}>
-                  {c.auto ? '没来得及选:' : ''}
-                  {c.label}
-                  {c.feel && <Box component="span" sx={{ color: 'rgba(255,255,255,0.4)', ml: 1 }}>{c.feel}</Box>}
-                </Typography>
+                <React.Fragment key={k}>
+                  <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', lineHeight: 1.8 }}>
+                    {c.auto ? '没来得及选:' : ''}
+                    {c.label}
+                    {c.feel && <Box component="span" sx={{ color: 'rgba(255,255,255,0.4)', ml: 1 }}>{c.feel}</Box>}
+                  </Typography>
+                  {c.free && (
+                    <Typography sx={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(255,255,255,0.55)', ml: 1.5 }}>你说:「{c.free}」</Typography>
+                  )}
+                </React.Fragment>
               ))}
               {h.words?.map((w, k) => (
                 <Typography key={k} sx={{ fontFamily: SERIF, fontSize: 14, color: 'rgba(255,255,255,0.6)', mt: 0.5, lineHeight: 1.8 }}>
@@ -425,6 +527,7 @@ function Stage({ runId }: { runId: string }) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [review, setReview] = React.useState(false);
+  const [places, setPlaces] = React.useState<LifePlace[]>([]);
 
   React.useEffect(() => {
     pendingSays.delete(runId);
@@ -434,6 +537,7 @@ function Stage({ runId }: { runId: string }) {
         setLife(r.life);
         if (r.frame) setFrame(r.frame);
         if (r.run.status !== 'alive') setReview(true);
+        setPlaces(r.places || []);
       },
       (e) => setErr(errMessage(e) || '出错了,稍后再试'),
     );
@@ -442,6 +546,7 @@ function Stage({ runId }: { runId: string }) {
   const apply = React.useCallback((r: LifeStepResult) => {
     if (r.run) setRun(r.run);
     setCare(!!r.care);
+    setPlaces(r.places || []);
     if (r.frame) {
       setFrame(r.frame);
       setLife(r.frame.life);
@@ -502,6 +607,20 @@ function Stage({ runId }: { runId: string }) {
     setEcho(undefined);
     void call(() => lifeTap(runId));
   };
+  const free = (text: string) => {
+    const options = frame?.choice?.options.map((o) => o.label) || [];
+    setEcho(undefined);
+    void call(async () => {
+      const r = await lifeChooseFree(runId, frame!.choice!.id, text);
+      if (r.frame?.echo) setEcho({ echo: r.frame.echo, options });
+      return r;
+    });
+  };
+  const explore = (text: string) => void call(() => lifeExplore(runId, text));
+  const goPlace = (key: string) => {
+    setEcho(undefined);
+    void call(() => lifePlace(runId, key));
+  };
 
   const back = () => router.push('/life');
   const bg = review ? TONES.dark : toneOf(frame?.shot?.tone);
@@ -526,13 +645,17 @@ function Stage({ runId }: { runId: string }) {
             busy={busy}
             echo={echo}
             care={care}
+            places={places}
             onTap={tap}
             onChoose={choose}
+            onFree={free}
+            onExplore={explore}
+            onPlace={goPlace}
             onReflect={(t) => void call(() => lifeReflect(runId, frame.reflect!.id, t))}
             onNext={next}
           />
         ) : run ? (
-          <Interlude life={life} says={says} busy={busy} onNext={next} />
+          <Interlude life={life} says={says} busy={busy} places={places} onNext={next} onPlace={goPlace} />
         ) : null}
         {err && (
           <Typography sx={{ position: 'fixed', bottom: 16, left: 0, right: 0, textAlign: 'center', color: '#ff8a80', fontSize: 13, zIndex: 3 }}>{err}</Typography>

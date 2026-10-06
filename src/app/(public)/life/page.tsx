@@ -92,7 +92,7 @@ function Birth({ u, onBorn }: { u: LifeUniverse; onBorn: (id: string) => void })
   );
 }
 
-function UniverseCard({ k, alive, onBorn }: { k: string; alive?: LifeRun; onBorn: (id: string) => void }) {
+function UniverseCard({ k, alive, found, onBorn }: { k: string; alive?: LifeRun; found?: number; onBorn: (id: string) => void }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const q = useQuery({ queryKey: ['life-universe', k], queryFn: () => getUniverse(k), staleTime: 10 * 60_000 });
@@ -103,8 +103,16 @@ function UniverseCard({ k, alive, onBorn }: { k: string; alive?: LifeRun; onBorn
       <Typography sx={{ fontSize: 12, color: ACCENT, letterSpacing: '0.2em' }}>{u.era}</Typography>
       <Typography sx={{ fontFamily: SERIF, fontSize: { xs: 26, md: 30 }, letterSpacing: '0.1em', my: 1 }}>{u.name}</Typography>
       <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.9, mb: 2 }}>{u.summary}</Typography>
+      {!!u.laws?.length && (
+        <Box component="ul" sx={{ m: 0, mb: 2, pl: 2.2, color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 1.9 }}>
+          {u.laws.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </Box>
+      )}
       <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', mb: 2 }}>
         {u.stages.map((s) => s.name).join(' → ')}
+        {!!u.secretTotal && ` · 奥秘 ${found || 0} / ${u.secretTotal}`}
       </Typography>
       {alive ? (
         <Button variant="contained" onClick={() => router.push(`/life?run=${alive.id}`)} sx={{ bgcolor: ACCENT, color: '#1a1410', '&:hover': { bgcolor: ACCENT, filter: 'brightness(1.08)' } }}>
@@ -155,12 +163,32 @@ function Landing() {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mb: 6 }}>
           {(us.data?.list || []).map((u) => (
-            <UniverseCard key={u.key} k={u.key} alive={runs.find((r) => r.universe === u.key && r.status === 'alive')} onBorn={authed ? onBorn : () => router.push(loginHref())} />
+            <UniverseCard key={u.key} k={u.key} found={me.data?.found?.[u.key]} alive={runs.find((r) => r.universe === u.key && r.status === 'alive')} onBorn={authed ? onBorn : () => router.push(loginHref())} />
           ))}
         </Box>
 
         {authed && me.data && (
           <>
+            {me.data.secrets?.length > 0 && (
+              <Box sx={{ mb: 5 }}>
+                <Typography sx={{ fontSize: 13, color: ACCENT, letterSpacing: '0.2em', mb: 0.5 }}>你见过的奥秘</Typography>
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', mb: 1.5 }}>
+                  每个宇宙最深的那一个,见过 {me.data.deep} 个
+                </Typography>
+                {me.data.secrets.map((s) => (
+                  <Box key={s.universe + s.key} sx={{ py: 1.2, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <Typography sx={{ fontSize: 14, color: s.deep ? ACCENT : 'inherit' }}>
+                      {s.key}
+                      <Box component="span" sx={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', ml: 1 }}>
+                        {s.universe === '*' ? '跨宇宙' : (us.data?.list.find((x) => x.key === s.universe)?.name ?? s.universe)} · 第 {s.life} 世
+                      </Box>
+                    </Typography>
+                    {s.text && <Typography sx={{ fontFamily: SERIF, fontSize: 13, color: 'rgba(255,255,255,0.6)', mt: 0.3 }}>{s.text}</Typography>}
+                  </Box>
+                ))}
+              </Box>
+            )}
+
             {me.data.marks.length > 0 && (
               <Box sx={{ mb: 5 }}>
                 <Typography sx={{ fontSize: 13, color: ACCENT, letterSpacing: '0.2em', mb: 1.5 }}>你带着的</Typography>
