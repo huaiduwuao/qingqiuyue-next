@@ -48,7 +48,10 @@
       }
     },
     "updater": {
-      "endpoints": ["https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://qingqiuyue.com/qq-media/app/latest.json",
+        "https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download/latest.json"
+      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBNkFCMDlFRDBBNEI3M0EKUldRNnQ2VFFuckJxZWsybXgzV1hsNnptNjVMOVlha2FkSUVlbHllcEdKOUJvWnNtLzl4WHlwWmEK",
       "windows": {
         "installMode": "passive"

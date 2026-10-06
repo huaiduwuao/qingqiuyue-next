@@ -1,8 +1,8 @@
 /**
  * 客户端「检查更新」的纯逻辑部分(版本比较 / 读发布信息 / 手动触发)。
  *
- * - 桌面端(Windows / macOS)走官方 tauri-plugin-updater:Rust 侧读
- *   releases/latest/download/latest.json、校验签名、下载安装,见 components/client/AppUpdater.tsx。
+ * - 桌面端(Windows / macOS)走官方 tauri-plugin-updater:Rust 侧先读本站镜像 qq-media/app/latest.json,
+ *   读不到再读 GitHub releases/latest/download/latest.json,校验签名、下载安装,见 components/client/AppUpdater.tsx。
  * - 安卓没有 Tauri updater,只做「有新版 → 打开系统浏览器下载 APK」,版本信息从这里取。
  * - 网页里什么都不做(isDesktopClient() 为 false)。
  */
@@ -12,7 +12,19 @@ import { authPlatform } from '@/lib/clientAuth';
 export const RELEASE_REPO ='huaiduwuao/qingqiuyue-next';
 export const LATEST_MANIFEST_URL = `https://github.com/${RELEASE_REPO}/releases/latest/download/latest.json`;
 export const LATEST_RELEASE_API = `https://api.github.com/repos/${RELEASE_REPO}/releases/latest`;
-export const ANDROID_APK_URL = `https://github.com/${RELEASE_REPO}/releases/latest/download/qingqiuyue-android.apk`;
+
+/**
+ * 国内镜像:spider-api 的 internal/appmirror 每 10 分钟把 GitHub 最新正式版转存到 MinIO
+ * qq-media/app/(经 APISIX /qq-media/* 匿名可读,带 CORS *)。国内大多打不开 github.com,
+ * 下载页 / 安卓更新 / 桌面更新清单一律先走这里,GitHub 只作版本号兜底。
+ * 客户端页面跑在 tauri.localhost 上,必须是绝对地址。
+ */
+const MIRROR_ORIGIN = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://qingqiuyue.com';
+export const APP_MIRROR_BASE = `${MIRROR_ORIGIN}/qq-media/app`;
+/** 最新版安装包的固定地址:app/latest/<CI 发布的固定文件名> */
+export const appMirrorFile = (name: string) => `${APP_MIRROR_BASE}/latest/${name}`;
+export const MIRROR_RELEASE_URL = `${APP_MIRROR_BASE}/release.json`;
+export const ANDROID_APK_URL = appMirrorFile('qingqiuyue-android.apk');
 
 /** 手动「检查更新」:任何地方 dispatch 这个事件,常驻的 AppUpdater 负责检查并给出结果。 */
 export const APP_UPDATE_CHECK_EVENT = 'qq:app-update-check';
@@ -124,15 +136,36 @@ async function getJson(url: string, init?: RequestInit): Promise<unknown> {
   }
 }
 
+/** 镜像的 release.json({version, notes, date, files})→ 版本信息 */
+export function parseMirrorRelease(json: unknown): LatestRelease | null {
+  if (!json || typeof json !== 'object') return null;
+  const o = json as Record<string, unknown>;
+  const version = typeof o.version === 'string' ? o.version.replace(/^v/, '') : '';
+  if (!parseVersion(version)) return null;
+  return {
+    version,
+    notes: typeof o.notes === 'string' ? o.notes : '',
+    date: typeof o.date === 'string' ? o.date : undefined,
+  };
+}
+
 /**
- * 查最新正式版(安卓用)。
+ * 查最新正式版(安卓 / 下载页用)。
  *
- * 先走 GitHub API:它带 Access-Control-Allow-Origin: *,WebView 里能直接读。
- * latest.json 放在 github.com/…/releases/latest/download 下,那个 302 响应不带 CORS 头,
- * 页面(http://tauri.localhost)里 fetch 会被浏览器拦下,只作为 API 限流(未登录 60 次/小时/IP)时的兜底。
+ * 先读本站镜像的 release.json —— 它写在所有安装包转存完之后,读到的版本号一定能从镜像下到。
+ * 镜像读不到再走 GitHub API(带 Access-Control-Allow-Origin: *,WebView 里能直接读)。
+ * GitHub 的 latest.json 在 releases/latest/download 下,那个 302 响应不带 CORS 头,
+ * 页面(http://tauri.localhost)里 fetch 会被浏览器拦下,只作为最后的兜底。
  */
 export async function fetchLatestRelease(fetchImpl: typeof getJson = getJson): Promise<LatestRelease> {
   const errors: string[] = [];
+  try {
+    const rel = parseMirrorRelease(await fetchImpl(MIRROR_RELEASE_URL));
+    if (rel) return rel;
+    errors.push('mirror: invalid');
+  } catch (e) {
+    errors.push(`mirror: ${(e as Error)?.message || e}`);
+  }
   try {
     const rel = parseGithubRelease(
       await fetchImpl(LATEST_RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } }),

@@ -223,9 +223,13 @@ CI 的 release job 会把安装包统一改名后发布到 GitHub Release:
 | `qingqiuyue-macos-universal.dmg` | macOS |
 | `qingqiuyue-android.apk` / `qingqiuyue-android.aab` | Android / Android TV / 应用商店 |
 
-`/download` 页面默认链接到 `https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download/<文件名>`,
-**每次打 tag 发版后自动指向新版本,不需要重新部署网站**(页面上显示的版本号 `VERSION` 需要手动改)。
-要换成其他下载地址(比如国内 CDN / MinIO 镜像),在网站构建时设置同名环境变量覆盖:
+国内大多打不开 GitHub,所以 `/download` 页面**不链 GitHub**,而是链本站镜像
+`https://qingqiuyue.com/qq-media/app/latest/<文件名>`:spider-api 的 `internal/appmirror` 每 10 分钟查一次
+GitHub 最新正式版,有新 tag 就把安装包转存到 MinIO `qq-media/app/<tag>/`,再复制到 `app/latest/`,
+并写出 `app/latest.json`(桌面自动更新清单,包地址改成本站)和 `app/release.json`(版本号,下载页 / 安卓更新读它)。
+**打 tag 发版后十来分钟镜像自动跟上,不需要重新部署网站**;`APP_MIRROR_DISABLED=1` 可关。
+桌面端 updater 的 endpoints 也是镜像在前、GitHub 在后(从包含该改动的版本起生效)。
+要换成其他下载地址(比如 CDN),在网站构建时设置同名环境变量覆盖:
 `NEXT_PUBLIC_CLIENT_URL_WINDOWS` / `_MACOS` / `_ANDROID` / `_IOS`;iOS 默认不显示,上架后填 App Store 链接。
 
 ## 常见问题

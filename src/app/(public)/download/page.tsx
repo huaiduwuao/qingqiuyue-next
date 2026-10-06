@@ -37,22 +37,22 @@ import {
   type ClientPlatform,
   type PlatformInfo,
 } from '@/utils/download';
-import { fetchLatestRelease, isNewerVersion } from '@/lib/appUpdate';
+import { appMirrorFile, fetchLatestRelease, isNewerVersion } from '@/lib/appUpdate';
 import { useUpdateMode } from '@/components/client/ClientVersionCard';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
-// 兜底版本号:页面打开后会去 GitHub 读最新正式版覆盖它(见 useReleaseInfo),读不到才显示这个。
+// 兜底版本号:页面打开后会读本站镜像的最新正式版覆盖它(见 useReleaseInfo),读不到才显示这个。
 const VERSION = '1.1.26';
 
-// 安装包由 CI 发布到 GitHub Release,并统一成固定文件名(.github/workflows/build.yml 的 release job),
-// latest/download 始终指向最新一次发版。同名环境变量可覆盖;设为空串则该平台显示「暂未发布」。
-const RELEASE_LATEST = 'https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download';
+// 安装包由 CI 发布到 GitHub Release(固定文件名,见 .github/workflows/build.yml 的 release job),
+// 服务器再转存到本站 qq-media/app/latest/(spider-api internal/appmirror)—— 国内打不开 GitHub,
+// 这里只链本站镜像。同名环境变量可覆盖;设为空串则该平台显示「暂未发布」。
 const CLIENT_INSTALL_URLS: Record<ClientPlatform, string | undefined> = {
-  windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS ?? `${RELEASE_LATEST}/qingqiuyue-windows-x64-setup.exe`,
-  macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS ?? `${RELEASE_LATEST}/qingqiuyue-macos-universal.dmg`,
+  windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS ?? appMirrorFile('qingqiuyue-windows-x64-setup.exe'),
+  macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS ?? appMirrorFile('qingqiuyue-macos-universal.dmg'),
   ios: process.env.NEXT_PUBLIC_CLIENT_URL_IOS,
-  android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID ?? `${RELEASE_LATEST}/qingqiuyue-android.apk`,
+  android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID ?? appMirrorFile('qingqiuyue-android.apk'),
 };
 
 const PLATFORM_ICONS: Record<ClientPlatform, React.ComponentType<{ sx?: SxProps<Theme> }>> = {
@@ -145,13 +145,13 @@ function formatReleaseDate(iso?: string): string {
 }
 
 /**
- * 最新版本号 + 发布日期,直接读 GitHub Release —— 下载链接本来就指向 releases/latest,
+ * 最新版本号 + 发布日期,读本站镜像的 release.json(读不到再问 GitHub)—— 下载链接指向镜像的 latest/,
  * 这样发版后页面上的版本号自动跟着变,不再依赖手改 VERSION。
  * 在客户端里打开时顺带读出本机已装版本,方便对照要不要更新。
  */
 function useReleaseInfo() {
   const mode = useUpdateMode();
-  // react-query 缓存:离开再回到下载页不再重复请求 GitHub(匿名 API 每小时只有 60 次额度)。
+  // react-query 缓存:离开再回到下载页不再重复请求(镜像读失败时会落到 GitHub,匿名 API 每小时只有 60 次额度)。
   // 失败静默回退到内置 VERSION,不重试(和原来一致)。
   const latestQ = useQuery({
     queryKey: ['client-latest-release'],

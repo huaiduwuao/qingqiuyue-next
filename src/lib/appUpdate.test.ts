@@ -5,6 +5,7 @@ import {
   isNewerVersion,
   LATEST_MANIFEST_URL,
   LATEST_RELEASE_API,
+  MIRROR_RELEASE_URL,
   parseGithubRelease,
   parseManifest,
 } from './appUpdate';
@@ -63,7 +64,13 @@ describe('parsers', () => {
 });
 
 describe('fetchLatestRelease', () => {
-  it('prefers the API and falls back to latest.json', async () => {
+  it('prefers the domestic mirror, then the API, then latest.json', async () => {
+    const mirror = vi.fn(async (url: string) => {
+      if (url === MIRROR_RELEASE_URL) return { version: '1.1.7', notes: 'mirror', date: '2026-10-06T00:00:00Z' };
+      throw new Error('unexpected');
+    });
+    await expect(fetchLatestRelease(mirror)).resolves.toMatchObject({ version: '1.1.7', notes: 'mirror' });
+
     const ok = vi.fn(async (url: string) => {
       if (url === LATEST_RELEASE_API) return { tag_name: 'v1.1.5', body: 'api' };
       throw new Error('unexpected');
@@ -71,6 +78,7 @@ describe('fetchLatestRelease', () => {
     await expect(fetchLatestRelease(ok)).resolves.toMatchObject({ version: '1.1.5', notes: 'api' });
 
     const fallback = vi.fn(async (url: string) => {
+      if (url === MIRROR_RELEASE_URL) throw new Error('HTTP 404');
       if (url === LATEST_RELEASE_API) throw new Error('HTTP 403');
       if (url === LATEST_MANIFEST_URL) return { version: '1.1.6', notes: 'json' };
       throw new Error('unexpected');
