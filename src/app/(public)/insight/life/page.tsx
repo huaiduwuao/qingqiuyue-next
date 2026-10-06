@@ -15,6 +15,7 @@ import Typography from '@mui/material/Typography';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { EmptyState } from '@/components/common/AsyncState';
 import { InsightLine, AXIS_NAME } from '@/components/cog/WorkCognition';
+import { ContributeBox } from '@/components/cog/Cocreate';
 import { STAGE_NAME, alternativesOf, cogCharacter } from '@/apis/cog';
 import { getDetailRoute } from '@/lib/contentRoute';
 
@@ -66,6 +67,8 @@ function LifeInner() {
           );
         })}
       </Box>
+      <ContributeBox kind="event" worldId={c.worldId} characterId={c.id} invalidate={['cog-life', id]} />
+      <Box sx={{ mb: 4 }} />
 
       {insights.length > 0 && (
         <Box>
@@ -73,6 +76,7 @@ function LifeInner() {
           {insights.map((x) => (
             <InsightLine key={x.id} x={x} />
           ))}
+          <ContributeBox kind="insight" worldId={c.worldId} characterId={c.id} contentId={c.contentId !== '0' ? c.contentId : undefined} invalidate={['cog-life', id]} />
         </Box>
       )}
     </>

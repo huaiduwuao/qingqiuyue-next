@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { EmptyState } from '@/components/common/AsyncState';
 import { DOMAIN_NAME, WORLD_KIND_NAME, cogWorld } from '@/apis/cog';
+import { ByUser, ContributeBox, EndorseButton } from '@/components/cog/Cocreate';
 import { getDetailRoute } from '@/lib/contentRoute';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
@@ -56,7 +57,7 @@ function WorldInner() {
         </Button>
       )}
 
-      {laws.length > 0 && (
+      {(
         <Section title="这个世界怎么运转">
           {[...byDomain.entries()].map(([d, list]) => (
             <Box key={d} sx={{ mb: 1.5 }}>
@@ -64,6 +65,8 @@ function WorldInner() {
               {list.map((l) => (
                 <Typography key={l.id} sx={{ fontSize: 14.5, lineHeight: 1.9 }}>
                   {l.text}
+                  <ByUser authorId={l.authorId} />
+                  <EndorseButton kind="law" id={l.id} count={l.endorse} />
                   {l.support > 1 && (
                     <Box component="span" sx={{ fontSize: 11, color: 'text.disabled', ml: 1 }}>
                       {l.support} 部作品都这么写
@@ -73,20 +76,21 @@ function WorldInner() {
               ))}
             </Box>
           ))}
+          <ContributeBox kind="law" worldId={w.id} invalidate={['cog-world', id]} />
         </Section>
       )}
 
-      {(places.length > 0 || groups.length > 0) && (
-        <Section title="地方与人群">
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {[...places, ...groups].map((p) => (
-              <Chip key={p.id} size="small" variant="outlined" label={p.name} title={p.description} />
-            ))}
-          </Box>
-        </Section>
-      )}
+      <Section title="地方与人群">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {[...places, ...groups].map((p) => (
+            <Chip key={p.id} size="small" variant="outlined" label={p.name} title={p.description} />
+          ))}
+        </Box>
+        <ContributeBox kind="place" worldId={w.id} invalidate={['cog-world', id]} />
+        <ContributeBox kind="group" worldId={w.id} invalidate={['cog-world', id]} />
+      </Section>
 
-      {characters.length > 0 && (
+      {(
         <Section title="在这里活过的人">
           {characters.map((c) => (
             <Link key={c.id} href={`/insight/life?id=${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -102,6 +106,7 @@ function WorldInner() {
               </Box>
             </Link>
           ))}
+          <ContributeBox kind="character" worldId={w.id} invalidate={['cog-world', id]} />
         </Section>
       )}
 

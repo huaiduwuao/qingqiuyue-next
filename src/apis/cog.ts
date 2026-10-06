@@ -30,6 +30,10 @@ export interface CogLaw {
   text: string;
   /** 几部作品说过 */
   support: number;
+  /** 用户补的(没有 = 从作品里拆的) */
+  authorId?: string;
+  /** 几个人认同 */
+  endorse?: number;
 }
 
 export interface CogNamed {
@@ -92,6 +96,8 @@ export interface CogInsight {
   /** 1 照见 / 2 体味 / 3 参悟 */
   layer: number;
   stance: string;
+  authorId?: string;
+  endorse?: number;
 }
 
 export interface CogWork {
@@ -173,3 +179,25 @@ export const cogInsights = (q: { theme?: string; axis?: string; layer?: number; 
   contentClient.get<{ list: { insight: CogInsight; work: CogBrief }[] }>('/cog/insights', { params: q });
 
 export const cogWorlds = (q: { kind?: string; genre?: string } = {}) => contentClient.get<{ list: CogWorld[] }>('/cog/worlds', { params: q });
+
+// ── 共创:用户完善世界(后端 internal/cognition/cocreate.go,要登录) ──
+
+export type CogAssistKind = 'law' | 'place' | 'group' | 'character' | 'event' | 'insight';
+
+export const addLaw = (worldId: string, text: string, domain: string) =>
+  contentClient.post<{ law: CogLaw; points: number }>(`/cog/world/${worldId}/law`, { text, domain });
+export const addPlace = (worldId: string, kind: 'place' | 'group', body: { name: string; kind?: string; description?: string }) =>
+  contentClient.post<{ points: number }>(`/cog/world/${worldId}/${kind}`, body);
+export const addCharacter = (worldId: string, body: { name: string; identity?: string; persona?: string; arc?: string }) =>
+  contentClient.post<{ character: CogCharacter; points: number }>(`/cog/world/${worldId}/character`, body);
+export const addEvent = (
+  characterId: string,
+  body: { stage: string; ageHint?: string; situation: string; choice: string; alternatives?: string[]; consequence?: string; axis?: string; feel?: string },
+) => contentClient.post<{ event: CogEvent; points: number }>(`/cog/character/${characterId}/event`, body);
+export const addInsight = (body: { worldId?: string; contentId?: string; characterId?: string; text: string; theme?: string; axis?: string; layer?: number }) =>
+  contentClient.post<{ insight: CogInsight; points: number }>('/cog/insight', body);
+export const removeMine = (kind: string, id: string) => contentClient.delete(`/cog/mine/${kind}/${id}`);
+export const endorse = (kind: 'law' | 'insight', id: string, on: boolean) =>
+  contentClient.post<{ endorse: number; on: boolean }>('/cog/endorse', { kind, id, on });
+export const cogAssist = (worldId: string, kind: CogAssistKind, hint: string, characterId?: string) =>
+  contentClient.post<{ items: Record<string, unknown>[] }>('/cog/assist', { worldId, kind, hint, characterId });

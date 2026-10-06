@@ -11,6 +11,7 @@ import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import { DOMAIN_NAME, LAYER_NAME, WORLD_KIND_NAME, cogWork, type CogInsight } from '@/apis/cog';
+import { ByUser, ContributeBox, EndorseButton } from './Cocreate';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -19,7 +20,11 @@ export const AXIS_NAME: Record<string, string> = { heart: '本心', spine: '底�
 export function InsightLine({ x }: { x: CogInsight }) {
   return (
     <Box sx={{ py: 1.2, borderBottom: '1px solid', borderColor: 'divider' }}>
-      <Typography sx={{ fontFamily: SERIF, fontSize: 15.5, lineHeight: 1.9 }}>{x.text}</Typography>
+      <Typography sx={{ fontFamily: SERIF, fontSize: 15.5, lineHeight: 1.9 }}>
+        {x.text}
+        <ByUser authorId={x.authorId} />
+        <EndorseButton kind="insight" id={x.id} count={x.endorse} />
+      </Typography>
       {x.quote && <Typography sx={{ fontFamily: SERIF, fontSize: 13, color: 'text.secondary', mt: 0.3 }}>「{x.quote}」</Typography>}
       {x.axis && (
         <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.3 }}>
@@ -59,6 +64,7 @@ export function WorkCognition({ contentId }: { contentId: string | number }) {
                 {DOMAIN_NAME[l.domain] || l.domain}
               </Box>
               {l.text}
+              <EndorseButton kind="law" id={l.id} count={l.endorse} />
             </Typography>
           ))}
         </Box>
@@ -95,6 +101,7 @@ export function WorkCognition({ contentId }: { contentId: string | number }) {
           ))}
         </Box>
       ))}
+      <ContributeBox kind="insight" worldId={d.world?.id} contentId={id} invalidate={['cog-work', id]} />
     </Box>
   );
 }
