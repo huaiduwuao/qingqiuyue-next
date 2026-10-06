@@ -31,6 +31,10 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import type { DynamicUI, UIAction, UIBody, ListItem, GridItem, FormField } from './types'
 import { CoverImage } from '@/components/common/CoverImage'
 import { devLog } from '@/lib/dev-log'
+import { useBackClose } from '@/lib/backStack'
+
+// inline / floating 以前没有关闭按钮、也不限高:手机上一弹出来就整块压在聊天区和输入框上,关不掉
+const PANEL_CLOSE_SX: React.CSSProperties = { position: 'absolute', top: 4, right: 4, color: 'rgba(255,255,255,0.7)' }
 
 interface DynamicUIModalProps {
   /** 当前要渲染的 UI */
@@ -56,6 +60,9 @@ export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalPr
       setToastOpen(true)
     }
   }, [ui])
+
+  // 自绘的浮层(inline / floating / fullscreen 不是 MUI Modal):登记给返回键,手机上按返回先关它
+  useBackClose(!!ui && (ui.type === 'inline' || ui.type === 'floating' || ui.type === 'fullscreen'), onClose)
 
   // 未设置 UI 时不渲染
   if (!ui) return null
@@ -97,12 +104,18 @@ export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalPr
           backgroundColor: 'rgba(0,0,0,0.85)',
           borderRadius: 8,
           padding: 16,
-          minWidth: 300,
+          paddingRight: 40,
+          minWidth: 'min(300px, 90vw)',
           maxWidth: '90vw',
+          maxHeight: '50vh',
+          overflowY: 'auto',
           backdropFilter: 'blur(12px)',
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
+        <IconButton onClick={onClose} size="small" aria-label="关闭" style={PANEL_CLOSE_SX}>
+          <CloseRoundedIcon fontSize="small" />
+        </IconButton>
         {ui.header?.title && (
           <>
             <Typography variant="h6" style={{ color: 'white', marginBottom: 8 }}>
@@ -219,13 +232,19 @@ export function DynamicUIModal({ ui, onClose, onAction, open }: DynamicUIModalPr
           backgroundColor: 'rgba(20,20,30,0.95)',
           borderRadius: 8,
           padding: 16,
-          minWidth: 280,
-          maxWidth: 360,
+          paddingRight: 40,
+          minWidth: 'min(280px, calc(100vw - 24px))',
+          maxWidth: 'min(360px, calc(100vw - 24px))',
+          maxHeight: '50vh',
+          overflowY: 'auto',
           backdropFilter: 'blur(12px)',
           border: '1px solid rgba(255,255,255,0.15)',
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         }}
       >
+        <IconButton onClick={onClose} size="small" aria-label="关闭" style={PANEL_CLOSE_SX}>
+          <CloseRoundedIcon fontSize="small" />
+        </IconButton>
         {ui.header?.title && (
           <Typography variant="subtitle1" style={{ color: 'white', fontWeight: 600, marginBottom: 4 }}>
             {ui.header.title}

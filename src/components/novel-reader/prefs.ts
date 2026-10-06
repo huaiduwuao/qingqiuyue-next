@@ -152,6 +152,20 @@ export function noiseLayer(dark: boolean): string {
   return `url("data:image/svg+xml;utf8,${svg}")`;
 }
 
+/** 不在阅读页里时(书架开书 / 合书动画)按用户存的偏好取阅读主题,读不到用默认 */
+export function storedReaderTheme(): ReaderTheme {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
+    if (saved && typeof saved === 'object' && typeof saved.theme === 'string') {
+      const night = saved.customNight && typeof saved.customNight.paper === 'string' && typeof saved.customNight.text === 'string' ? saved.customNight : DEFAULT_CUSTOM_NIGHT;
+      return themeOf(saved.theme, night);
+    }
+  } catch {
+    /* 读不到就用默认 */
+  }
+  return READER_THEMES[0];
+}
+
 /** 偏好存 localStorage;首帧用默认值,挂载后再读,避免 hydration 不一致。 */
 export function useReaderPrefs() {
   const [prefs, setPrefs] = useState<ReaderPrefs>(DEFAULT_PREFS);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -44,6 +44,7 @@ import type { ChapterBody } from '@/components/novel-reader/chapterText';
 import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/ReaderChrome';
 import { PaginatedReader } from '@/components/novel-reader/PaginatedReader';
 import { usePaginatedReader } from '@/hooks/usePaginatedReader';
+import { bindShelfReading, playBookClose, playBookOpen } from '@/components/novel-reader/bookFlip';
 import {
   accentOf,
   fetchRemoteProgress,
@@ -249,7 +250,8 @@ function NovelDetailContent() {
   const { status: authStatus } = useAuth();
 
   const { prefs, update: updatePrefs, toggleNight } = useReaderPrefs();
-  const rt = themeOf(prefs.theme, prefs.customNight);
+  // 记住:自定义夜间配色每次 themeOf 都是新对象,开书 / 合书的回调依赖它
+  const rt = useMemo(() => themeOf(prefs.theme, prefs.customNight), [prefs.theme, prefs.customNight]);
   const fontFamily = fontOf(prefs.font);
   const outerTheme = useTheme();
   const isMobile = useMediaQuery(outerTheme.breakpoints.down('md'));
@@ -278,6 +280,10 @@ function NovelDetailContent() {
       recordHistory(contentId);
     }
   }, [contentId]);
+
+  // 从书架开书进来的:认领,回书架时(返回按钮 / 系统返回键)卸载那一刻演合书。
+  // 用 layout effect:清理要赶在书架页第一帧之前跑,见 bookFlip.bindShelfReading。
+  useLayoutEffect(() => bindShelfReading(id), [id]);
 
   const detailQuery = useQuery({
     queryKey: ['detail', 'novel', id],
@@ -429,17 +435,25 @@ function NovelDetailContent() {
         if (id) saveProgress(id, { chapterId: target.id, page: 0 });
         window.scrollTo({ top: 0 });
       };
-      // 从详情页进入阅读器:和换页一样的前进转场(阅读中跳章不做,免得翻章也整屏平移)
-      if (range === null) stateTransition('forward', apply);
-      else apply();
+      // 从详情页进入阅读器:扉页上的封面翻开、纸页铺满再进正文;演不了(减少动态效果)就走
+      // 和换页一样的前进转场。阅读中跳章都不做,免得翻章也整屏动一下。
+      if (range === null) {
+        const opened = playBookOpen({
+          cover: detail?.cover,
+          title: detail?.title,
+          theme: rt,
+          from: document.querySelector('#book-info img')?.getBoundingClientRect(),
+          onCovered: apply,
+        });
+        if (!opened) stateTransition('forward', apply);
+      } else apply();
     },
-    [chapters, id, setUrlChapter, range],
+    [chapters, id, setUrlChapter, range, detail?.cover, detail?.title, rt],
   );
 
   // 回目录/详情:退出阅读态。把地址栏的 chapter 参数去掉,并滚回顶部。
   const backToDetail = useCallback(() => {
-    // 退出阅读器回详情:返回转场
-    stateTransition('back', () => {
+    const apply = () => {
       setExitReading(true);
       setRange(null);
       setCurrent(0);
@@ -448,8 +462,17 @@ function NovelDetailContent() {
       setShowInfo(false);
       if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
       window.scrollTo({ top: 0 });
+    };
+    // 退出阅读器回详情:合书,落回扉页上的封面;演不了就走返回转场
+    const closed = playBookClose({
+      cover: detail?.cover,
+      title: detail?.title,
+      theme: rt,
+      onCovered: apply,
+      target: () => document.querySelector('#book-info img')?.getBoundingClientRect() ?? null,
     });
-  }, [id, pathname]);
+    if (!closed) stateTransition('back', apply);
+  }, [id, pathname, detail?.cover, detail?.title, rt]);
 
   const appendAfter = useCallback(
     (i: number) => setRange((r) => (r && r.end === i && i + 1 < chapters.length ? { ...r, end: i + 1 } : r)),

@@ -48,6 +48,8 @@ export default function RecommendBoard({
     <Box
       sx={{
         position: 'relative',
+        // 自成一层:卡片角上的「站内可播」标签(zIndex 5)不越出榜单、压到页面的浮层上
+        isolation: 'isolate',
         borderRadius: 2,
         bgcolor: 'var(--bg-surface, transparent)',
         border: '1px solid var(--border-color, transparent)',

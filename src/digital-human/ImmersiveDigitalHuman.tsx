@@ -83,7 +83,8 @@ import { clearAvatarCache } from './vrm/loadAvatar';
 import type { VrmModelConfig } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
 import { API_PREFIX } from '@/lib/api/prefix';
-import { buildRoomState, conversationTitle, DEFAULT_TITLES, lastActiveChoicesIndex, nextTimeMode, type AvatarMode } from './immersiveUtils';
+import { buildRoomState, conversationTitle, DEFAULT_TITLES, DIGITAL_HUMAN_EXIT_HOME, exitMode, lastActiveChoicesIndex, nextTimeMode, type AvatarMode } from './immersiveUtils';
+import { useBackClose } from '@/lib/backStack';
 import { useAvatarAssets, useNarrow, useStaffList, useStageStateSync, useSystemIntents } from './useImmersiveEnv';
 import { ImmersiveTopBar } from './ImmersiveTopBar';
 import { ImmersiveSessionList } from './ImmersiveSessionList';
@@ -142,6 +143,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const closeDisplayRef = React.useRef<(slot: DisplaySlot | null) => void>(() => {});
   // 每块屏当前停在哪一页(屏幕里点链接会变),随场景状态上报给模型
   const displayLocRef = React.useRef<Partial<Record<DisplaySlot, { url: string; title: string }>>>({});
+  // 屏幕上开过页面没有(决定「退出」走 back 还是直接回首页)
+  const openedPagesRef = React.useRef(false);
   // 场景动作协议:每轮随请求上报给模型的场景快照(只记前端真的执行了的指令)
   const sceneRef = React.useRef<SceneSnapshot>({});
   // 形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段;三种共用同一套对话、面板、工具日志。
@@ -275,6 +278,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   // 以前点作品是 window.open(…,'noopener'):这种调用永远返回 null,于是「新标签 + 当前页也跳走」
   // 两件事一起发生 —— 对话没了,新标签里又没有历史可退。现在一律在场景里的屏幕上开。
   const openPage = React.useCallback((page: DisplayPage, slot: DisplaySlot) => {
+    openedPagesRef.current = true; // iframe 从此可能往整页历史里记条目,退出不再靠 back()(见 exitMode)
     displayLocRef.current[slot] = { url: page.rawUrl, title: page.title || '' };
     setDisplayPages((prev) => ({ ...prev, [slot]: page }));
     setDisplaysOn(true);
@@ -370,6 +374,11 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [focusedDisplay]);
+  // 手机返回键 / 返回手势:先收起叠在画面上的页面、面板、会话列表,一个都没有了才离开页面(见 lib/backStack)
+  const overlayPageOpen = !displaysInScene && !!activeDisplay && !!displayPages[activeDisplay];
+  useBackClose(overlayPageOpen, () => { if (activeDisplay) closeDisplay(activeDisplay); });
+  useBackClose(!!scenePanel, () => setScenePanel(null));
+  useBackClose(narrow && sessionDrawerOpen, () => setSessionDrawerOpen(false));
   const renderDisplay = (slot: DisplaySlot, overlay: boolean) => (
     <SceneDisplay
       slot={slot}
@@ -735,6 +744,10 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes.def.key, worldActive]);
   const [auraShopOpen, setAuraShopOpen] = React.useState(false);
+  // 广场里整屏 / 大块的浮层也登记给返回键(手机上它们会盖住左上角的退出按钮)
+  useBackClose(worldActive && scenePickerOpen, () => setScenePickerOpen(false));
+  useBackClose(worldActive && worldHelp.open, worldHelp.close);
+  useBackClose(worldActive && !!(currentChar || panelZoneInfo), () => { setCharId(null); setPanelZone(null); });
   const onFeedAction = React.useCallback((a: FeedAction, feed: ZoneFeed | null) => {
     if (a.kind === 'play') {
       const n = playTracks(feed?.tracks?.length ? feed.tracks : [{ id: a.trackId }], { startId: a.trackId, source: { kind: 'playlist', name: '广场点唱机' } });
@@ -775,7 +788,12 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   })
 
   // 子组件用的稳定回调
-  const onExit = React.useCallback(() => router.back(), [router]);
+  // 退出:以前一律 router.back() —— 直接打开进来时没有上一页,屏幕里点过站内链接时退的是 iframe,
+  // 手机上表现就是点 × 没反应、回不到首页。这两种情况直接回首页(replace:返回键不会再退回 3D 舞台)。
+  const onExit = React.useCallback(() => {
+    if (exitMode(window.history.length, openedPagesRef.current) === 'back') router.back();
+    else router.replace(DIGITAL_HUMAN_EXIT_HOME);
+  }, [router]);
   const toggleDisplays = React.useCallback(() => setDisplaysOn((o) => !o), [setDisplaysOn]);
   const togglePanel = React.useCallback(() => setPanelOpen((o) => !o), [setPanelOpen]);
   const retrySessions = React.useCallback(() => { setSessionError(null); refreshHistory(); }, [setSessionError, refreshHistory]);
@@ -896,7 +914,12 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       )}
       {/* 非 VRM 形象没有 3D 面板宿主:面板直接叠在画面右侧 */}
       {!panelHost && scenePanel && (
-        <Box sx={{ position: 'absolute', right: { xs: 12, md: 24 }, top: 'calc(64px + var(--sat, 0px))', zIndex: 4, width: { xs: 'calc(100vw - 24px)', md: 'min(420px, 90vw)' } }}>
+        <Box sx={{
+          position: 'absolute', right: { xs: 12, md: 24 }, top: 'calc(64px + var(--sat, 0px))', zIndex: 4, width: { xs: 'calc(100vw - 24px)', md: 'min(420px, 90vw)' },
+          // 封顶到聊天区上沿:长列表在面板里滚,不再一路盖到输入框上(手机上那就没法再说话了)
+          maxHeight: { xs: 'calc(100% - min(46vh, 460px) - 84px - var(--sat, 0px))', md: 'calc(100% - min(40vh, 400px) - 84px)' },
+          display: 'flex', flexDirection: 'column',
+        }}>
           <ScenePanel
             key={scenePanel.id}
             panel={scenePanel}
@@ -913,10 +936,14 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
         return host ? createPortal(renderDisplay(slot, false), host, slot) : null;
       })}
       {/* 没有 3D 屏幕可用(非 VRM 形象 / 手机):最近打开的那一页叠在画面上半部分 */}
-      {!displaysInScene && activeDisplay && displayPages[activeDisplay] && (
+      {overlayPageOpen && activeDisplay && (
         <Box sx={{
           position: 'absolute', zIndex: 4, top: 'calc(64px + var(--sat, 0px))', right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
-          width: { md: 'min(640px, 50vw)' }, height: 'calc(100vh - min(40vh, 400px) - 84px)', minHeight: 240,
+          width: { md: 'min(640px, 50vw)' },
+          // 手机上聊天区是 46vh(最多 460px),按 40vh 算会压住聊天区上沿;用父层(fixed 整屏)的 100%,
+          // 不用 100vh —— 手机浏览器的 100vh 不扣地址栏,会比可见区域高
+          height: { xs: 'calc(100% - min(46vh, 460px) - 84px - var(--sat, 0px))', md: 'calc(100% - min(40vh, 400px) - 84px)' },
+          minHeight: { xs: 160, md: 240 },
           borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(37,244,238,0.3)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
         }}>
           {renderDisplay(activeDisplay, true)}
@@ -960,7 +987,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
             <GameToasts game={game} />
           </Box>
           {/* 手机上叠着打开的页面、或任务清单展开时让位 */}
-          {!(!displaysInScene && activeDisplay && displayPages[activeDisplay]) && !(narrow && questsOpen) && !genesis.editing && !genesis.settingsOpen && (
+          {!overlayPageOpen && !(narrow && questsOpen) && !genesis.editing && !genesis.settingsOpen && (
             <Box sx={{
               position: 'absolute', zIndex: 3, right: { xs: 12, md: 16 },
               top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(68px + var(--sat, 0px))',

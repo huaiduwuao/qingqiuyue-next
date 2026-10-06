@@ -5,6 +5,7 @@ import {
   buildRoomState,
   conversationTitle,
   DEFAULT_TITLES,
+  exitMode,
   lastActiveChoicesIndex,
   nextTimeMode,
   readyGsAssets,
@@ -77,5 +78,11 @@ describe('immersiveUtils', () => {
     expect(s.people[0]).toEqual({ name: '人0', x: 0.4, z: 0.5, owner: true });
     expect(s.people[1]).toEqual({ name: '人1', x: 0.4, z: 0.5, ai: true });
     expect(buildRoomState(def, null, [], []).me).toEqual({ x: 0, z: 0 });
+  });
+
+  it('exitMode:没有上一页、或屏幕里开过页面(iframe 记了历史)时直接回首页', () => {
+    expect(exitMode(3, false)).toBe('back');
+    expect(exitMode(1, false)).toBe('home');
+    expect(exitMode(5, true)).toBe('home');
   });
 });

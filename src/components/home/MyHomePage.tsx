@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useResponsive } from '@/hooks/useResponsive';
 import { homeClient } from '@/lib/api/client';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { openBookFromShelf } from '@/components/novel-reader/bookFlip';
 import { MAIN_TABS } from './myHomeTabs';
 import { GROUP_TABS, ME_FILTER_DEFAULTS, TAB_UNIT, isMyGroup, isMyItem, type MyCollectionGroup, type MyItem } from './myHomeModel';
 import { MeLoggedOut } from './MeLoggedOut';
@@ -184,7 +185,15 @@ function MyHomePageAuthed() {
   // 刷徽标数据时整页重渲染,列表本身才不跟着重渲染
   const itemList = useMemo(() => filteredList.filter(isMyItem), [filteredList]);
   const groupList = useMemo(() => filteredList.filter(isMyGroup), [filteredList]);
-  const openItem = useCallback((it: MyItem) => navigate(it.contentType, it.id), [navigate]);
+  const openItem = useCallback(
+    (it: MyItem) => {
+      const go = () => navigate(it.contentType, it.id);
+      // 书架上点小说:先演开书(封面翻开、纸页铺满),屏幕盖住时再换页;回书架时阅读页演合书
+      if (mainTab === 'bookshelf' && it.contentType === 'NOVEL' && openBookFromShelf({ id: it.id, cover: it.cover, title: it.title }, go)) return;
+      go();
+    },
+    [navigate, mainTab],
+  );
   const openGroup = useCallback((g: MyCollectionGroup) => router.push(`/account/my-lists/detail?id=${g.id}`), [router]);
   const { mutate: toggleWorkPrivacy } = workPrivacyMutation;
 

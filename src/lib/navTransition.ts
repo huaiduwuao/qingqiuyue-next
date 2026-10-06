@@ -14,7 +14,7 @@ import { flushSync } from 'react-dom';
  * tab = 底部 tab 之间平级切换;swap = 同一层原地换内容(详情页里点相关推荐,history.replace)。
  * tab / swap 都是短淡入淡出,不推页。
  */
-type Dir = 'forward' | 'back' | 'tab' | 'swap';
+export type Dir = 'forward' | 'back' | 'tab' | 'swap';
 
 type ViewTransitionLike = {
   finished: Promise<void>;
@@ -36,6 +36,30 @@ function canAnimate(): boolean {
   if (typeof document === 'undefined') return false;
   if (!(document as DocWithVT).startViewTransition) return false;
   return !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * 页面自己接管了换页动画时挂的「这几个方向先别做 View Transition」(小说书架 ⇄ 阅读器的开书 / 合书,
+ * 见 components/novel-reader/bookFlip)。转场期间浏览器停在旧页快照上不画东西,
+ * 自己的覆盖层动画会跟着冻住,所以两者不能叠。ms 不填 = 一直挂着,直到调用返回的释放函数。
+ */
+const holds = new Set<{ dirs: Dir[]; until: number }>();
+
+export function holdNavTransition(dirs: Dir[], ms = Infinity): () => void {
+  const h = { dirs, until: Date.now() + ms };
+  holds.add(h);
+  return () => {
+    holds.delete(h);
+  };
+}
+
+function held(dir: Dir): boolean {
+  const now = Date.now();
+  for (const h of holds) {
+    if (h.until < now) holds.delete(h);
+    else if (h.dirs.includes(dir)) return true;
+  }
+  return false;
 }
 
 let running = false;
@@ -179,7 +203,7 @@ function begin(dir: Dir, update: (vt: () => ViewTransitionLike | undefined) => P
  */
 export function navTransition(dir: Dir, navigate?: () => void): void {
   markNavStart();
-  if (!canAnimate() || running) {
+  if (!canAnimate() || running || held(dir)) {
     navigate?.();
     return;
   }

@@ -6,6 +6,20 @@ import type { TimeMode } from './vrm/world/env/timeOfDay';
 import { roomBounds, type WorldDef } from './vrm/world/worldLayout';
 
 export type AvatarMode = 'vrm' | '3dgs' | '2d';
+
+/** 离开数字人页、又没有可靠的「上一页」时回到这里(和底部导航「首页」默认页签一致) */
+export const DIGITAL_HUMAN_EXIT_HOME = '/home/recommend';
+
+/**
+ * 点「退出」该怎么走:'back' = 退回上一页,'home' = 直接回首页。
+ * - 直接打开进来的(新标签、App 冷启动、外链)历史里只有这一条,history.back() 什么也不做;
+ * - 屏幕里开过站内页面(同源 iframe)的话,iframe 里点链接也会记进整页的历史,
+ *   history.back() / 安卓返回键先退的是 iframe 里的那一页 —— 看上去就是「点 × 没反应、回不到首页」。
+ * 这两种情况都不赌 back,直接回首页。
+ */
+export function exitMode(historyLength: number, openedPages: boolean): 'back' | 'home' {
+  return !openedPages && historyLength > 1 ? 'back' : 'home';
+}
 export interface GsAssetItem { id: string; name: string; assetUrl: string }
 
 // 相对时间:刚建的会话显示「刚刚」,让"点了新会话"立刻可见

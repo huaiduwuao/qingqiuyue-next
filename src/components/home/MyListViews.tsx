@@ -59,7 +59,8 @@ export const WorkGridView = React.memo(function WorkGridView({
                 />
               </Box>
             )}
-            <Box sx={{ position: 'relative', aspectRatio: '3/4', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
+            {/* data-book-cover:书架开书 / 合书动画按它找封面位置(novel-reader/bookFlip) */}
+            <Box data-book-cover={it.id} sx={{ position: 'relative', aspectRatio: '3/4', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
               <CoverImage src={it.cover} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7) 100%)' }} />
               {it.durationSec > 0 && (

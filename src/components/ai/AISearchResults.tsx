@@ -223,7 +223,8 @@ function AIResultCard({ item }: { item: AISearchItem }) {
         '&:hover': { transform: 'translateY(-2px)', borderColor: ACCENT.blue.border30 },
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '4 / 3', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 }, background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})` }}>
+      {/* isolation:封面自成一层,角上「站内可播」标签(zIndex 5)只压封面,不会越过页面的吸顶栏 / 浮层 */}
+      <Box sx={{ position: 'relative', isolation: 'isolate', aspectRatio: '4 / 3', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 }, background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})` }}>
         <CoverImage
           src={item.cover}
           alt=""

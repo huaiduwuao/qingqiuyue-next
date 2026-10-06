@@ -13,6 +13,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
+import { DIGITAL_HUMAN_EXIT_HOME, exitMode } from './immersiveUtils';
 
 export function DigitalHumanLoginGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
@@ -34,12 +35,15 @@ export function DigitalHumanLoginGate({ children }: { children: React.ReactNode 
       }}
     >
       <IconButton
-        onClick={() => router.back()}
+        // 直接打开进来时没有上一页,back() 什么也不做,只能回首页
+        onClick={() => (exitMode(window.history.length, false) === 'back' ? router.back() : router.replace(DIGITAL_HUMAN_EXIT_HOME))}
         aria-label="退出"
         sx={{
           position: 'absolute',
-          top: 12,
+          // 让出刘海 / 状态栏,否则客户端里这颗按钮在状态栏底下点不到
+          top: 'calc(12px + var(--sat, 0px))',
           left: 12,
+          zIndex: 1,
           color: 'rgba(255,255,255,0.85)',
           bgcolor: 'rgba(0,0,0,0.4)',
           '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },

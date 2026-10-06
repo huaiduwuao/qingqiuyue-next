@@ -47,7 +47,8 @@ export function ImmersiveSessionList({
       left: { xs: 12, sm: 16 },
       width: { xs: 'calc(100vw - 24px)', sm: 260 },
       maxWidth: 260,
-      maxHeight: 'calc(100vh - min(40vh, 400px) - 80px)',
+      // 手机上聊天区是 46vh(最多 460px),按 40vh 算列表底部会伸进聊天区
+      maxHeight: { xs: 'calc(100% - min(46vh, 460px) - 80px - var(--sat, 0px))', md: 'calc(100% - min(40vh, 400px) - 80px)' },
       zIndex: 3,
       background: 'rgba(0,0,0,0.5)',
       borderRadius: 2,

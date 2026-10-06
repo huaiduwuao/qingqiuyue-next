@@ -360,14 +360,23 @@ export const PseudoFullscreen = memo(function PseudoFullscreen({
       if (timer.current) clearTimeout(timer.current);
     };
   }, [poke]);
+  // 拖进度条期间控制条不自动收起;松手后重新计 3 秒
+  const scrubbing = scrub !== null;
+  useEffect(() => {
+    if (!scrubbing) poke();
+  }, [scrubbing, poke]);
+  const visible = shown || scrubbing;
   return (
     <Box
       data-no-drag
       data-no-swipe
       role="dialog"
       aria-label="全屏播放"
+      // 只拦按下:祖先(推荐流翻页、悬浮小窗拖动)的手势都从 pointerdown 起步,拦住它就够了。
+      // 不能再拦 pointerup —— React 的 stopPropagation 会连原生事件一起停住,浮层挂在 body 下,
+      // 抬起事件到不了 document;MUI Slider 正是在 document 上听 pointerup 来提交拖动的,
+      // 拦了以后全屏里拖进度条松手不 seek(手机上「拖了没反应」)。
       onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       sx={{ position: 'fixed', inset: 0, zIndex: 1600, bgcolor: '#000', animation: 'qq-fade-in 0.2s ease-out both', touchAction: 'none' }}
     >
@@ -384,8 +393,8 @@ export const PseudoFullscreen = memo(function PseudoFullscreen({
           pt: 3,
           background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
           color: '#fff',
-          opacity: shown ? 1 : 0,
-          pointerEvents: shown ? 'auto' : 'none',
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'auto' : 'none',
           transition: 'opacity 0.2s',
         }}
       >
