@@ -92,9 +92,22 @@ function Birth({ u, onBorn }: { u: LifeUniverse; onBorn: (id: string) => void })
   );
 }
 
-function UniverseCard({ k, alive, found, onBorn }: { k: string; alive?: LifeRun; found?: number; onBorn: (id: string) => void }) {
+function UniverseCard({
+  k,
+  alive,
+  found,
+  focus,
+  onBorn,
+}: {
+  k: string;
+  alive?: LifeRun;
+  found?: number;
+  /** 从世界页「到这个世界里活一世」来的:排第一、直接打开捏人 */
+  focus?: boolean;
+  onBorn: (id: string) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(!!focus);
   const q = useQuery({ queryKey: ['life-universe', k], queryFn: () => getUniverse(k), staleTime: 10 * 60_000 });
   const u = q.data;
   if (!u) return <Box sx={{ height: 140, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)' }} />;
@@ -129,7 +142,7 @@ function UniverseCard({ k, alive, found, onBorn }: { k: string; alive?: LifeRun;
   );
 }
 
-function Landing() {
+function Landing({ focus }: { focus?: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { status } = useAuth();
@@ -162,8 +175,8 @@ function Landing() {
         )}
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mb: 6 }}>
-          {(us.data?.list || []).map((u) => (
-            <UniverseCard key={u.key} k={u.key} found={me.data?.found?.[u.key]} alive={runs.find((r) => r.universe === u.key && r.status === 'alive')} onBorn={authed ? onBorn : () => router.push(loginHref())} />
+          {[...(us.data?.list || [])].sort((a, b) => (a.key === focus ? -1 : b.key === focus ? 1 : 0)).map((u) => (
+            <UniverseCard key={u.key} k={u.key} focus={u.key === focus} found={me.data?.found?.[u.key]} alive={runs.find((r) => r.universe === u.key && r.status === 'alive')} onBorn={authed ? onBorn : () => router.push(loginHref())} />
           ))}
         </Box>
 
@@ -249,12 +262,13 @@ function Landing() {
 }
 
 function LifeInner() {
-  const run = useSearchParams().get('run') || '';
+  const sp = useSearchParams();
+  const run = sp.get('run') || '';
   const { status } = useAuth();
   if (run && status === 'authenticated') return <LifeStage key={run} runId={run} />;
   return (
     <DarkStage>
-      <Landing />
+      <Landing focus={sp.get('u') || undefined} />
     </DarkStage>
   );
 }

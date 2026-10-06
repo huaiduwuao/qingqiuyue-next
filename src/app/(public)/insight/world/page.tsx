@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Container from '@mui/material/Container';
 import Skeleton from '@mui/material/Skeleton';
@@ -34,7 +35,7 @@ function WorldInner() {
   const q = useQuery({ queryKey: ['cog-world', id], queryFn: () => cogWorld(id), enabled: !!id, staleTime: 10 * 60_000, retry: false });
   if (!id || q.isError) return <EmptyState text="没有找到这个世界" />;
   if (!q.data) return <Skeleton variant="rounded" height={300} />;
-  const { world: w, laws, places, groups, works, characters, briefs } = q.data;
+  const { world: w, laws, places, groups, works, characters, briefs, universe } = q.data;
   const byDomain = new Map<string, typeof laws>();
   laws.forEach((l) => byDomain.set(l.domain, [...(byDomain.get(l.domain) || []), l]));
   return (
@@ -46,9 +47,14 @@ function WorldInner() {
       </Typography>
       <Typography sx={{ fontFamily: SERIF, fontSize: { xs: 28, md: 34 }, fontWeight: 700, letterSpacing: '0.1em', my: 1 }}>{w.name}</Typography>
       {w.summary && <Typography sx={{ fontSize: 14.5, color: 'text.secondary', lineHeight: 2, mb: 1 }}>{w.summary}</Typography>}
-      <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 4 }}>
+      <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: universe ? 2 : 4 }}>
         {w.workCount} 部作品写到这里 · {w.lawCount} 条定律
       </Typography>
+      {universe && (
+        <Button component={Link} href={`/life?u=${universe}`} variant="outlined" sx={{ mb: 4 }}>
+          到这个世界里活一世
+        </Button>
+      )}
 
       {laws.length > 0 && (
         <Section title="这个世界怎么运转">

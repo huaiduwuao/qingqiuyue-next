@@ -159,6 +159,8 @@ export const cogWorld = (id: string) =>
     works: CogWork[];
     characters: CogCharacter[];
     briefs: Record<string, CogBrief>;
+    /** 这个世界组装出的宇宙(发布了才有),可以到人生轮回里活一世 */
+    universe?: string;
   }>('/cog/world', { params: { id } });
 
 export const cogCharacter = (id: string) =>
