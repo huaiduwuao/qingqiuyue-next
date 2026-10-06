@@ -15,6 +15,8 @@ export const COMMON: MockRule[] = [
   { path: /^\/content\/recommend\/feed$/, body: ok({ list: [], total: 0, hasMore: false }) },
   { path: /^\/content\/recommend\/related$/, body: ok({ list: [], total: 0, hasMore: false }) },
   { path: /^\/content\/availability$/, body: ok({ items: {} }) },
+  // 详情页的「作品解析」卡片(components/cog/WorkCognition):没解析过就不显示
+  { path: /^\/content\/cog\/work$/, body: ok({ analyzed: false }) },
   // 规则下发拿不到时前端用内置默认规则(lib/localStream/rules)
   { path: /^\/content\/stream\/rules$/, body: ok(null) },
   {
