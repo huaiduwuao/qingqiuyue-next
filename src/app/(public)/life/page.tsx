@@ -11,12 +11,16 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Switch from '@mui/material/Switch';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LifeStage, { DarkStage, SERIF, pendingSays } from '@/components/life/LifeStage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { errMessage } from '@/lib/errMessage';
 import {
+  createUniverse,
+  deleteMadeUniverse,
   deleteMark,
   getUniverse,
   lifeMe,
@@ -109,11 +113,29 @@ function UniverseCard({
   const router = useRouter();
   const [open, setOpen] = React.useState(!!focus);
   const q = useQuery({ queryKey: ['life-universe', k], queryFn: () => getUniverse(k), staleTime: 10 * 60_000 });
+  const { currentUser } = useApp();
+  const qc = useQueryClient();
   const u = q.data;
   if (!u) return <Box sx={{ height: 140, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)' }} />;
+  const mine = !!u.authorId && u.authorId === String(currentUser?.id ?? '');
+  const drop = async () => {
+    if (!window.confirm('删掉这个宇宙?在里面活过的那几世也会打不开。')) return;
+    await deleteMadeUniverse(u.key);
+    void qc.invalidateQueries({ queryKey: ['life-universes'] });
+  };
   return (
     <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 2, background: 'linear-gradient(160deg, #1b1622 0%, #3e2632 60%, #6a3c30 100%)' }}>
-      <Typography sx={{ fontSize: 12, color: ACCENT, letterSpacing: '0.2em' }}>{u.era}</Typography>
+      <Typography sx={{ fontSize: 12, color: ACCENT, letterSpacing: '0.2em' }}>
+        {u.era}
+        {mine && (
+          <Box component="span" sx={{ ml: 1.5, color: 'rgba(255,255,255,0.6)', letterSpacing: 0 }}>
+            你造的 ·{' '}
+            <Box component="span" onClick={drop} sx={{ cursor: 'pointer', textDecoration: 'underline' }}>
+              删掉
+            </Box>
+          </Box>
+        )}
+      </Typography>
       <Typography sx={{ fontFamily: SERIF, fontSize: { xs: 26, md: 30 }, letterSpacing: '0.1em', my: 1 }}>{u.name}</Typography>
       <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.9, mb: 2 }}>{u.summary}</Typography>
       {!!u.laws?.length && (
@@ -142,6 +164,47 @@ function UniverseCard({
   );
 }
 
+/** 造物:一句话造一个宇宙。推演者写大纲、拼成宇宙,一两分钟 */
+function CreateBox({ onMade }: { onMade: (key: string) => void }) {
+  const [text, setText] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const make = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      const r = await createUniverse(text.trim());
+      onMade(r.universe.key);
+    } catch (e) {
+      setErr(errMessage(e) || '这个世界一时没有成形,稍后再试');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Box sx={{ mb: 5, p: { xs: 2, md: 3 }, borderRadius: 2, border: '1px dashed rgba(200,162,122,0.4)' }}>
+      <Typography sx={{ fontFamily: SERIF, fontSize: 20, letterSpacing: '0.1em', mb: 0.5 }}>造一个宇宙</Typography>
+      <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', mb: 1.5, lineHeight: 1.9 }}>
+        用一句话说说那个世界和我们的哪里不一样。它会长出自己的定律、出身、一生里的处境和藏着的奥秘,谁都可以进去活一世。
+      </Typography>
+      <TextField
+        multiline
+        minRows={2}
+        fullWidth
+        value={text}
+        disabled={busy}
+        onChange={(e) => setText(e.target.value.slice(0, 300))}
+        placeholder="比如:一座没有夜晚的城,梦要排队领取"
+        sx={{ mb: 1.5, '& .MuiOutlinedInput-root': { bgcolor: 'rgba(0,0,0,0.35)', fontSize: 15 } }}
+      />
+      {err && <Typography sx={{ color: '#ff8a80', fontSize: 13, mb: 1 }}>{err}</Typography>}
+      <Button variant="outlined" disabled={busy || !text.trim()} onClick={make} sx={{ borderColor: ACCENT, color: ACCENT }}>
+        {busy ? '这个世界正在成形……(一两分钟)' : '造'}
+      </Button>
+    </Box>
+  );
+}
+
 function Landing({ focus }: { focus?: string }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -155,6 +218,10 @@ function Landing({ focus }: { focus?: string }) {
   const onBorn = (id: string) => {
     qc.invalidateQueries({ queryKey: ['life-me'] });
     router.push(`/life?run=${id}`);
+  };
+  const onMade = (key: string) => {
+    void qc.invalidateQueries({ queryKey: ['life-universes'] });
+    router.push(`/life?u=${key}`);
   };
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: '#0c0c10', color: 'text.primary', px: { xs: 2, md: 6 }, py: { xs: 5, md: 8 } }}>
@@ -173,6 +240,8 @@ function Landing({ focus }: { focus?: string }) {
             </Button>
           </Box>
         )}
+
+        {authed && <CreateBox onMade={onMade} />}
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mb: 6 }}>
           {[...(us.data?.list || [])].sort((a, b) => (a.key === focus ? -1 : b.key === focus ? 1 : 0)).map((u) => (

@@ -13,6 +13,8 @@ export interface LifeUniverseBrief {
   laws?: string[];
   /** 藏着几个奥秘 */
   secretTotal?: number;
+  /** 用户造的宇宙:作者 */
+  authorId?: string;
 }
 
 export interface LifeOriginField {
@@ -216,3 +218,9 @@ export const lifeExplore = (id: string, text: string) => accountClient.post<Life
 
 /** 两场之间去一个地方 */
 export const lifePlace = (id: string, key: string) => accountClient.post<LifeStepResult>(`/life/runs/${id}/place`, { key });
+
+/** 造物:一句话造一个宇宙(推演者写大纲,要等一两分钟) */
+export const createUniverse = (text: string) => accountClient.post<{ universe: LifeUniverseBrief }>('/life/create', { text });
+
+/** 删掉自己造的宇宙 */
+export const deleteMadeUniverse = (key: string) => accountClient.delete(`/life/universes/${encodeURIComponent(key)}`);
