@@ -381,8 +381,18 @@ export interface Overview {
   props: Prop[];
   episodes: Episode[];
   shot_stats: Record<string, number>;
+  /** 每集镜头进度,键是 episode id;旧后端没有 */
+  episode_stats?: Record<string, EpisodeStat>;
   tasks: Task[];
   running: Task | null;
+}
+
+export interface EpisodeStat {
+  shots: number;
+  /** 已有画面 */
+  framed: number;
+  /** 已出视频 */
+  videos: number;
 }
 
 export interface DramaEvent {
@@ -425,7 +435,8 @@ export const dramaAPI = {
   createProject: (body: Partial<Project> & { style_id?: number }, autostart?: 'pipeline' | 'screenwriter') =>
     call<{ project: Project; task: Task | null }>(`/projects${autostart ? `?autostart=${autostart}` : ''}`, json(body)),
   overview: (id: number) => call<Overview>(`/projects/${id}`),
-  updateProject: (id: number, fields: Partial<Project>) => call<{ project: Project }>(`/projects/${id}`, put(fields)),
+  /** style_id 换风格库里的风格(只影响之后生成的图和视频) */
+  updateProject: (id: number, fields: Partial<Project> & { style_id?: number }) => call<{ project: Project }>(`/projects/${id}`, put(fields)),
   deleteProject: (id: number) => call<{ status: string }>(`/projects/${id}`, del),
   /** 发布/更新为标准作品(走 content-api 投稿接口,进内容审核) */
   publish: (id: number) => call<PublishResult>(`/projects/${id}/publish`, { method: 'POST' }),

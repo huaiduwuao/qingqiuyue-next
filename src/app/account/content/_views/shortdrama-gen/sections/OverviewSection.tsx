@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import LinearProgress from '@mui/material/LinearProgress';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardActionArea from '@mui/material/CardActionArea';
@@ -85,9 +86,9 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
 
       <Grid container spacing={1.5}>
         {[
-          { label: '角色', n: characters.length, hint: `${characters.filter((x) => x.ref_image_url).length} 已定妆`, go: 'characters' as const },
-          { label: '场景', n: scenes.length, hint: `${scenes.filter((x) => x.visual_prompt).length} 已设定`, go: 'scenes' as const },
-          { label: '道具', n: props.length, hint: `${props.filter((x) => x.visual_prompt).length} 已设定`, go: 'props' as const },
+          { label: '角色', n: characters.length, hint: `${characters.filter((x) => x.ref_image_url).length} 已定妆`, go: 'subjects' as const },
+          { label: '场景', n: scenes.length, hint: `${scenes.filter((x) => x.visual_prompt).length} 已设定`, go: 'subjects' as const },
+          { label: '道具', n: props.length, hint: `${props.filter((x) => x.visual_prompt).length} 已设定`, go: 'subjects' as const },
           { label: '镜头', n: stats.total ?? 0, hint: `${stats.done ?? 0} 已出图 · ${stats.qc_flagged ?? 0} 待修`, go: 'storyboard' as const },
         ].map((k) => (
           <Grid key={k.label} size={{ xs: 6, md: 3 }}>
@@ -146,6 +147,24 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
                       <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {ep.synopsis || '—'}
                       </Typography>
+                      {(() => {
+                        const st = ov.data?.episode_stats?.[String(ep.id)];
+                        if (!st || !st.shots) return null;
+                        const pct = Math.round((st.framed / st.shots) * 100);
+                        return (
+                          <Box sx={{ mt: 1 }}>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                画面 {st.framed}/{st.shots} · 视频 {st.videos}
+                              </Typography>
+                              <Typography variant="caption" color="primary">
+                                {pct}%
+                              </Typography>
+                            </Stack>
+                            <LinearProgress variant="determinate" value={pct} sx={{ height: 4, borderRadius: 1 }} />
+                          </Box>
+                        );
+                      })()}
                       <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
                         {ep.duration_sec > 0 && <Chip size="small" variant="outlined" label={`${ep.duration_sec}s`} />}
                         {typeof ep.qc?.score === 'number' && ep.qc.score > 0 && <Chip size="small" variant="outlined" color={ep.qc.score >= 80 ? 'success' : 'warning'} label={`质检 ${ep.qc.score}`} />}
@@ -195,7 +214,7 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
           ))}
         </Grid>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          按集运行的环节(分场剧本 / 分镜 / 节奏 / 出图 / 质检)在「剧本」「分镜」分区里按集发起;修改意见在右侧活动面板提交给反馈优化员工。
+          按集运行的环节(分场剧本 / 分镜 / 出图 / 出视频)在「剧本」「分镜」「故事板」页签里按集发起;修改意见在右侧「AI 助手」里提交给反馈优化员工。
           <Button size="small" sx={{ ml: 1 }} onClick={() => setFeedbackTarget({ type: 'project', id: projectId, label: '整个项目' })}>
             对整体提意见
           </Button>

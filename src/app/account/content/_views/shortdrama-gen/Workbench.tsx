@@ -1,8 +1,14 @@
 'use client';
 
 /**
- * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 后期 / 任务),
- * 中间内容,右侧「数字员工活动」面板(当前任务实时日志 + 修改意见输入)。
+ * 短剧工作台。按创作阶段分页签:概览 / 剧本 / 主体 / 分镜 / 故事板 / 成片。
+ *
+ * - 顶栏:返回、标题、阶段页签,右侧是「下一步」主按钮(带每次生成的钻石单价)和更多操作;
+ * - 左栏:分集列表(剧本 / 分镜 / 故事板 / 成片这些按集干活的阶段才有);
+ * - 中间:当前阶段;
+ * - 右栏:当前阶段的编辑面板(全局设定 / 主体图 / 镜头绘图与视频)+「AI 助手」
+ *   (数字员工的实时日志 + 修改意见)。选中主体或镜头时,修改意见自动对准它。
+ *
  * 出图模型和参数不在工作台里:风格库与 ComfyUI 模板由管理员在 /system/shortdrama 维护。
  */
 
@@ -11,13 +17,13 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
-import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -30,45 +36,42 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
-import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
-import FaceRoundedIcon from '@mui/icons-material/FaceRounded';
-import LandscapeRoundedIcon from '@mui/icons-material/LandscapeRounded';
-import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
-import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
-import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
-import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDetailRoute } from '@/lib/contentRoute';
-import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import { AGENT_LABELS, STEP_LABELS, dramaAPI, isTaskTerminal, type Step, type Task } from '@/apis/shortdrama';
+import StopRoundedIcon from '@mui/icons-material/StopRounded';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDetailRoute } from '@/lib/contentRoute';
+import { AGENT_LABELS, dramaAPI, isTaskTerminal, type Episode, type Step, type Task } from '@/apis/shortdrama';
 import { TaskStatusChip, fmtTime } from './common';
-import { qk, useFeedback, useOverview, useProjectEvents, useStartTask } from './useProject';
+import { qk, useFeedback, useOverview, useProjectEvents, useStartTask, useUnitCost } from './useProject';
 import OverviewSection from './sections/OverviewSection';
 import ScriptSection from './sections/ScriptSection';
-import EntitySection from './sections/EntitySection';
+import SubjectsSection from './sections/SubjectsSection';
 import StoryboardSection from './sections/StoryboardSection';
+import BoardSection from './sections/BoardSection';
 import PostSection from './sections/PostSection';
 import TasksSection from './sections/TasksSection';
-import { FiveStepBoard } from './FiveStepBoard';
+import GlobalSettingsPanel from './panels/GlobalSettingsPanel';
+import SubjectPanel from './panels/SubjectPanel';
+import ShotPanel from './panels/ShotPanel';
 
-export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'post' | 'tasks';
+export type SectionId = 'overview' | 'script' | 'subjects' | 'storyboard' | 'board' | 'post';
 
-const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview', label: '概览', icon: <DashboardRoundedIcon fontSize="small" /> },
-  { id: 'script', label: '剧本', icon: <DescriptionRoundedIcon fontSize="small" /> },
-  { id: 'characters', label: '角色', icon: <FaceRoundedIcon fontSize="small" /> },
-  { id: 'scenes', label: '场景', icon: <LandscapeRoundedIcon fontSize="small" /> },
-  { id: 'props', label: '道具', icon: <CategoryRoundedIcon fontSize="small" /> },
-  { id: 'storyboard', label: '分镜', icon: <ViewCarouselRoundedIcon fontSize="small" /> },
-  { id: 'post', label: '后期', icon: <MovieFilterRoundedIcon fontSize="small" /> },
-  { id: 'tasks', label: '任务', icon: <TaskAltRoundedIcon fontSize="small" /> },
+const STAGES: { id: SectionId; label: string }[] = [
+  { id: 'overview', label: '概览' },
+  { id: 'script', label: '剧本' },
+  { id: 'subjects', label: '主体' },
+  { id: 'storyboard', label: '分镜' },
+  { id: 'board', label: '故事板' },
+  { id: 'post', label: '成片' },
 ];
+/** 按集干活的阶段:左边显示分集列表 */
+const EPISODE_STAGES = new Set<SectionId>(['script', 'storyboard', 'board', 'post']);
 
 /** 反馈目标:由各分区在用户选中某个实体时设置。 */
 export interface FeedbackTarget {
@@ -77,46 +80,79 @@ export interface FeedbackTarget {
   label: string;
 }
 
+/** 当前选中的主体或镜头,右栏编辑面板跟着它走 */
+export type Selection = { type: 'character' | 'scene' | 'prop' | 'shot'; id: number; label: string } | null;
+
 export interface SectionProps {
   projectId: number;
   setSection: (s: SectionId, opts?: { episodeId?: number }) => void;
   setFeedbackTarget: (t: FeedbackTarget | null) => void;
   episodeId: number;
   setEpisodeId: (id: number) => void;
+  /** 工作台左栏已经有分集列表:分区里就不用再画一排分集页签 */
+  episodeRail?: boolean;
+  selected?: Selection;
+  select?: (s: Selection) => void;
 }
+
+/** 助手面板里的快捷意见,点一下填进输入框 */
+const SUGGESTIONS: Partial<Record<SectionId, string[]>> = {
+  overview: ['整体节奏再快一点,开场 3 秒就要有冲突', '主角人设更鲜明一些'],
+  script: ['这一集结尾的悬念不够,加一个反转', '台词更口语化,少一点书面语'],
+  subjects: ['女主的造型更精致一些', '场景的光线改成黄昏暖色调'],
+  storyboard: ['这一集多用特写,情绪更饱满', '镜头再紧凑一点,删掉过场镜头'],
+  board: ['画面整体再明亮一些', '人物表情更夸张一点'],
+};
 
 export default function Workbench({ projectId, onExit }: { projectId: number; onExit: () => void }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down('md'));
   const [section, setSection0] = useState<SectionId>('overview');
-  // 手机上整页一起滚、页签吸顶:切分区时如果已经往下滚过,回到新分区的开头(页签正下方),
-  // 不然停在上一个分区滚到的位置,新分区从中间开始看
+  // 手机上整页一起滚、页签吸顶:切分区时如果已经往下滚过,回到新分区的开头(页签正下方)
   const tabsAnchorRef = useRef<HTMLDivElement>(null);
   const setSectionState = (s: SectionId) => {
     setSection0(s);
+    // 换阶段就放下之前选中的主体 / 镜头,修改意见回到整个项目
+    setSelected(null);
+    setFeedbackTarget(null);
     const a = tabsAnchorRef.current;
     if (narrow && a && a.getBoundingClientRect().top < (a.closest('main')?.getBoundingClientRect().top ?? 0)) a.scrollIntoView({ block: 'start' });
   };
   const [episodeId, setEpisodeId] = useState(0);
   const [feedbackTarget, setFeedbackTarget] = useState<FeedbackTarget | null>(null);
-  const [activityOpen, setActivityOpen] = useState(true);
-  // 手机上活动面板是从底部弹出的一层,一进来就盖住大半屏:默认收起,点「活动」再打开
+  const [selected, setSelected] = useState<Selection>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelTab, setPanelTab] = useState<'context' | 'assistant'>('context');
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [moreMenu, setMoreMenu] = useState<null | HTMLElement>(null);
+  // 手机上右栏是从底部弹出的一层,一进来就盖住大半屏:默认收起
   useEffect(() => {
-    if (narrow) setActivityOpen(false);
+    if (narrow) setPanelOpen(false);
   }, [narrow]);
   const overview = useOverview(projectId);
   const { liveTask, connected } = useProjectEvents(projectId);
   const start = useStartTask(projectId);
+  const cost = useUnitCost();
 
   const setSection = (s: SectionId, opts?: { episodeId?: number }) => {
     if (opts?.episodeId) setEpisodeId(opts.episodeId);
     setSectionState(s);
   };
+  const select = (s: Selection) => {
+    setSelected(s);
+    setFeedbackTarget(s ? { type: s.type, id: s.id, label: s.label } : null);
+    if (s) {
+      setPanelTab('context');
+      if (narrow) setPanelOpen(true);
+    }
+  };
 
   // 默认选中第一集
+  const episodes: Episode[] = useMemo(() => overview.data?.episodes ?? [], [overview.data]);
   useEffect(() => {
-    if (!episodeId && overview.data?.episodes?.length) setEpisodeId(overview.data.episodes[0].id);
-  }, [overview.data, episodeId]);
+    if ((!episodeId || !episodes.some((e) => e.id === episodeId)) && episodes.length) setEpisodeId(episodes[0].id);
+  }, [episodes, episodeId]);
+  const curEp = episodes.find((e) => e.id === episodeId) ?? episodes[0];
 
   const running: Task | null = useMemo(() => {
     if (liveTask && !isTaskTerminal(liveTask.status)) return liveTask;
@@ -126,10 +162,10 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
   const lastTask: Task | null = liveTask ?? overview.data?.tasks?.[0] ?? null;
 
   const p = overview.data?.project;
-  const sectionProps: SectionProps = { projectId, setSection, setFeedbackTarget, episodeId, setEpisodeId };
+  const showRail = !narrow && EPISODE_STAGES.has(section) && episodes.length > 0;
+  const sectionProps: SectionProps = { projectId, setSection, setFeedbackTarget, episodeId, setEpisodeId, episodeRail: showRail, selected, select };
 
   // 发布成标准作品(module_content SHORT_DRAMA):进"我的作品"与内容审核,和普通投稿同一条路。
-  // 已发布过的项目再点是更新同一件作品(分集随镜头产出刷新)。
   const queryClient = useQueryClient();
   const publish = useMutation({
     mutationFn: () => dramaAPI.publish(projectId),
@@ -137,92 +173,135 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
   });
   const publishedRoute = p?.content_id ? getDetailRoute('SHORT_DRAMA', p.content_id) : null;
 
-  const [runMenu, setRunMenu] = useState<null | HTMLElement>(null);
-  const projectSteps: Step[] = ['pipeline', 'screenwriter', 'visual_design'];
+  const run = (step: Step, input: Record<string, unknown> = {}) => {
+    start.mutate({ step, input });
+    setPanelTab('assistant');
+    setPanelOpen(true);
+  };
+  const epInput = curEp ? { episode_id: curEp.id, episode_no: curEp.no } : null;
+
+  // 每个阶段右上角的「下一步」:做完这一页,推到下一页
+  const next: { label: string; tip: string; price?: string; disabled?: boolean; go: () => void } | null = (() => {
+    switch (section) {
+      case 'overview':
+        return { label: '一键生成', tip: '剧本 → 主体 → 每集分镜 → 出图 → 质检,全流程自动跑完(已做好的环节会跳过)', price: cost.shot ? `${cost.shot} 钻/张图` : undefined, go: () => run('pipeline') };
+      case 'script':
+        return { label: '主体提取', tip: '按剧本给角色、场景、道具写图片提示词,并生成主体图(已有的不重画)', price: cost.t2i ? `${cost.t2i} 钻/张` : undefined, go: () => run('visual_design', { generate_images: cost.t2i > 0 }) };
+      case 'subjects':
+        return { label: '智能分镜', tip: curEp ? `把第 ${curEp.no} 集剧本拆成镜头(景别、运镜、台词、时长)` : '先写剧本', disabled: !epInput, go: () => epInput && run('storyboard', epInput) };
+      case 'storyboard':
+        return { label: '生成故事板', tip: curEp ? `给第 ${curEp.no} 集还没有画面的镜头出图` : '', price: cost.shot ? `${cost.shot} 钻/镜` : undefined, disabled: !epInput || !cost.canImage, go: () => epInput && run('visual_gen', epInput) };
+      case 'board':
+        return { label: '生成视频', tip: curEp ? `把第 ${curEp.no} 集的镜头画面做成动态视频(已有视频的跳过)` : '', price: cost.i2v ? `${cost.i2v} 钻/镜` : undefined, disabled: !epInput || !cost.canVideo, go: () => epInput && run('visual_gen', { ...epInput, video: true }) };
+      case 'post':
+        return { label: p?.content_id ? '更新作品' : '发布为作品', tip: p?.content_id ? '更新已发布的作品(分集随最新镜头产出刷新)' : '发布成短剧作品:进入"我的作品"并提交内容审核', disabled: publish.isPending, go: () => publish.mutate() };
+    }
+  })();
+
+  const contextPanel: { label: string; el: React.ReactNode } | null =
+    section === 'script'
+      ? { label: '全局设定', el: <GlobalSettingsPanel projectId={projectId} /> }
+      : section === 'subjects'
+        ? { label: '主体图', el: <SubjectPanel projectId={projectId} selected={selected} /> }
+        : section === 'storyboard' || section === 'board'
+          ? { label: '绘图 / 视频', el: <ShotPanel projectId={projectId} episodeId={curEp?.id ?? 0} selected={selected} /> }
+          : null;
+  const tab = contextPanel ? panelTab : 'assistant';
+
+  const stageTabs = (
+    <Tabs
+      value={section}
+      onChange={(_, v) => (v === '__panel' ? setPanelOpen(true) : setSectionState(v))}
+      variant={narrow ? 'scrollable' : 'standard'}
+      scrollButtons={narrow ? 'auto' : false}
+      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, minWidth: 64, px: 1.5 } }}
+    >
+      {STAGES.map((s) => (
+        <Tab key={s.id} value={s.id} label={s.label} />
+      ))}
+      {narrow && <Tab value="__panel" label="助手" />}
+    </Tabs>
+  );
 
   return (
-    // 手机上不定高、内容区也不单独滚:整个工作台跟着外层一起滚,分区页签吸顶。
-    // 以前顶栏 + 看板 + 页签钉死占了四成屏,内容只剩中间一小块自己滚
     <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 'auto', md: '100%' }, minHeight: { md: 'calc(100vh - 120px)' } }}>
       {/* 顶栏 */}
-      <Paper square elevation={0} sx={{ px: { xs: 1.5, md: 2 }, py: 1, borderBottom: 1, borderColor: 'divider' }}>
-        <Stack sx={{ alignItems: 'center', flexWrap: 'wrap' }} direction="row" spacing={1} useFlexGap>
-          <IconButton size="small" onClick={onExit} aria-label="返回项目列表">
-            <ArrowBackRoundedIcon />
-          </IconButton>
-          {/* 手机上标题占满第一行(减去返回键),运行/发布等按钮自动换到第二行,不再把标题挤成几个字 */}
-          <Box sx={{ minWidth: 0, flex: 1, flexBasis: { xs: 'calc(100% - 48px)', md: 0 } }}>
+      <Paper square elevation={0} sx={{ px: { xs: 1, md: 1.5 }, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 52 }}>
+          <Button size="small" startIcon={<ArrowBackRoundedIcon />} onClick={onExit} sx={{ flexShrink: 0 }}>
+            返回
+          </Button>
+          <Box sx={{ minWidth: 0, flex: { xs: 1, md: '0 1 280px' } }}>
             <Typography sx={{ fontWeight: 700 }} variant="subtitle1" noWrap>
               {p?.title ?? '加载中…'}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-              {p ? `${p.genre || '未定题材'} · ${p.style} · ${p.episodes} 集 × ${p.ep_seconds}s · ${p.aspect}` : ''}
-            </Typography>
           </Box>
-          {running ? (
-            <Stack sx={{ alignItems: 'center' }} direction="row" spacing={1}>
-              <Chip size="small" color="primary" icon={<SmartToyRoundedIcon />} label={`${AGENT_LABELS[running.agent] ?? running.agent} · ${running.title} ${running.progress}%`} sx={{ maxWidth: { xs: 'calc(100vw - 96px)', md: 'none' } }} />
-              <Tooltip title="取消当前任务">
-                <IconButton size="small" color="error" onClick={() => dramaAPI.cancelTask(running.id)}>
-                  <StopRoundedIcon />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          ) : (
-            <>
-              <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} onClick={(e) => setRunMenu(e.currentTarget)} disabled={start.isPending}>
-                运行
-              </Button>
-              <Menu open={!!runMenu} anchorEl={runMenu} onClose={() => setRunMenu(null)}>
-                {projectSteps.map((s) => (
-                  <MenuItem
-                    key={s}
-                    onClick={() => {
-                      setRunMenu(null);
-                      start.mutate({ step: s });
-                      setActivityOpen(true);
-                    }}
-                  >
-                    {STEP_LABELS[s]}
-                    {s === 'pipeline' && (
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                        全流程
-                      </Typography>
-                    )}
-                  </MenuItem>
-                ))}
-              </Menu>
-            </>
-          )}
-          {p && (
-            <Tooltip title={p.content_id ? '更新已发布的作品(分集随最新镜头产出刷新)' : '发布成短剧作品:进入"我的作品"并提交内容审核'}>
-              <span>
-                <Button size="small" variant={p.content_id ? 'text' : 'outlined'} startIcon={<PublishRoundedIcon />} onClick={() => publish.mutate()} disabled={publish.isPending || !!running}>
-                  {publish.isPending ? '发布中…' : p.content_id ? '更新作品' : '发布为作品'}
-                </Button>
-              </span>
+          {!narrow && <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>{stageTabs}</Box>}
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexShrink: 0 }}>
+            <Tooltip title={connected ? '实时连接正常' : '实时连接断开,重连中'}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }} />
             </Tooltip>
-          )}
-          {publishedRoute && (
-            <Chip size="small" variant="outlined" color="success" icon={<OpenInNewRoundedIcon />} label="已发布 · 查看作品" component="a" href={publishedRoute} target="_blank" clickable />
-          )}
-          <Tooltip title={connected ? '实时连接正常' : '实时连接断开,重连中'}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }} />
-          </Tooltip>
-          {!narrow && (
-            <Button size="small" variant={activityOpen ? 'outlined' : 'text'} onClick={() => setActivityOpen((v) => !v)}>
-              活动
-            </Button>
-          )}
-        </Stack>
-        {running && <LinearProgress variant={running.progress > 0 ? 'determinate' : 'indeterminate'} value={running.progress} sx={{ mt: 1, borderRadius: 1 }} />}
+            {running ? (
+              <>
+                {!narrow && (
+                  <Chip size="small" color="primary" icon={<SmartToyRoundedIcon />} label={`${AGENT_LABELS[running.agent] ?? running.agent} · ${running.title} ${running.progress}%`} sx={{ maxWidth: 320 }} onClick={() => { setPanelTab('assistant'); setPanelOpen(true); }} />
+                )}
+                <Tooltip title="取消当前任务">
+                  <IconButton size="small" color="error" onClick={() => dramaAPI.cancelTask(running.id)}>
+                    <StopRoundedIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              next && (
+                <Tooltip title={next.tip}>
+                  <span>
+                    <Button size="small" variant="contained" disabled={next.disabled || start.isPending} onClick={next.go} endIcon={<ArrowForwardRoundedIcon />} sx={{ borderRadius: 5, whiteSpace: 'nowrap' }}>
+                      {next.label}
+                      {next.price && !narrow && (
+                        <Box component="span" sx={{ ml: 0.75, opacity: 0.85, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
+                          <DiamondRoundedIcon sx={{ fontSize: 13 }} />
+                          {next.price}
+                        </Box>
+                      )}
+                    </Button>
+                  </span>
+                </Tooltip>
+              )
+            )}
+            <IconButton size="small" onClick={(e) => setMoreMenu(e.currentTarget)} aria-label="更多操作">
+              <MoreHorizRoundedIcon />
+            </IconButton>
+            <Menu open={!!moreMenu} anchorEl={moreMenu} onClose={() => setMoreMenu(null)}>
+              <MenuItem disabled={!!running} onClick={() => { setMoreMenu(null); run('pipeline'); }}>
+                一键生成(全流程)
+              </MenuItem>
+              <MenuItem disabled={!!running} onClick={() => { setMoreMenu(null); run('screenwriter'); }}>
+                重写剧本框架
+              </MenuItem>
+              <MenuItem disabled={!!running || publish.isPending} onClick={() => { setMoreMenu(null); publish.mutate(); }}>
+                {p?.content_id ? '更新已发布的作品' : '发布为作品'}
+              </MenuItem>
+              {publishedRoute && (
+                <MenuItem component="a" href={publishedRoute} target="_blank" onClick={() => setMoreMenu(null)}>
+                  查看已发布作品 <OpenInNewRoundedIcon fontSize="small" sx={{ ml: 0.5 }} />
+                </MenuItem>
+              )}
+              <MenuItem onClick={() => { setMoreMenu(null); setTasksOpen(true); }}>任务记录</MenuItem>
+              {!narrow && (
+                <MenuItem onClick={() => { setMoreMenu(null); setPanelOpen((v) => !v); }}>{panelOpen ? '收起右侧面板' : '展开右侧面板'}</MenuItem>
+              )}
+            </Menu>
+          </Stack>
+        </Box>
+        {running && <LinearProgress variant={running.progress > 0 ? 'determinate' : 'indeterminate'} value={running.progress} sx={{ mb: 0.5, borderRadius: 1 }} />}
         {publish.isError && (
-          <Alert severity="error" sx={{ mt: 1 }} onClose={() => publish.reset()}>
+          <Alert severity="error" sx={{ mb: 1 }} onClose={() => publish.reset()}>
             发布失败:{(publish.error as Error).message}
           </Alert>
         )}
         {publish.isSuccess && publish.data && (
-          <Alert severity="success" sx={{ mt: 1 }} onClose={() => publish.reset()}>
+          <Alert severity="success" sx={{ mb: 1 }} onClose={() => publish.reset()}>
             已作为短剧作品提交:{publish.data.episodes} 集、{publish.data.shots} 个镜头
             {publish.data.finals ? `,其中 ${publish.data.finals} 集用的是合成成片` : ''}
             {publish.data.missing_render > 0 ? `(${publish.data.missing_render} 个镜头还没有画面,出图后再点"更新作品"即可补上)` : ''}
@@ -230,58 +309,19 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
           </Alert>
         )}
         {start.isError && (
-          <Alert severity="error" sx={{ mt: 1 }} onClose={() => start.reset()}>
+          <Alert severity="error" sx={{ mb: 1 }} onClose={() => start.reset()}>
             {(start.error as Error).message}
           </Alert>
         )}
       </Paper>
 
-      {/* G1:5 步看板 —— 剧本 → 主题 → 分镜提示词 → 故事板分镜图 → 成片合成 */}
-      {p && (
-        <Box sx={{ px: { xs: 1.5, md: 2 }, py: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
-          <FiveStepBoard
-            currentStage={p.stage}
-            status={p.status}
-            running={running}
-            canStart={!start.isPending}
-            disabled={!!running}
-            onStartStep={(bs) => {
-              // 启动该看板步对应后端 step 列表的第一个 step;同一个 step 也可以再次启动覆盖
-              const firstBackend = bs.backendSteps[0];
-              // 分镜之后的环节都是按集跑的,不带 episode_id 后端直接报「缺少 episode_id」
-              const ep = overview.data?.episodes.find((x) => x.id === episodeId) ?? overview.data?.episodes[0];
-              start.mutate({ step: firstBackend, input: ep ? { episode_id: ep.id, episode_no: ep.no } : {} });
-              setActivityOpen(true);
-            }}
-          />
-        </Box>
-      )}
-
-      {/* 吸顶在创作中心外层滚动区的顶边:那一层手机上有 12px 内边距,top 抵掉它,不然页签上面露一条内容 */}
+      {/* 手机:阶段页签吸顶在顶栏下面。吸顶在创作中心外层滚动区的顶边,那层有 12px 内边距,top 抵掉它 */}
       <Box ref={tabsAnchorRef} />
-      {narrow && (
-        <Tabs value={section} onChange={(_, v) => { if (v !== '__activity') setSectionState(v); }} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider', position: 'sticky', top: -12, zIndex: 3, bgcolor: 'background.default' }}>
-          {SECTIONS.map((s) => (
-            <Tab key={s.id} value={s.id} label={s.label} sx={{ minWidth: 72 }} />
-          ))}
-          <Tab value="__activity" label="活动" sx={{ minWidth: 72 }} onClick={() => setActivityOpen(true)} />
-        </Tabs>
-      )}
+      {narrow && <Box sx={{ position: 'sticky', top: -12, zIndex: 3, bgcolor: 'background.default', borderBottom: 1, borderColor: 'divider' }}>{stageTabs}</Box>}
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左侧分区导航 */}
-        {!narrow && (
-          <List dense sx={{ width: 168, flexShrink: 0, borderRight: 1, borderColor: 'divider', py: 1 }}>
-            {SECTIONS.map((s) => (
-              <ListItemButton key={s.id} selected={section === s.id} onClick={() => setSectionState(s.id)} sx={{ borderRadius: 1, mx: 1 }}>
-                <ListItemIcon sx={{ minWidth: 32 }}>{s.icon}</ListItemIcon>
-                <ListItemText primary={s.label} />
-              </ListItemButton>
-            ))}
-          </List>
-        )}
+        {showRail && <EpisodeRail episodes={episodes} current={curEp?.id ?? 0} onPick={setEpisodeId} stats={overview.data?.episode_stats} />}
 
-        {/* 中间内容 */}
         <Box sx={{ flex: 1, minWidth: 0, overflow: { xs: 'visible', md: 'auto' }, p: { xs: 1.5, md: 2.5 } }}>
           {overview.isError ? (
             <Alert severity="error" action={<Button onClick={onExit}>返回</Button>}>
@@ -291,46 +331,98 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
             <>
               {section === 'overview' && <OverviewSection {...sectionProps} />}
               {section === 'script' && <ScriptSection {...sectionProps} />}
-              {section === 'characters' && <EntitySection {...sectionProps} kind="character" />}
-              {section === 'scenes' && <EntitySection {...sectionProps} kind="scene" />}
-              {section === 'props' && <EntitySection {...sectionProps} kind="prop" />}
+              {section === 'subjects' && <SubjectsSection {...sectionProps} />}
               {section === 'storyboard' && <StoryboardSection {...sectionProps} />}
+              {section === 'board' && <BoardSection {...sectionProps} />}
               {section === 'post' && <PostSection {...sectionProps} />}
-              {section === 'tasks' && <TasksSection {...sectionProps} />}
             </>
           )}
         </Box>
 
-        {/* 右侧活动面板 */}
-        {activityOpen && (
-          <ActivityPanel
-            projectId={projectId}
-            task={running ?? lastTask}
-            feedbackTarget={feedbackTarget}
-            onClearTarget={() => setFeedbackTarget(null)}
-            onClose={() => setActivityOpen(false)}
-            floating={narrow}
-          />
+        {panelOpen && (
+          <Paper
+            elevation={narrow ? 8 : 0}
+            square={!narrow}
+            sx={{
+              width: narrow ? 'auto' : 360,
+              flexShrink: 0,
+              borderLeft: narrow ? 0 : 1,
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              // 手机:底部弹层,左右铺满,盖住底部导航(zIndex 高于它),底边让出手势条
+              ...(narrow ? { position: 'fixed', left: 0, right: 0, bottom: 0, top: 'auto', height: '78vh', zIndex: 1300, borderRadius: '16px 16px 0 0', pb: 'var(--sab, 0px)' } : {}),
+            }}
+          >
+            <Stack direction="row" sx={{ alignItems: 'center', borderBottom: 1, borderColor: 'divider', pr: 0.5 }}>
+              <Tabs value={tab} onChange={(_, v) => setPanelTab(v)} sx={{ flex: 1, minHeight: 42, '& .MuiTab-root': { minHeight: 42, minWidth: 0, px: 1.5 } }}>
+                {contextPanel && <Tab value="context" label={contextPanel.label} />}
+                <Tab value="assistant" icon={<SmartToyRoundedIcon fontSize="small" />} iconPosition="start" label="AI 助手" />
+              </Tabs>
+              <IconButton size="small" onClick={() => setPanelOpen(false)} aria-label="收起面板">
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              {tab === 'context' && contextPanel ? (
+                <Box sx={{ flex: 1, overflow: 'auto' }}>{contextPanel.el}</Box>
+              ) : (
+                <AssistantPanel
+                  projectId={projectId}
+                  task={running ?? lastTask}
+                  feedbackTarget={feedbackTarget}
+                  onClearTarget={() => select(null)}
+                  suggestions={SUGGESTIONS[section] ?? []}
+                />
+              )}
+            </Box>
+          </Paper>
         )}
       </Box>
+
+      <Dialog open={tasksOpen} onClose={() => setTasksOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>任务记录</DialogTitle>
+        <DialogContent>{tasksOpen && <TasksSection {...sectionProps} />}</DialogContent>
+      </Dialog>
     </Box>
   );
 }
 
-function ActivityPanel({
+function EpisodeRail({ episodes, current, onPick, stats }: { episodes: Episode[]; current: number; onPick: (id: number) => void; stats?: Record<string, { shots: number; framed: number; videos: number }> }) {
+  return (
+    <Box sx={{ width: 148, flexShrink: 0, borderRight: 1, borderColor: 'divider', overflow: 'auto', py: 1, px: 0.75 }}>
+      {episodes.map((e) => {
+        const st = stats?.[String(e.id)];
+        const pct = st && st.shots ? Math.round((st.framed / st.shots) * 100) : 0;
+        return (
+          <ListItemButton key={e.id} selected={e.id === current} onClick={() => onPick(e.id)} sx={{ borderRadius: 1, mb: 0.25, display: 'block', py: 0.75 }}>
+            <Typography variant="body2" sx={{ fontWeight: e.id === current ? 700 : 500 }} noWrap>
+              第 {e.no} 集
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+              {e.title || '未命名'}
+            </Typography>
+            {st && st.shots > 0 && <LinearProgress variant="determinate" value={pct} sx={{ mt: 0.5, height: 3, borderRadius: 1 }} />}
+          </ListItemButton>
+        );
+      })}
+    </Box>
+  );
+}
+
+function AssistantPanel({
   projectId,
   task,
   feedbackTarget,
   onClearTarget,
-  onClose,
-  floating,
+  suggestions,
 }: {
   projectId: number;
   task: Task | null;
   feedbackTarget: FeedbackTarget | null;
   onClearTarget: () => void;
-  onClose: () => void;
-  floating: boolean;
+  suggestions: string[];
 }) {
   const feedback = useFeedback(projectId);
   const [text, setText] = useState('');
@@ -349,32 +441,7 @@ function ActivityPanel({
   };
 
   return (
-    <Paper
-      elevation={floating ? 8 : 0}
-      square={!floating}
-      sx={{
-        width: floating ? 'auto' : 340,
-        flexShrink: 0,
-        borderLeft: floating ? 0 : 1,
-        borderColor: 'divider',
-        display: 'flex',
-        flexDirection: 'column',
-        // 手机:底部弹层,左右铺满,盖住底部导航(zIndex 高于它),底边让出手势条
-        ...(floating
-          ? { position: 'fixed', left: 0, right: 0, bottom: 0, top: 'auto', maxHeight: '75vh', zIndex: 1300, borderRadius: '16px 16px 0 0', pb: 'var(--sab, 0px)' }
-          : {}),
-      }}
-    >
-      <Stack direction="row" sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', alignItems: 'center' }}>
-        <SmartToyRoundedIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
-        <Typography variant="subtitle2" sx={{ flex: 1 }}>
-          数字员工活动
-        </Typography>
-        <Button size="small" onClick={onClose}>
-          收起
-        </Button>
-      </Stack>
-
+    <>
       <Box ref={logRef} sx={{ flex: 1, overflow: 'auto', p: 1.5, minHeight: 160 }}>
         {task ? (
           <>
@@ -408,17 +475,30 @@ function ActivityPanel({
             </Stack>
           </>
         ) : (
-          <Typography variant="body2" color="text.secondary">
-            还没有任务。点顶部「运行」发起,或在下面写修改意见让反馈优化员工处理。
-          </Typography>
+          <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
+            <SmartToyRoundedIcon color="primary" sx={{ fontSize: 40 }} />
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>
+              我是你的 AI 短剧助手
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              点右上角的按钮推进到下一步;想改哪里,直接在下面告诉我。选中某个角色或镜头再说,就只改它。
+            </Typography>
+          </Box>
         )}
       </Box>
 
       <Divider />
       <Box sx={{ p: 1.5 }}>
+        {suggestions.length > 0 && !text && (
+          <Stack spacing={0.5} sx={{ mb: 1 }}>
+            {suggestions.map((s) => (
+              <Chip key={s} size="small" variant="outlined" label={s} onClick={() => setText(s)} sx={{ justifyContent: 'flex-start', height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }} />
+            ))}
+          </Stack>
+        )}
         <Stack direction="row" spacing={0.5} sx={{ mb: 0.5, alignItems: 'center' }}>
           <Typography variant="caption" color="text.secondary">
-            修改意见 →
+            修改 →
           </Typography>
           <Chip size="small" variant="outlined" label={feedbackTarget ? feedbackTarget.label : '整个项目'} onDelete={feedbackTarget ? onClearTarget : undefined} />
         </Stack>
@@ -428,7 +508,7 @@ function ActivityPanel({
             fullWidth
             multiline
             maxRows={4}
-            placeholder={feedbackTarget ? `对「${feedbackTarget.label}」想怎么改?` : '比如:女主再冷一点;第二集结尾反转不够;第 3 镜换成特写'}
+            placeholder={feedbackTarget ? `对「${feedbackTarget.label}」想怎么改?` : '告诉助手你想怎么改(Ctrl+Enter 发送)'}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -447,10 +527,10 @@ function ActivityPanel({
         )}
         {busy && (
           <Typography variant="caption" color="text.secondary">
-            有任务在进行中,结束后再提交意见。
+            有任务在进行中,结束后再提交。
           </Typography>
         )}
       </Box>
-    </Paper>
+    </>
   );
 }

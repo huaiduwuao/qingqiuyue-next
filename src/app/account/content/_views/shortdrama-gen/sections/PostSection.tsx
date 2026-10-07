@@ -58,7 +58,7 @@ function saveText(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function PostSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget }: SectionProps) {
+export default function PostSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget, episodeRail }: SectionProps) {
   const ov = useOverview(projectId);
   const caps = useCapabilities();
   const start = useStartTask(projectId);
@@ -143,11 +143,13 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
 
   return (
     <Stack spacing={2}>
-      <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto">
-        {episodes.map((x) => (
+      {!episodeRail && (
+        <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto">
+          {episodes.map((x) => (
           <Tab key={x.id} value={x.id} label={`第 ${x.no} 集`} />
         ))}
-      </Tabs>
+        </Tabs>
+      )}
 
       {err && (
         <Alert severity="error" onClose={() => setErr('')}>

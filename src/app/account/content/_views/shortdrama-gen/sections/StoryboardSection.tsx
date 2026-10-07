@@ -42,7 +42,7 @@ import type { SectionProps } from '../Workbench';
 import { Empty, EntityStatusChip, MediaThumb, ShotStatusChip, UploadImageButton } from '../common';
 import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
 
-export default function StoryboardSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget }: SectionProps) {
+export default function StoryboardSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget, episodeRail, selected, select }: SectionProps) {
   const ov = useOverview(projectId);
   const caps = useCapabilities();
   const start = useStartTask(projectId);
@@ -102,11 +102,13 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
 
   return (
     <Stack spacing={2}>
-      <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto">
-        {episodes.map((x) => (
+      {!episodeRail && (
+        <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto">
+          {episodes.map((x) => (
           <Tab key={x.id} value={x.id} label={`第 ${x.no} 集`} />
         ))}
-      </Tabs>
+        </Tabs>
+      )}
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack sx={{ alignItems: 'center', flexWrap: 'wrap' }} direction="row" spacing={1} useFlexGap>
@@ -185,7 +187,11 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
           <Grid container spacing={1.5}>
             {shots.map((s) => (
               <Grid key={s.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-                <Card variant="outlined" sx={{ height: '100%', borderColor: s.status === 'qc_flagged' ? 'warning.main' : s.status === 'failed' ? 'error.main' : undefined }}>
+                <Card
+                  variant="outlined"
+                  onClick={() => select?.({ type: 'shot', id: s.id, label: `第 ${e.no} 集 镜头 ${s.no}` })}
+                  sx={{ height: '100%', cursor: select ? 'pointer' : undefined, borderWidth: selected?.type === 'shot' && selected.id === s.id ? 2 : 1, borderColor: selected?.type === 'shot' && selected.id === s.id ? 'primary.main' : s.status === 'qc_flagged' ? 'warning.main' : s.status === 'failed' ? 'error.main' : undefined }}
+                >
                   <Box sx={{ display: 'flex', gap: 1.5, p: 1.5 }}>
                     <Box>
                       <MediaThumb src={s.frame_url} video={s.video_url} height={190} ratio={ov.data?.project.aspect === '16:9' ? '16 / 9' : '9 / 16'} />

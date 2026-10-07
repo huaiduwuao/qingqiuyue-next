@@ -21,7 +21,7 @@ import type { SectionProps } from '../Workbench';
 import { Empty, EntityStatusChip, TextEditDialog } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
 
-export default function ScriptSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget }: SectionProps) {
+export default function ScriptSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget, episodeRail }: SectionProps) {
   const ov = useOverview(projectId);
   const start = useStartTask(projectId);
   const invalidate = useInvalidate(projectId);
@@ -47,7 +47,8 @@ export default function ScriptSection({ projectId, episodeId, setEpisodeId, setS
   }
   const e = ep.data?.episode ?? current!;
   const shots = ep.data?.shots ?? [];
-  const runEp = (step: 'script' | 'storyboard' | 'pacing' | 'visual_gen' | 'qc', extra: Record<string, unknown> = {}) =>
+  // 分镜 / 出图等后续环节在顶栏「下一步」和各自的页签里,这里只管剧本本身
+  const runEp = (step: 'script', extra: Record<string, unknown> = {}) =>
     start.mutate({ step, input: { episode_id: e.id, episode_no: e.no, ...extra } });
   const save = (field: keyof Episode) => async (v: string) => {
     await dramaAPI.updateEpisode(e.id, { [field]: v });
@@ -68,11 +69,17 @@ export default function ScriptSection({ projectId, episodeId, setEpisodeId, setS
   return (
     <Stack spacing={2}>
       <Stack sx={{ alignItems: 'center' }} direction="row" spacing={1}>
-        <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto" sx={{ flex: 1, minWidth: 0 }}>
-          {episodes.map((x) => (
+        {episodeRail ? (
+          <Typography variant="subtitle2" color="text.secondary" sx={{ flex: 1 }}>
+            共 {episodes.length} 集
+          </Typography>
+        ) : (
+          <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto" sx={{ flex: 1, minWidth: 0 }}>
+            {episodes.map((x) => (
             <Tab key={x.id} value={x.id} label={`第 ${x.no} 集`} />
           ))}
-        </Tabs>
+          </Tabs>
+        )}
         <IconButton size="small" onClick={addEpisode} aria-label="新增一集">
           <AddRoundedIcon />
         </IconButton>
@@ -96,21 +103,11 @@ export default function ScriptSection({ projectId, episodeId, setEpisodeId, setS
             <Button size="small" variant="outlined" disabled={running} onClick={() => runEp('script', { force: true })}>
               {e.script_text ? '重写剧本' : '写剧本'}
             </Button>
-            <Button size="small" variant="outlined" disabled={running || !e.script_text} onClick={() => runEp('storyboard')}>
-              分镜
-            </Button>
-            <Button size="small" variant="outlined" disabled={running || shots.length === 0} onClick={() => runEp('pacing')}>
-              节奏
-            </Button>
-            <Button size="small" variant="outlined" disabled={running || shots.length === 0} onClick={() => runEp('visual_gen')}>
-              出图
-            </Button>
-            <Button size="small" variant="outlined" disabled={running || shots.length === 0} onClick={() => runEp('qc')}>
-              质检
-            </Button>
-            <Button size="small" onClick={() => setSection('storyboard', { episodeId: e.id })}>
-              看分镜({shots.length})
-            </Button>
+            {shots.length > 0 && (
+              <Button size="small" onClick={() => setSection('storyboard', { episodeId: e.id })}>
+                看分镜({shots.length})
+              </Button>
+            )}
             <Button size="small" onClick={() => setFeedbackTarget({ type: 'episode', id: e.id, label: `第 ${e.no} 集` })}>
               提意见
             </Button>

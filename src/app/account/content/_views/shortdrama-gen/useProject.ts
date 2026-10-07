@@ -173,3 +173,21 @@ export function useCurrentProjectId(): [number, (id: number) => void] {
   }, []);
   return [pid, set];
 }
+
+/**
+ * 每次生成的钻石单价(各种类最便宜的已启用模板,和后端选模板一致);0 = 这种生成不可用。
+ * shot 是镜头出图:有图生图模板时用定妆照做参考,否则文生图。
+ */
+export function useUnitCost() {
+  const caps = useCapabilities();
+  const c = caps.data?.capabilities;
+  const t2i = c?.t2i?.available ? c.t2i.minCost : 0;
+  const shot = c?.i2i?.available ? c.i2i.minCost : t2i;
+  const i2v = c?.i2v?.available ? c.i2v.minCost : 0;
+  return { t2i, shot, i2v, canImage: !!(c?.t2i?.available || c?.i2i?.available), canVideo: !!c?.i2v?.available, loaded: !!caps.data };
+}
+
+/** 风格库里上架的风格(建项目与「全局设定」换风格共用) */
+export function useStyles(enabled = true) {
+  return useQuery({ queryKey: ['drama', 'styles'], queryFn: dramaAPI.styles, enabled, staleTime: 5 * 60_000 });
+}
