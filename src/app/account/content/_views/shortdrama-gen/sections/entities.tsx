@@ -15,6 +15,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import { dramaAPI, type Character, type Prop, type Scene } from '@/apis/shortdrama';
+import { VoicePicker } from './VoicePicker';
 
 export type Kind = 'character' | 'scene' | 'prop';
 export type Entity = Character | Scene | Prop;
@@ -40,7 +41,7 @@ export const FIELDS: Record<Kind, FieldDef[]> = {
     { key: 'visual_prompt', label: '视觉身份提示词(英文,所有镜头复用)', multiline: true, hint: '固定这段就是跨集一致性的关键;改了要重出相关镜头' },
     { key: 'negative_prompt', label: '负面词(英文)', multiline: true },
     { key: 'voice_style', label: '声线' },
-    { key: 'voice', label: '配音音色', hint: '留空按性别自动分配;可选值见「后期」里的音色列表' },
+    { key: 'voice', label: '配音音色' }, // 用 VoicePicker 渲染(下拉 + 试听)
     { key: 'seed', label: '种子(数字,固定则更稳定)' },
   ],
   scene: [
@@ -91,7 +92,10 @@ export function EntityDialog({ kind, open, entity, onClose, onSave }: { kind: Ki
       <DialogTitle>{entity ? `编辑${TITLES[kind].title}` : `新建${TITLES[kind].title}`}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
-          {fields.map((f) => (
+          {fields.map((f) => kind === 'character' && f.key === 'voice' ? (
+            <VoicePicker key={f.key} value={String(form.voice ?? '')} gender={form.gender} name={String(form.name ?? '')}
+              onChange={(v) => setForm((x) => ({ ...x, voice: v }))} />
+          ) : (
             <TextField
               key={f.key}
               label={f.label}

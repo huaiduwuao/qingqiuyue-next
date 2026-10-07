@@ -437,6 +437,9 @@ export const dramaAPI = {
   agents: () => call<{ agents: AgentSpec[]; llm_ready: boolean }>('/agents'),
   steps: () => call<{ steps: StepInfo[] }>('/steps'),
   capabilities: () => call<Capabilities>('/capabilities'),
+  /** 用某个音色念一句(默认一句自我介绍),返回可直接播放的音频链接;同音色同句子只合成一次 */
+  voicePreview: (voice: string, text?: string) =>
+    call<{ url?: string; error?: string }>(`/voices/preview?voice=${encodeURIComponent(voice)}${text ? `&text=${encodeURIComponent(text)}` : ''}`),
 
   /** 风格库里上架的风格卡片(管理员维护) */
   styles: async () => (await call<{ list: DramaStyle[] }>('/styles')).list ?? [],
