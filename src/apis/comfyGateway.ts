@@ -38,11 +38,13 @@ export interface GatewayStatus {
   startedAt: string;
   gpus: GPUStat[] | null;
   instances: GatewayInstance[];
-  queue: { running: number; pending: number };
-  prompts: { total: number; success: number; error: number; lost: number; active: number };
+  queue: { running: number; pending: number; gateway: number };
+  prompts: { total: number; success: number; error: number; lost: number; canceled: number; active: number; retried: number };
+  maxAttempts: number;
+  s3: boolean;
 }
 
-export type PromptStatus = 'queued' | 'running' | 'success' | 'error' | 'lost';
+export type PromptStatus = 'pending' | 'queued' | 'running' | 'success' | 'error' | 'lost' | 'canceled';
 
 export interface PromptRecord {
   promptId: string;
@@ -51,6 +53,12 @@ export interface PromptRecord {
   clientId: string;
   models: string[] | null;
   nodes: number;
+  source: 'comfy' | 'api';
+  attempts: number;
+  tried?: number[] | null;
+  dispatchedAt?: string;
+  webhook?: string;
+  outputs?: { node: string; filename: string; subfolder: string; type: string; url?: string }[] | null;
   submittedAt: string;
   startedAt?: string;
   finishedAt?: string;

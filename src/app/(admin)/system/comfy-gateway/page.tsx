@@ -45,11 +45,13 @@ const STATE: Record<gw.InstanceState, { label: string; color: ChipColor }> = {
 };
 
 const PROMPT: Record<gw.PromptStatus, { label: string; color: ChipColor }> = {
+  pending: { label: '网关排队', color: 'default' },
   queued: { label: '排队', color: 'info' },
   running: { label: '运行', color: 'secondary' },
   success: { label: '成功', color: 'success' },
   error: { label: '出错', color: 'error' },
   lost: { label: '丢失', color: 'warning' },
+  canceled: { label: '已取消', color: 'default' },
 };
 
 const ELLIPSIS = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
@@ -184,6 +186,7 @@ export default function ComfyGatewayPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>算力节点</Typography>
           {s && <Chip size="small" variant="outlined" label={`网关 ${s.version} · 已运行 ${since(s.startedAt)}`} />}
+          {s?.s3 && <Chip size="small" variant="outlined" color="success" label="任务结果上传 S3" />}
           <Box sx={{ flex: 1 }} />
           <Tooltip title="刷新"><IconButton onClick={refresh}><RefreshRoundedIcon /></IconButton></Tooltip>
         </Box>
@@ -201,9 +204,11 @@ export default function ComfyGatewayPage() {
               <Stat label="在线实例" value={`${instances.filter((i) => i.state === 'running').length} / ${instances.length}`} />
               <Stat label="正在运行" value={s.queue.running} />
               <Stat label="排队中" value={s.queue.pending} />
+              <Stat label="网关排队" value={s.queue.gateway ?? 0} color={s.queue.gateway ? 'warning.main' : undefined} />
               <Stat label="完成" value={s.prompts.success} color="success.main" />
               <Stat label="出错" value={s.prompts.error} color={s.prompts.error ? 'error.main' : undefined} />
               <Stat label="丢失" value={s.prompts.lost} color={s.prompts.lost ? 'warning.main' : undefined} />
+              <Stat label="换卡重派" value={s.prompts.retried ?? 0} />
             </Card>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -274,7 +279,7 @@ export default function ComfyGatewayPage() {
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>最近派单</Typography>
         {promptsQ.error && !statusQ.error && <Alert severity="error" sx={{ mb: 2 }}>{errMsg(promptsQ.error)}</Alert>}
         <Card variant="outlined" sx={{ overflowX: 'auto' }}>
-          <Table size="small" sx={{ minWidth: 820 }}>
+          <Table size="small" sx={{ minWidth: 880 }}>
             <TableHead>
               <TableRow>
                 <TableCell>提交</TableCell>
@@ -283,12 +288,13 @@ export default function ComfyGatewayPage() {
                 <TableCell>状态</TableCell>
                 <TableCell>排队</TableCell>
                 <TableCell>运行</TableCell>
+                <TableCell align="right">派发</TableCell>
                 <TableCell>模型</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {prompts.length === 0 && (
-                <TableRow><TableCell colSpan={7} sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>
+                <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>
                   {promptsQ.isLoading ? '加载中…' : '网关启动以来还没有派过单'}
                 </TableCell></TableRow>
               )}
@@ -297,10 +303,10 @@ export default function ComfyGatewayPage() {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtTime(p.submittedAt)}</TableCell>
                   <TableCell>
                     <Tooltip title={`${p.promptId}${p.clientId ? `\nclient ${p.clientId}` : ''}`}>
-                      <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.promptId.slice(0, 8)} · {p.nodes} 节点</Box>
+                      <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.promptId.slice(0, 8)} · {p.nodes} 节点{p.source === 'api' && <Chip size="small" variant="outlined" label="API" sx={{ ml: 0.75, height: 18, fontSize: 11 }} />}</Box>
                     </Tooltip>
                   </TableCell>
-                  <TableCell>{p.instanceName}</TableCell>
+                  <TableCell>{p.instanceName || '—'}</TableCell>
                   <TableCell>
                     <Chip size="small" color={PROMPT[p.status]?.color ?? 'default'} label={PROMPT[p.status]?.label ?? p.status} />
                     {p.error && (
@@ -312,6 +318,13 @@ export default function ComfyGatewayPage() {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{between(p.submittedAt, p.startedAt)}</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     {p.status === 'running' ? since(p.startedAt) : between(p.startedAt, p.finishedAt)}
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title={p.attempts > 1 ? `换过卡:先后在实例 ${[...(p.tried ?? []), p.instance].join(' → ')}` : ''}>
+                      <Box component="span" sx={{ color: p.attempts > 1 ? 'warning.main' : 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                        {p.attempts || 0}{s ? ` / ${s.maxAttempts}` : ''}
+                      </Box>
+                    </Tooltip>
                   </TableCell>
                   <TableCell sx={{ maxWidth: 280 }}>
                     <Box sx={{ fontSize: 12, fontFamily: 'monospace', color: 'text.secondary', ...ELLIPSIS }}>{(p.models ?? []).join('、') || '—'}</Box>
