@@ -136,9 +136,9 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
                 </Button>
               </span>
             </Tooltip>
-            <Tooltip title={canVideo ? '出图后再图生视频' : '没有启用图生视频工作流'}>
+            <Tooltip title={canVideo ? '补齐没出的画面,再给没视频的镜头出片(已有画面不重画)' : '没有启用图生视频工作流'}>
               <span>
-                <Button size="small" variant="outlined" disabled={running || all.length === 0 || !canVideo} onClick={() => runEp('visual_gen', { video: true, force: true })}>
+                <Button size="small" variant="outlined" disabled={running || all.length === 0 || !canVideo} onClick={() => runEp('visual_gen', { video: true })}>
                   出图+出片
                 </Button>
               </span>
