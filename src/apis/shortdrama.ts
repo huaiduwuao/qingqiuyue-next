@@ -417,8 +417,12 @@ export const dramaAPI = {
   steps: () => call<{ steps: StepInfo[] }>('/steps'),
   capabilities: () => call<Capabilities>('/capabilities'),
 
+  /** 风格库里上架的风格卡片(管理员维护) */
+  styles: async () => (await call<{ list: DramaStyle[] }>('/styles')).list ?? [],
+
   listProjects: async () => (await call<{ list: Project[] }>('/projects')).list ?? [],
-  createProject: (body: Partial<Project>, autostart?: 'pipeline' | 'screenwriter') =>
+  /** style_id 选风格库里的风格,后端把它的提示词和出图参数拷进项目 */
+  createProject: (body: Partial<Project> & { style_id?: number }, autostart?: 'pipeline' | 'screenwriter') =>
     call<{ project: Project; task: Task | null }>(`/projects${autostart ? `?autostart=${autostart}` : ''}`, json(body)),
   overview: (id: number) => call<Overview>(`/projects/${id}`),
   updateProject: (id: number, fields: Partial<Project>) => call<{ project: Project }>(`/projects/${id}`, put(fields)),
@@ -571,6 +575,56 @@ export const genAdminAPI = {
   create: (body: Partial<GenWorkflowAdmin>) => aiCall<GenWorkflowAdmin>('/generate/admin/workflows', json(body)),
   update: (id: number, body: Partial<GenWorkflowAdmin>) => aiCall<GenWorkflowAdmin>(`/generate/admin/workflows/${id}`, put(body)),
 };
+
+/** 风格卡片(用户看到的部分) */
+export interface DramaStyle {
+  id: number;
+  name: string;
+  description: string;
+  cover_url: string;
+}
+
+/** 风格完整定义(管理员):prompt/negative 进项目 settings 的 style_prefix/global_negative,settings 原样并入 */
+export interface DramaStyleAdmin extends DramaStyle {
+  prompt: string;
+  negative: string;
+  settings: Record<string, unknown>;
+  sort_order: number;
+  status: 'active' | 'disabled';
+}
+
+export const styleAdminAPI = {
+  list: async () => (await call<{ list: DramaStyleAdmin[] }>('/admin/styles')).list ?? [],
+  save: (s: Partial<DramaStyleAdmin>) => call<{ style: DramaStyleAdmin }>(s.id ? `/admin/styles/${s.id}` : '/admin/styles', s.id ? put(s) : json(s)),
+  remove: (id: number) => call<{ status: string }>(`/admin/styles/${id}`, del),
+};
+
+/** 一部剧的钻石预估(区间)。照分镜员工的拆法:单镜头 2~5 秒,每个镜头一张图,另有角色定妆照与场景概念图;
+ *  出片(图生视频)是分镜页单独点的,每个镜头一段,另算。单价取各种类最便宜的已启用模板(和后端选模板一致)。
+ *  实际按每次出图/出片扣,失败自动退回。 */
+export interface CostEstimate {
+  /** 一键生成(只出图) */
+  image: [number, number];
+  imageCount: [number, number];
+  /** 再把每个镜头做成视频;0 = 没有可用的图生视频模板 */
+  video: [number, number];
+}
+
+export function estimateCost(caps: Capabilities | undefined, episodes: number, epSeconds: number): CostEstimate | null {
+  const c = caps?.capabilities;
+  const t2i = c?.t2i?.available ? c.t2i.minCost : 0;
+  const shot = c?.i2i?.available ? c.i2i.minCost : t2i;
+  const vid = c?.i2v?.available ? c.i2v.minCost : 0;
+  if (!t2i && !shot) return null;
+  const shots: [number, number] = [Math.ceil(epSeconds / 5) * episodes, Math.ceil(epSeconds / 2) * episodes];
+  // 定妆照:主要角色约 3~6 个;场景概念图:约每集 1~2 个,至少 2 个
+  const setup: [number, number] = [3 + Math.max(2, episodes), 6 + Math.max(2, episodes * 2)];
+  return {
+    image: [setup[0] * t2i + shots[0] * shot, setup[1] * t2i + shots[1] * shot],
+    imageCount: [setup[0] + shots[0], setup[1] + shots[1]],
+    video: [shots[0] * vid, shots[1] * vid],
+  };
+}
 
 export const SHOT_TYPES: Record<string, string> = {
   wide: '远景', full: '全景', medium: '中景', close_up: '近景/特写', extreme_close_up: '大特写', over_shoulder: '过肩', pov: '主观', two_shot: '双人',

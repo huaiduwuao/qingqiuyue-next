@@ -214,6 +214,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'gateway', label: '网关与配额', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'gateway-packages', label: '配额套餐', path: '/system/gateway/packages', icon: <CardMembershipRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'comfy-gateway', label: '算力节点', path: '/system/comfy-gateway', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#76B900' },
+      { id: 'shortdrama', label: 'AI 短剧生成', path: '/system/shortdrama', icon: <MovieFilterRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },
   {

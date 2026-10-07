@@ -62,7 +62,7 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
       </Stepper>
 
       {caps.data && c && !c.t2i.available && !c.i2i.available && (
-        <Alert severity="info">没有启用的出图工作流,出图/出片环节会跳过;其余环节不受影响。管理员可在「设置」里启用。</Alert>
+        <Alert severity="info">没有启用的出图工作流,出图/出片环节会跳过;其余环节不受影响。需要管理员启用模板。</Alert>
       )}
 
       <Card variant="outlined">

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 后期 / 任务 / 设置),
+ * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 后期 / 任务 / 设置[仅管理员]),
  * 中间内容,右侧「数字员工活动」面板(当前任务实时日志 + 修改意见输入)。
  */
 
@@ -57,6 +57,7 @@ import PostSection from './sections/PostSection';
 import TasksSection from './sections/TasksSection';
 import SettingsSection from './sections/SettingsSection';
 import { FiveStepBoard } from './FiveStepBoard';
+import { useAuthority } from '@/contexts/AuthContext';
 
 export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'post' | 'tasks' | 'settings';
 
@@ -109,6 +110,9 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
   const overview = useOverview(projectId);
   const { liveTask, connected } = useProjectEvents(projectId);
   const start = useStartTask(projectId);
+  // 设置(出图模型/参数、ComfyUI 模板)由管理员维护,普通用户不显示这个分区
+  const { isAdmin } = useAuthority();
+  const sections = isAdmin ? SECTIONS : SECTIONS.filter((s) => s.id !== 'settings');
 
   const setSection = (s: SectionId, opts?: { episodeId?: number }) => {
     if (opts?.episodeId) setEpisodeId(opts.episodeId);
@@ -263,7 +267,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
       <Box ref={tabsAnchorRef} />
       {narrow && (
         <Tabs value={section} onChange={(_, v) => { if (v !== '__activity') setSectionState(v); }} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider', position: 'sticky', top: -12, zIndex: 3, bgcolor: 'background.default' }}>
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <Tab key={s.id} value={s.id} label={s.label} sx={{ minWidth: 72 }} />
           ))}
           <Tab value="__activity" label="活动" sx={{ minWidth: 72 }} onClick={() => setActivityOpen(true)} />
@@ -274,7 +278,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
         {/* 左侧分区导航 */}
         {!narrow && (
           <List dense sx={{ width: 168, flexShrink: 0, borderRight: 1, borderColor: 'divider', py: 1 }}>
-            {SECTIONS.map((s) => (
+            {sections.map((s) => (
               <ListItemButton key={s.id} selected={section === s.id} onClick={() => setSectionState(s.id)} sx={{ borderRadius: 1, mx: 1 }}>
                 <ListItemIcon sx={{ minWidth: 32 }}>{s.icon}</ListItemIcon>
                 <ListItemText primary={s.label} />
@@ -299,7 +303,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
               {section === 'storyboard' && <StoryboardSection {...sectionProps} />}
               {section === 'post' && <PostSection {...sectionProps} />}
               {section === 'tasks' && <TasksSection {...sectionProps} />}
-              {section === 'settings' && <SettingsSection {...sectionProps} />}
+              {section === 'settings' && isAdmin && <SettingsSection {...sectionProps} />}
             </>
           )}
         </Box>

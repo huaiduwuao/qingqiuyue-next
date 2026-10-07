@@ -14,7 +14,6 @@ vi.mock('@/apis/shortdrama', async (orig) => ({
   ...(await orig<typeof import('@/apis/shortdrama')>()),
   dramaAPI: api,
 }));
-vi.mock('@/contexts/AuthContext', () => ({ useAuthority: () => ({ isAdmin: false }) }));
 
 import SettingsSection from './SettingsSection';
 
