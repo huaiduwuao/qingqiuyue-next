@@ -39,14 +39,14 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
   const agents = useAgents();
   const start = useStartTask(projectId);
   const invalidate = useInvalidate(projectId);
-  const [edit, setEdit] = useState<null | 'logline' | 'synopsis' | 'intent'>(null);
+  const [edit, setEdit] = useState<null | 'title' | 'logline' | 'synopsis' | 'intent'>(null);
 
   if (ov.isLoading || !ov.data) return <Skeleton variant="rounded" height={320} />;
   const { project: p, characters, scenes, props, episodes, shot_stats: stats, running } = ov.data;
   const stageIdx = Math.max(0, STAGES.findIndex((s) => s.id === p.stage));
   const c = caps.data?.capabilities;
 
-  const save = (field: 'logline' | 'synopsis' | 'intent') => async (v: string) => {
+  const save = (field: 'title' | 'logline' | 'synopsis' | 'intent') => async (v: string) => {
     await dramaAPI.updateProject(projectId, { [field]: v });
     invalidate();
   };
@@ -69,6 +69,7 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
         <Box sx={{ display: 'flex', gap: 2, p: 2, flexWrap: 'wrap' }}>
           <MediaThumb src={p.cover_url} height={180} ratio={p.aspect === '16:9' ? '16 / 9' : p.aspect === '1:1' ? '1 / 1' : '9 / 16'} />
           <Box sx={{ flex: 1, minWidth: 240 }}>
+            <Field label="标题" value={p.title} onEdit={() => setEdit('title')} />
             <Field label="故事意图" value={p.intent} onEdit={() => setEdit('intent')} />
             <Field label="一句话故事" value={p.logline || '(编剧还没写,运行「剧本框架」)'} onEdit={() => setEdit('logline')} />
             <Field label="梗概" value={p.synopsis || '—'} onEdit={() => setEdit('synopsis')} clamp={4} />
@@ -201,6 +202,7 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
         </Typography>
       </Box>
 
+      <TextEditDialog open={edit === 'title'} title="标题" value={p.title} multiline={false} onClose={() => setEdit(null)} onSave={save('title')} />
       <TextEditDialog open={edit === 'intent'} title="故事意图" value={p.intent} onClose={() => setEdit(null)} onSave={save('intent')} />
       <TextEditDialog open={edit === 'logline'} title="一句话故事" value={p.logline} onClose={() => setEdit(null)} onSave={save('logline')} />
       <TextEditDialog open={edit === 'synopsis'} title="梗概" value={p.synopsis} onClose={() => setEdit(null)} onSave={save('synopsis')} />
