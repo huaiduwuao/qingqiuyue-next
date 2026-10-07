@@ -18,7 +18,7 @@ import Typography from '@mui/material/Typography';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
-import type { Shot } from '@/apis/shortdrama';
+import { shotLabel, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty, ShotStatusChip } from '../common';
 import { useEpisode, useOverview, useStartTask, useUnitCost } from '../useProject';
@@ -36,11 +36,11 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
 
   const sel = selected?.type === 'shot' ? shots.find((s) => s.id === selected.id) : undefined;
   const shot = sel ?? shots[0];
-  const pick = (s: Shot) => select?.({ type: 'shot', id: s.id, label: `第 ${current?.no} 集 镜头 ${s.no}` });
+  const pick = (s: Shot) => select?.({ type: 'shot', id: s.id, label: `第 ${current?.no} 集 ${shotLabel(s)}` });
 
   // 进来先选中第一个镜头,右栏直接能编辑
   useEffect(() => {
-    if (!sel && shots.length) select?.({ type: 'shot', id: shots[0].id, label: `第 ${current?.no} 集 镜头 ${shots[0].no}` });
+    if (!sel && shots.length) select?.({ type: 'shot', id: shots[0].id, label: `第 ${current?.no} 集 ${shotLabel(shots[0])}` });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shots.length, current?.id]);
 
@@ -172,7 +172,7 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
                 >
                   <Stack direction="row" sx={{ px: 0.75, py: 0.25, alignItems: 'center' }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, flex: 1 }}>
-                      镜头 {s.no}
+                      {shotLabel(s)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {s.duration_sec}s

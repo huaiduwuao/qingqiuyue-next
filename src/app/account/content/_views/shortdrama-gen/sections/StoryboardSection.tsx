@@ -1,23 +1,23 @@
 'use client';
 
 /**
- * 分镜分区:某一集的镜头板 + 节奏张力曲线 + 质检结论。
- * 每个镜头卡片可编辑、单独重出、标记通过、提意见;整集可发起分镜 / 节奏 / 出图 / 出片 / 质检。
+ * 分镜:一集拆成「镜头」(剧本里连续的一小段)→ 每个镜头若干「分镜」,像有戏那样一张分镜表。
+ * 每个分镜列出场景、景别、构图、运镜、光影、分镜描述、音效、对白、时长;景别 / 构图 / 运镜直接在表里改,
+ * 其余点「编辑」。人物、场景、道具在描述里写成 @[名字],高亮显示。点一行在右栏单独重画或出视频。
+ * 旧分镜(没有分组)每个分镜自成一组。
  */
 
 import React, { useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Collapse from '@mui/material/Collapse';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
-import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
@@ -26,60 +26,194 @@ import Select from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
-import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { ANGLES, BEATS, CAMERA_MOVES, SHOT_TYPES, dramaAPI, type QCIssue, type Shot } from '@/apis/shortdrama';
+import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
+import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import { ANGLES, BEATS, CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, type Episode, type Overview, type QCIssue, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
-import { Empty, EntityStatusChip, MediaThumb, ShotStatusChip, UploadImageButton } from '../common';
-import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
+import { Empty, EntityStatusChip, ShotStatusChip } from '../common';
+import { useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
+
+/** 一组:同一个「镜头」下的分镜 */
+interface Group {
+  key: string;
+  beat: number;
+  text: string;
+  shots: Shot[];
+}
+
+/** 按镜头号把连续的分镜归组;旧数据(beat=0)每个分镜自成一组 */
+export function groupShots(shots: Shot[]): Group[] {
+  const out: Group[] = [];
+  for (const s of shots) {
+    const last = out[out.length - 1];
+    if (s.beat && last && last.beat === s.beat) {
+      last.shots.push(s);
+      continue;
+    }
+    out.push({ key: s.beat ? `b${s.beat}-${s.id}` : `s${s.id}`, beat: s.beat || 0, text: s.beat ? s.beat_text || s.action : s.action, shots: [s] });
+  }
+  return out;
+}
+
+const MENTION = /@\[([^\]\n]+)\]/g;
+
+/** 把 @[名字] 高亮成「@名字」 */
+function Mentioned({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MENTION)) {
+    if (m.index! > last) parts.push(text.slice(last, m.index));
+    parts.push(
+      <Box key={m.index} component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+        @{m[1]}
+      </Box>,
+    );
+    last = m.index! + m[0].length;
+  }
+  parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+/** 对白「名字:台词」逐行显示,说话人高亮 */
+function Dialogue({ text }: { text: string }) {
+  if (!text.trim()) return <>-</>;
+  return (
+    <>
+      {text.split('\n').map((ln, i) => {
+        const m = ln.match(/^\s*([^:：]{1,12})\s*[:：]\s*(.*)$/);
+        return (
+          <Box key={i}>
+            {m ? (
+              <>
+                <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                  @{m[1]}
+                </Box>
+                :{m[2]}
+              </>
+            ) : (
+              ln
+            )}
+          </Box>
+        );
+      })}
+    </>
+  );
+}
+
+const csvCell = (v: unknown) => {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+/** 导出分镜表(CSV,带 BOM,Excel 直接打开不乱码) */
+function exportCSV(ep: Episode, shots: Shot[], ov: Overview) {
+  const scene = (id: number) => ov.scenes.find((x) => x.id === id)?.name ?? '';
+  const chars = (ids: number[]) => ids.map((id) => ov.characters.find((c) => c.id === id)?.name).filter(Boolean).join('、');
+  const strip = (s: string) => (s ?? '').replace(MENTION, '$1');
+  const head = ['镜头', '分镜号', '镜头原文', '场景', '角色', '景别', '构图', '运镜', '机位', '光影', '分镜描述', '音效', '对白', '时长(秒)', '画面提示词', '视频提示词'];
+  const rows = groupShots(shots).flatMap((g, gi) =>
+    g.shots.map((s, si) => [
+      gi + 1,
+      `${gi + 1}-${si + 1}`,
+      strip(g.text),
+      scene(s.scene_id),
+      chars(s.character_ids),
+      SHOT_TYPES[s.shot_type] ?? s.shot_type,
+      COMPOSITIONS[s.composition ?? ''] ?? s.composition ?? '',
+      CAMERA_MOVES[s.camera_move] ?? s.camera_move,
+      ANGLES[s.angle] ?? s.angle,
+      s.lighting ?? '',
+      strip(s.action),
+      s.sfx ?? '',
+      s.dialogue,
+      s.duration_sec,
+      s.image_prompt,
+      s.video_prompt,
+    ]),
+  );
+  const text = '﻿' + [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `第${ep.no}集分镜表.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** 表里直接改的下拉(景别 / 构图 / 运镜) */
+function InlineSelect({ value, options, onChange }: { value: string; options: Record<string, string>; onChange: (v: string) => void }) {
+  return (
+    <Select
+      variant="standard"
+      disableUnderline
+      value={options[value] ? value : ''}
+      displayEmpty
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      renderValue={(v) => options[v as string] ?? '—'}
+      sx={{ fontSize: 13, '& .MuiSelect-select': { py: 0.25 } }}
+    >
+      {Object.entries(options).map(([k, v]) => (
+        <MenuItem key={k} value={k} sx={{ fontSize: 13 }}>
+          {v}
+        </MenuItem>
+      ))}
+    </Select>
+  );
+}
+
+const COLS: { label: string; w: number }[] = [
+  { label: '分镜号', w: 60 },
+  { label: '场景', w: 104 },
+  { label: '景别', w: 72 },
+  { label: '构图', w: 92 },
+  { label: '运镜', w: 72 },
+  { label: '光影', w: 150 },
+  { label: '分镜描述', w: 280 },
+  { label: '音效', w: 100 },
+  { label: '对白', w: 210 },
+  { label: '时长', w: 52 },
+  { label: '操作', w: 120 },
+];
 
 export default function StoryboardSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget, episodeRail, selected, select }: SectionProps) {
   const ov = useOverview(projectId);
-  const caps = useCapabilities();
   const start = useStartTask(projectId);
   const invalidate = useInvalidate(projectId);
   const episodes = ov.data?.episodes ?? [];
   const current = episodes.find((e) => e.id === episodeId) ?? episodes[0];
   const ep = useEpisode(current?.id ?? 0);
   const [editing, setEditing] = useState<Shot | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<Partial<Shot> | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState('');
-  const [filter, setFilter] = useState<'all' | 'flagged' | 'missing'>('all');
 
-  const running = !!ov.data?.running;
-  const c = caps.data?.capabilities;
-  const canRender = !!(c?.t2i.available || c?.i2i.available);
-  const canVideo = !!c?.i2v.available;
+  const all = useMemo(() => ep.data?.shots ?? [], [ep.data]);
+  const groups = useMemo(() => groupShots(all), [all]);
 
-  const shots = useMemo(() => {
-    const all = ep.data?.shots ?? [];
-    if (filter === 'flagged') return all.filter((s) => s.status === 'qc_flagged' || s.status === 'failed');
-    if (filter === 'missing') return all.filter((s) => !s.frame_url);
-    return all;
-  }, [ep.data, filter]);
-
-  if (ov.isLoading) return <Skeleton variant="rounded" height={320} />;
+  if (ov.isLoading || !ov.data) return <Skeleton variant="rounded" height={320} />;
   if (episodes.length === 0) {
     return <Empty title="还没有分集" hint="先在「剧本」里让编剧搭框架。" action={<Button variant="contained" onClick={() => setSection('script')}>去剧本</Button>} />;
   }
+  const data = ov.data;
   const e = ep.data?.episode ?? current!;
-  const all = ep.data?.shots ?? [];
-  const byId = {
-    scene: (id: number) => ov.data?.scenes.find((x) => x.id === id),
-    char: (id: number) => ov.data?.characters.find((x) => x.id === id),
-    prop: (id: number) => ov.data?.props.find((x) => x.id === id),
-  };
-  const runEp = (step: 'storyboard' | 'pacing' | 'visual_gen' | 'qc', extra: Record<string, unknown> = {}) =>
-    start.mutate({ step, input: { episode_id: e.id, episode_no: e.no, ...extra } });
+  const running = !!data.running;
+  const sceneName = (id: number) => data.scenes.find((x) => x.id === id)?.name;
+  const runEp = (step: 'storyboard' | 'pacing' | 'qc', extra: Record<string, unknown> = {}) => start.mutate({ step, input: { episode_id: e.id, episode_no: e.no, ...extra } });
   const guard = async (fn: () => Promise<unknown>) => {
     setErr('');
     try {
@@ -97,16 +231,38 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
     [ids[i], ids[j]] = [ids[j], ids[i]];
     guard(() => dramaAPI.reorderShots(e.id, ids));
   };
+  const addToGroup = (g: Group) => {
+    const last = g.shots[g.shots.length - 1];
+    setCreating({
+      beat: g.beat || undefined,
+      beat_text: g.beat ? g.text : undefined,
+      sub_no: g.beat ? Math.max(...g.shots.map((s) => s.sub_no ?? 0)) + 1 : undefined,
+      no: last.no + 1,
+      scene_id: last.scene_id,
+      character_ids: [...last.character_ids],
+      prop_ids: [],
+      shot_type: 'medium',
+      composition: 'thirds',
+      camera_move: 'static',
+      angle: 'eye_level',
+      duration_sec: 3,
+    });
+  };
+  const removeGroup = (g: Group, label: string) => {
+    if (!window.confirm(`删除${label}及其 ${g.shots.length} 个分镜?`)) return;
+    guard(() => Promise.all(g.shots.map((s) => dramaAPI.deleteShot(s.id))));
+  };
   const total = all.reduce((a, s) => a + (s.duration_sec || 0), 0);
   const qcIssues: QCIssue[] = (e.qc?.issues as QCIssue[] | undefined) ?? [];
+  const grouped = all.some((s) => s.beat);
 
   return (
     <Stack spacing={2}>
       {!episodeRail && (
         <Tabs value={e.id} onChange={(_, v) => setEpisodeId(v)} variant="scrollable" scrollButtons="auto">
           {episodes.map((x) => (
-          <Tab key={x.id} value={x.id} label={`第 ${x.no} 集`} />
-        ))}
+            <Tab key={x.id} value={x.id} label={`第 ${x.no} 集`} />
+          ))}
         </Tabs>
       )}
 
@@ -114,42 +270,31 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
         <Stack sx={{ alignItems: 'center', flexWrap: 'wrap' }} direction="row" spacing={1} useFlexGap>
           <Box sx={{ flex: 1, minWidth: 200 }}>
             <Stack sx={{ alignItems: 'center' }} direction="row" spacing={1}>
-              <Typography variant="h6">
-                第 {e.no} 集 · {e.title || '未命名'}
-              </Typography>
+              <Typography variant="h6">智能分镜 · 第 {e.no} 集</Typography>
               <EntityStatusChip status={e.status} />
             </Stack>
             <Typography variant="caption" color="text.secondary">
-              {all.length} 镜 · {Math.round(total)}s · 已出图 {all.filter((s) => s.frame_url).length} · 待修 {all.filter((s) => s.status === 'qc_flagged' || s.status === 'failed').length}
+              {grouped ? `${groups.length} 个镜头 · ` : ''}
+              {all.length} 个分镜 · {Math.round(total)}s · 已出图 {all.filter((s) => s.frame_url).length}
               {typeof e.qc?.score === 'number' && e.qc.score > 0 ? ` · 质检 ${e.qc.score} 分` : ''}
             </Typography>
           </Box>
           <Stack sx={{ flexWrap: 'wrap' }} direction="row" spacing={0.5} useFlexGap>
-            <Button size="small" variant="outlined" disabled={running || !e.script_text} onClick={() => runEp('storyboard')}>
-              {all.length ? '重新分镜' : '分镜'}
-            </Button>
+            <Tooltip title="分镜师按剧本逐段拆:每个镜头 1~4 个分镜,场景、景别、构图、运镜、光影、音效、对白都填齐,不合格自动退回重写">
+              <span>
+                <Button size="small" variant="outlined" disabled={running || !e.script_text} onClick={() => (all.length === 0 || window.confirm('重新分镜会替换本集所有分镜(已出的画面也会清掉),继续?')) && runEp('storyboard')}>
+                  {all.length ? '重新分镜' : '智能分镜'}
+                </Button>
+              </span>
+            </Tooltip>
             <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('pacing')}>
               节奏
             </Button>
-            <Tooltip title={canRender ? '只补没出的镜头' : '没有启用出图工作流'}>
-              <span>
-                <Button size="small" variant="contained" disabled={running || all.length === 0 || !canRender} onClick={() => runEp('visual_gen')}>
-                  出图
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title={canVideo ? '补齐没出的画面,再给没视频的镜头出片(已有画面不重画)' : '没有启用图生视频工作流'}>
-              <span>
-                <Button size="small" variant="outlined" disabled={running || all.length === 0 || !canVideo} onClick={() => runEp('visual_gen', { video: true })}>
-                  出图+出片
-                </Button>
-              </span>
-            </Tooltip>
             <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('qc')}>
               质检
             </Button>
-            <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
-              加镜头
+            <Button size="small" startIcon={<DownloadRoundedIcon />} disabled={all.length === 0} onClick={() => exportCSV(e, all, data)}>
+              导出分镜表
             </Button>
             <Button size="small" onClick={() => setFeedbackTarget({ type: 'episode', id: e.id, label: `第 ${e.no} 集分镜` })}>
               提意见
@@ -162,144 +307,162 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
           </Alert>
         )}
         {all.length > 0 && <TensionCurve shots={all} payoffs={(e.pacing?.payoffs ?? []).map((p) => p.shot_no)} />}
-        {e.pacing?.notes && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            节奏控制:{e.pacing.notes}
-          </Typography>
-        )}
         {e.qc?.summary && (
           <Alert severity={(e.qc.score ?? 0) >= 80 ? 'success' : 'warning'} sx={{ mt: 1 }}>
             质检 {e.qc.score} 分:{e.qc.summary}
-            {qcIssues.length > 0 ? `(${qcIssues.length} 条问题,已标注到镜头)` : ''}
+            {qcIssues.length > 0 ? `(${qcIssues.length} 条问题,已标注到分镜)` : ''}
+          </Alert>
+        )}
+        {all.length > 0 && !grouped && (
+          <Alert severity="info" sx={{ mt: 1 }}>
+            这一集是旧版分镜,没有按剧本段落分组、也没有构图 / 光影 / 音效。点「重新分镜」按新规则重拆。
           </Alert>
         )}
       </Paper>
 
       {all.length === 0 ? (
-        <Empty title="这一集还没有镜头" hint={e.script_text ? '点「分镜」让分镜师把剧本拆成镜头。' : '先写剧本再分镜。'} />
+        <Empty
+          title="这一集还没有分镜"
+          hint={e.script_text ? '点「智能分镜」:分镜师把剧本逐段拆成镜头,每个镜头再拆成带完整参数的分镜。' : '先写剧本再分镜。'}
+          action={
+            e.script_text ? (
+              <Button variant="contained" disabled={running} onClick={() => runEp('storyboard')}>
+                智能分镜
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <>
-          <Stack direction="row" spacing={0.5}>
-            {(['all', 'flagged', 'missing'] as const).map((f) => (
-              <Chip key={f} size="small" label={f === 'all' ? `全部 ${all.length}` : f === 'flagged' ? '待修' : '未出图'} color={filter === f ? 'primary' : 'default'} onClick={() => setFilter(f)} />
-            ))}
-          </Stack>
-          <Grid container spacing={1.5}>
-            {shots.map((s) => (
-              <Grid key={s.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-                <Card
-                  variant="outlined"
-                  onClick={() => select?.({ type: 'shot', id: s.id, label: `第 ${e.no} 集 镜头 ${s.no}` })}
-                  sx={{ height: '100%', cursor: select ? 'pointer' : undefined, borderWidth: selected?.type === 'shot' && selected.id === s.id ? 2 : 1, borderColor: selected?.type === 'shot' && selected.id === s.id ? 'primary.main' : s.status === 'qc_flagged' ? 'warning.main' : s.status === 'failed' ? 'error.main' : undefined }}
-                >
-                  <Box sx={{ display: 'flex', gap: 1.5, p: 1.5 }}>
-                    <Box>
-                      <MediaThumb src={s.frame_url} video={s.video_url} height={190} ratio={ov.data?.project.aspect === '16:9' ? '16 / 9' : '9 / 16'} />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.25 }}>
-                        v{s.version} · {s.duration_sec}s
-                      </Typography>
-                    </Box>
-                    <CardContent sx={{ p: 0, flex: 1, minWidth: 0 }}>
-                      <Stack direction="row" spacing={0.5} sx={{ mb: 0.5, alignItems: 'center' }}>
-                        <Typography sx={{ fontWeight: 700 }} variant="subtitle2">
-                          #{s.no}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
-                          {byId.scene(s.scene_id)?.name ?? '未绑定场景'}
-                        </Typography>
-                        <ShotStatusChip status={s.status} />
-                      </Stack>
-                      <Stack direction="row" spacing={0.5} useFlexGap sx={{ mb: 0.5, flexWrap: 'wrap' }}>
-                        <Chip size="small" variant="outlined" label={SHOT_TYPES[s.shot_type] ?? s.shot_type} />
-                        <Chip size="small" variant="outlined" label={CAMERA_MOVES[s.camera_move] ?? s.camera_move} />
-                        {s.angle && s.angle !== 'eye_level' && <Chip size="small" variant="outlined" label={ANGLES[s.angle] ?? s.angle} />}
-                        {s.beat_type && <Chip size="small" color={s.beat_type === 'payoff' ? 'secondary' : 'default'} label={`${BEATS[s.beat_type] ?? s.beat_type} ${s.tension || ''}`} />}
-                      </Stack>
-                      <Typography variant="body2" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {s.action}
-                      </Typography>
-                      {s.dialogue && (
-                        <Typography variant="body2" color="primary" sx={{ mt: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          “{s.dialogue}”
-                        </Typography>
-                      )}
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                        {s.character_ids.map((id) => byId.char(id)?.name).filter(Boolean).join(' / ')}
-                        {s.emotion ? ` · ${s.emotion}` : ''}
-                      </Typography>
-                      {s.gen_error && (
-                        <Typography variant="caption" color="error" sx={{ display: 'block' }}>
-                          {s.gen_error}
-                        </Typography>
-                      )}
-                      {s.qc_issues?.length > 0 && (
-                        <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-                          {s.qc_issues.slice(0, 3).map((it, i) => (
-                            <Typography key={i} variant="caption" color={it.severity === 'high' ? 'error.main' : it.severity === 'medium' ? 'warning.main' : 'text.secondary'}>
-                              [{it.type}] {it.message}
-                              {it.suggestion ? ` → ${it.suggestion}` : ''}
-                            </Typography>
+        <Stack spacing={1.5}>
+          {groups.map((g, gi) => {
+            const label = g.beat ? `镜头${g.beat}` : `镜头${gi + 1}`;
+            const open = !collapsed[g.key];
+            return (
+              <Paper key={g.key} variant="outlined" sx={{ overflow: 'hidden' }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', px: 1.5, py: 1, bgcolor: 'action.hover', cursor: 'pointer' }} onClick={() => setCollapsed((c) => ({ ...c, [g.key]: open }))}>
+                  <ExpandMoreRoundedIcon fontSize="small" sx={{ mt: 0.25, transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', flexShrink: 0 }}>
+                    {label}
+                  </Typography>
+                  <Typography variant="body2" sx={{ flex: 1, minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>
+                    <Mentioned text={g.text} />
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, mt: 0.25 }}>
+                    {g.shots.length} 分镜 · {g.shots.reduce((a, s) => a + (s.duration_sec || 0), 0)}s
+                  </Typography>
+                  <Tooltip title="删除这个镜头">
+                    <IconButton size="small" onClick={(ev) => (ev.stopPropagation(), removeGroup(g, label))}>
+                      <DeleteOutlineRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+                <Collapse in={open} unmountOnExit>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ tableLayout: 'fixed', minWidth: COLS.reduce((a, c) => a + c.w, 0), '& td, & th': { fontSize: 13, verticalAlign: 'top', py: 0.75 } }}>
+                      <TableHead>
+                        <TableRow>
+                          {COLS.map((c) => (
+                            <TableCell key={c.label} sx={{ width: c.w, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                              {c.label}
+                            </TableCell>
                           ))}
-                          {s.qc_issues.length > 3 && (
-                            <Typography variant="caption" color="text.secondary">
-                              还有 {s.qc_issues.length - 3} 条…
-                            </Typography>
-                          )}
-                        </Stack>
-                      )}
-                      <Stack direction="row" sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
-                        <Tooltip title="编辑">
-                          <IconButton size="small" onClick={() => setEditing(s)}>
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={canRender ? '重出此镜' : '没有启用出图工作流'}>
-                          <span>
-                            <IconButton size="small" disabled={running || !canRender} onClick={() => start.mutate({ step: 'visual_gen', input: { episode_id: e.id, episode_no: e.no, shot_ids: [s.id], force: true } })}>
-                              <ReplayRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title={s.status === 'approved' ? '取消通过' : '标记通过'}>
-                          <IconButton size="small" color={s.status === 'approved' ? 'success' : 'default'} onClick={() => guard(() => dramaAPI.updateShot(s.id, { status: s.status === 'approved' ? (s.frame_url ? 'done' : 'draft') : 'approved' }))}>
-                            <CheckCircleOutlineRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <IconButton size="small" onClick={() => move(s, -1)} disabled={s.no <= 1}>
-                          <ArrowUpwardRoundedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => move(s, 1)} disabled={s.no >= all.length}>
-                          <ArrowDownwardRoundedIcon fontSize="small" />
-                        </IconButton>
-                        <UploadImageButton label="上传画面" onUploaded={(url) => guard(() => dramaAPI.updateShot(s.id, { frame_url: url, status: 'done' }))} />
-                        <Button size="small" onClick={() => setFeedbackTarget({ type: 'shot', id: s.id, label: `第 ${e.no} 集 #${s.no} 镜` })}>
-                          提意见
-                        </Button>
-                        <IconButton size="small" color="error" onClick={() => window.confirm(`删除 #${s.no} 镜?`) && guard(() => dramaAPI.deleteShot(s.id))}>
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </CardContent>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {g.shots.map((s, si) => {
+                          const on = selected?.type === 'shot' && selected.id === s.id;
+                          const no = `${g.beat || gi + 1}-${s.sub_no || si + 1}`;
+                          const flagged = s.status === 'qc_flagged' || s.status === 'failed';
+                          return (
+                            <TableRow
+                              key={s.id}
+                              hover
+                              selected={on}
+                              onClick={() => select?.({ type: 'shot', id: s.id, label: `第 ${e.no} 集 分镜 ${no}` })}
+                              sx={{ cursor: 'pointer', ...(flagged ? { bgcolor: 'rgba(255,152,0,.06)' } : {}) }}
+                            >
+                              <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{no}</TableCell>
+                              <TableCell>{sceneName(s.scene_id) ? <Mentioned text={`@[${sceneName(s.scene_id)}]`} /> : <Box sx={{ color: 'warning.main' }}>未绑定</Box>}</TableCell>
+                              <TableCell>
+                                <InlineSelect value={s.shot_type} options={SHOT_TYPES} onChange={(v) => guard(() => dramaAPI.updateShot(s.id, { shot_type: v }))} />
+                              </TableCell>
+                              <TableCell>
+                                <InlineSelect value={s.composition ?? ''} options={COMPOSITIONS} onChange={(v) => guard(() => dramaAPI.updateShot(s.id, { composition: v }))} />
+                              </TableCell>
+                              <TableCell>
+                                <InlineSelect value={s.camera_move} options={CAMERA_MOVES} onChange={(v) => guard(() => dramaAPI.updateShot(s.id, { camera_move: v }))} />
+                              </TableCell>
+                              <TableCell sx={{ color: 'text.secondary' }}>{s.lighting || '-'}</TableCell>
+                              <TableCell>
+                                <Mentioned text={s.action} />
+                                {s.qc_issues?.length > 0 && (
+                                  <Box sx={{ mt: 0.5 }}>
+                                    {s.qc_issues.slice(0, 2).map((it, i) => (
+                                      <Typography key={i} variant="caption" sx={{ display: 'block' }} color={it.severity === 'high' ? 'error.main' : 'warning.main'}>
+                                        [{it.type}] {it.message}
+                                      </Typography>
+                                    ))}
+                                  </Box>
+                                )}
+                                {s.gen_error && (
+                                  <Typography variant="caption" color="error" sx={{ display: 'block' }}>
+                                    {s.gen_error}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell sx={{ color: 'text.secondary' }}>{s.sfx || '-'}</TableCell>
+                              <TableCell>
+                                <Dialogue text={s.dialogue} />
+                              </TableCell>
+                              <TableCell>{s.duration_sec}s</TableCell>
+                              <TableCell onClick={(ev) => ev.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
+                                <IconButton size="small" aria-label="编辑" onClick={() => setEditing(s)}>
+                                  <EditRoundedIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                                <IconButton size="small" aria-label="上移" disabled={s.no <= 1} onClick={() => move(s, -1)}>
+                                  <ArrowUpwardRoundedIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                                <IconButton size="small" aria-label="下移" disabled={s.no >= all.length} onClick={() => move(s, 1)}>
+                                  <ArrowDownwardRoundedIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                                <IconButton size="small" aria-label="删除" onClick={() => window.confirm(`删除分镜 ${no}?`) && guard(() => dramaAPI.deleteShot(s.id))}>
+                                  <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                                {s.status !== 'draft' && (
+                                  <Box sx={{ mt: 0.25 }}>
+                                    <ShotStatusChip status={s.status} />
+                                  </Box>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </Box>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </>
+                  <Button fullWidth size="small" variant="text" startIcon={<AddRoundedIcon />} onClick={() => addToGroup(g)} sx={{ borderRadius: 0, color: 'text.secondary' }}>
+                    添加分镜
+                  </Button>
+                </Collapse>
+              </Paper>
+            );
+          })}
+        </Stack>
       )}
 
       <ShotDialog
-        open={!!editing || creating}
+        open={!!editing || !!creating}
         shot={editing}
-        scenes={ov.data?.scenes ?? []}
-        characters={ov.data?.characters ?? []}
+        initial={creating}
+        scenes={data.scenes}
+        characters={data.characters}
         onClose={() => {
           setEditing(null);
-          setCreating(false);
+          setCreating(null);
         }}
         onSave={async (fields) => {
           if (editing) await guard(() => dramaAPI.updateShot(editing.id, fields));
-          else await guard(() => dramaAPI.createShot(e.id, fields));
+          else await guard(() => dramaAPI.createShot(e.id, { ...creating, ...fields }));
         }}
       />
     </Stack>
@@ -344,6 +507,7 @@ function TensionCurve({ shots, payoffs }: { shots: Shot[]; payoffs: number[] }) 
 function ShotDialog({
   open,
   shot,
+  initial,
   scenes,
   characters,
   onClose,
@@ -351,6 +515,8 @@ function ShotDialog({
 }: {
   open: boolean;
   shot: Shot | null;
+  /** 新建时的默认值(加在哪个镜头下、沿用上一分镜的场景和角色) */
+  initial?: Partial<Shot> | null;
   scenes: { id: number; name: string }[];
   characters: { id: number; name: string }[];
   onClose: () => void;
@@ -359,12 +525,12 @@ function ShotDialog({
   const [f, setF] = useState<Partial<Shot>>({});
   const [saving, setSaving] = useState(false);
   React.useEffect(() => {
-    setF(shot ? { ...shot } : { shot_type: 'medium', camera_move: 'static', angle: 'eye_level', duration_sec: 3, character_ids: [], prop_ids: [] });
-  }, [shot, open]);
+    setF(shot ? { ...shot } : { shot_type: 'medium', composition: 'thirds', camera_move: 'static', angle: 'eye_level', duration_sec: 3, character_ids: [], prop_ids: [], ...initial });
+  }, [shot, initial, open]);
   const set = <K extends keyof Shot>(k: K, v: Shot[K]) => setF((x) => ({ ...x, [k]: v }));
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{shot ? `编辑 #${shot.no} 镜` : '新增镜头'}</DialogTitle>
+      <DialogTitle>{shot ? `编辑分镜 ${shot.beat ? `${shot.beat}-${shot.sub_no}` : `#${shot.no}`}` : '添加分镜'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
@@ -390,12 +556,17 @@ function ShotDialog({
               </Select>
             </FormControl>
           </Stack>
-          <TextField size="small" label="画面内容" multiline minRows={2} value={f.action ?? ''} onChange={(e) => set('action', e.target.value)} />
-          <TextField size="small" label="台词" multiline value={f.dialogue ?? ''} onChange={(e) => set('dialogue', e.target.value)} />
+          <TextField size="small" label="分镜描述(谁在哪、做什么、表情;人物写成 @[名字])" multiline minRows={2} value={f.action ?? ''} onChange={(e) => set('action', e.target.value)} />
+          <TextField size="small" label="对白(每句一行:角色名:台词)" multiline value={f.dialogue ?? ''} onChange={(e) => set('dialogue', e.target.value)} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+            <TextField size="small" fullWidth label="光影" placeholder="光源方向、明暗、色调" value={f.lighting ?? ''} onChange={(e) => set('lighting', e.target.value)} />
+            <TextField size="small" fullWidth label="音效" value={f.sfx ?? ''} onChange={(e) => set('sfx', e.target.value)} />
+          </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <SelectField label="景别" value={f.shot_type ?? 'medium'} options={SHOT_TYPES} onChange={(v) => set('shot_type', v)} />
+            <SelectField label="构图" value={f.composition ?? 'thirds'} options={COMPOSITIONS} onChange={(v) => set('composition', v)} />
             <SelectField label="运镜" value={f.camera_move ?? 'static'} options={CAMERA_MOVES} onChange={(v) => set('camera_move', v)} />
-            <SelectField label="角度" value={f.angle ?? 'eye_level'} options={ANGLES} onChange={(v) => set('angle', v)} />
+            <SelectField label="机位" value={f.angle ?? 'eye_level'} options={ANGLES} onChange={(v) => set('angle', v)} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField size="small" label="时长(秒)" type="number" value={f.duration_sec ?? 3} onChange={(e) => set('duration_sec', Number(e.target.value) || 3)} fullWidth />

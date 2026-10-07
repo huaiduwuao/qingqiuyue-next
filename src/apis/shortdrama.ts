@@ -314,6 +314,17 @@ export interface Shot {
   angle: string;
   duration_sec: number;
   emotion: string;
+  /** 两层分镜:beat 是剧本里的一段(「镜头 N」),sub_no 是段内第几个分镜;旧数据 beat = 0 */
+  beat?: number;
+  /** 这一段对应的剧本原文,主体写成 @[名字] */
+  beat_text?: string;
+  sub_no?: number;
+  /** 构图,取值见 COMPOSITIONS */
+  composition?: string;
+  /** 光影(中文) */
+  lighting?: string;
+  /** 音效(中文) */
+  sfx?: string;
   beat_type: string;
   tension: number;
   image_prompt: string;
@@ -638,7 +649,10 @@ export function estimateCost(caps: Capabilities | undefined, episodes: number, e
 }
 
 export const SHOT_TYPES: Record<string, string> = {
-  wide: '远景', full: '全景', medium: '中景', close_up: '近景/特写', extreme_close_up: '大特写', over_shoulder: '过肩', pov: '主观', two_shot: '双人',
+  wide: '远景', full: '全景', medium: '中景', medium_close_up: '近景', close_up: '特写', extreme_close_up: '大特写', over_shoulder: '过肩', pov: '主观', two_shot: '双人',
+};
+export const COMPOSITIONS: Record<string, string> = {
+  center: '中心构图', thirds: '三分法', symmetric: '对称构图', diagonal: '对角线构图', frame: '框架构图', leading_lines: '引导线构图', foreground: '前景遮挡', negative_space: '留白构图',
 };
 export const CAMERA_MOVES: Record<string, string> = {
   static: '固定', pan: '横摇', tilt: '俯仰', dolly_in: '推', dolly_out: '拉', tracking: '跟', handheld: '手持', zoom: '变焦', crane: '升降',
@@ -655,3 +669,8 @@ export const AGENT_LABELS: Record<string, string> = {
   'drama-pacing': '节奏控制', 'drama-qc': '质检', 'drama-feedback': '反馈优化',
   'drama-localizer': '译配', 'drama-editor': '后期合成', 'drama-publisher': '发行运营',
 };
+
+/** 分镜的显示编号:分了组的是「镜头-分镜」(3-2),旧数据是「镜头 N」 */
+export function shotLabel(s: Pick<Shot, 'no' | 'beat' | 'sub_no'>): string {
+  return s.beat ? `分镜 ${s.beat}-${s.sub_no || 1}` : `镜头 ${s.no}`;
+}

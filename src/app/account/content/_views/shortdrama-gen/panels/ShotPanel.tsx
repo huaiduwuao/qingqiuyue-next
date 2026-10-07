@@ -18,7 +18,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
-import { CAMERA_MOVES, SHOT_TYPES, dramaAPI, type Shot } from '@/apis/shortdrama';
+import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, type Shot } from '@/apis/shortdrama';
 import type { Selection } from '../Workbench';
 import { MediaThumb, UploadImageButton } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask, useUnitCost } from '../useProject';
@@ -85,10 +85,11 @@ function Editor({ projectId, episodeId, shot }: { projectId: number; episodeId: 
     <Stack spacing={1.5} sx={{ p: 1.75 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
-          镜头 {shot.no}
+          {shotLabel(shot)}
         </Typography>
         <Chip size="small" variant="outlined" label={SHOT_TYPES[shot.shot_type] ?? shot.shot_type} />
         <Chip size="small" variant="outlined" label={CAMERA_MOVES[shot.camera_move] ?? shot.camera_move} />
+        {shot.composition && COMPOSITIONS[shot.composition] && <Chip size="small" variant="outlined" label={COMPOSITIONS[shot.composition]} />}
         <Chip size="small" variant="outlined" label={`${shot.duration_sec}s`} />
       </Stack>
 
