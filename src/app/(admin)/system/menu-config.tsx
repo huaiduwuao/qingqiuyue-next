@@ -213,6 +213,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'models', label: '模型供应商', path: '/system/models', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'gateway', label: '网关与配额', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'gateway-packages', label: '配额套餐', path: '/system/gateway/packages', icon: <CardMembershipRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'comfy-gateway', label: '算力节点', path: '/system/comfy-gateway', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#76B900' },
     ],
   },
   {
