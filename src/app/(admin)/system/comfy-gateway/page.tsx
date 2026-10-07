@@ -1,8 +1,8 @@
 'use client';
 
-// 算力节点 —— comfy-gateway 的运维台(仅管理员)。
-// 网关跑在 GPU 机器上:每张卡一个 ComfyUI 子进程,崩溃自动重启;出图任务按负载分到各张卡。
-// 这里看各卡的显存/利用率、各实例的状态与日志、最近的派单记录,并可启停/重启单个实例。
+// 算力节点 —— 管理出图出片用的 GPU 机器(仅管理员)。
+// 每台机器(AutoDL 实例)跑一个 comfy-gateway,这里登记它的公网 HTTPS 地址和令牌;
+// gen-api 先按负载和模型挑机器,机器上的网关再挑卡。选中一个节点,下方展示它的卡/实例/日志/派单(NodeDetail)。
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,11 +14,6 @@ import Chip from '@mui/material/Chip';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import Table from '@mui/material/Table';
-import TableHead from '@mui/material/TableHead';
-import TableBody from '@mui/material/TableBody';
-import TableRow from '@mui/material/TableRow';
-import TableCell from '@mui/material/TableCell';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -26,332 +21,206 @@ import DialogActions from '@mui/material/DialogActions';
 import LinearProgress from '@mui/material/LinearProgress';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
-import StopRoundedIcon from '@mui/icons-material/StopRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
-import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
+import TextField from '@mui/material/TextField';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import NetworkCheckRoundedIcon from '@mui/icons-material/NetworkCheckRounded';
 import * as gw from '@/apis/comfyGateway';
+import { NodeDetail, ELLIPSIS, errMsg, errStatus } from './NodeDetail';
 
-type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+type Editing = { id?: number; name: string; baseUrl: string; token: string; enabled: boolean; note: string; tokenSet?: boolean };
 
-const STATE: Record<gw.InstanceState, { label: string; color: ChipColor }> = {
-  running: { label: '运行中', color: 'success' },
-  starting: { label: '启动中', color: 'info' },
-  crashed: { label: '已崩溃', color: 'error' },
-  stopped: { label: '已停止', color: 'default' },
-  down: { label: '不可达', color: 'error' },
-};
-
-const PROMPT: Record<gw.PromptStatus, { label: string; color: ChipColor }> = {
-  pending: { label: '网关排队', color: 'default' },
-  queued: { label: '排队', color: 'info' },
-  running: { label: '运行', color: 'secondary' },
-  success: { label: '成功', color: 'success' },
-  error: { label: '出错', color: 'error' },
-  lost: { label: '丢失', color: 'warning' },
-  canceled: { label: '已取消', color: 'default' },
-};
-
-const ELLIPSIS = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
-const errMsg = (e: unknown) => (e as { message?: string } | null)?.message || '请求失败';
-const errStatus = (e: unknown) => (e as { status?: number } | null)?.status;
-const valid = (s?: string) => !!s && !s.startsWith('0001-');
-const fmtTime = (s?: string) => (valid(s) ? new Date(s as string).toLocaleTimeString('zh-CN', { hour12: false }) : '—');
-
-function fmtDur(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '—';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s} 秒`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} 分 ${s % 60} 秒`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return `${h} 小时 ${m % 60} 分`;
-  return `${Math.floor(h / 24)} 天 ${h % 24} 小时`;
-}
-
-const since = (s?: string) => (valid(s) ? fmtDur(Date.now() - new Date(s as string).getTime()) : '—');
-const between = (a?: string, b?: string) =>
-  valid(a) && valid(b) ? fmtDur(new Date(b as string).getTime() - new Date(a as string).getTime()) : '—';
-
-function Meter({ label, value, max, unit, warnAt = 0.9 }: { label: string; value: number; max: number; unit: string; warnAt?: number }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+function NodeCard({ n, selected, onSelect, onEdit, onToggle, onDelete }: {
+  n: gw.GpuNode; selected: boolean; onSelect: () => void; onEdit: () => void; onToggle: (v: boolean) => void; onDelete: () => void;
+}) {
+  const dot = !n.enabled ? 'text.disabled' : n.online ? 'success.main' : 'error.main';
   return (
-    <Box sx={{ mt: 1 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'text.secondary', mb: 0.5 }}>
-        <span>{label}</span>
-        <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums' }}>{value.toLocaleString()} / {max.toLocaleString()} {unit}</Box>
-      </Box>
-      <LinearProgress variant="determinate" value={pct} color={pct / 100 >= warnAt ? 'warning' : 'primary'}
-        sx={{ height: 8, borderRadius: 4 }} />
-    </Box>
-  );
-}
-
-function GpuCard({ g, instances }: { g: gw.GPUStat; instances: gw.GatewayInstance[] }) {
-  const owners = instances.filter((i) => i.managed && i.gpu === g.index);
-  return (
-    <Card variant="outlined" sx={{ p: 2, flex: '1 1 280px', minWidth: 0 }}>
+    <Card variant="outlined" onClick={onSelect}
+      sx={{ p: 1.75, flex: '1 1 300px', minWidth: 0, cursor: 'pointer', borderColor: selected ? 'primary.main' : undefined, borderWidth: selected ? 2 : 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <MemoryRoundedIcon fontSize="small" color="primary" />
-        <Typography sx={{ fontWeight: 600, fontSize: 14.5 }} noWrap>GPU {g.index} · {g.name}</Typography>
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: dot, flexShrink: 0 }} />
+        <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>{n.name}</Typography>
+        {n.legacy && <Chip size="small" variant="outlined" label="环境变量" />}
+        {!n.enabled && <Chip size="small" label="已停用" />}
+        <Box sx={{ flex: 1 }} />
+        {!n.legacy && (
+          <Box onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title={n.enabled ? '停用(不再派新任务)' : '启用'}>
+              <Switch size="small" checked={n.enabled} onChange={(e) => onToggle(e.target.checked)} />
+            </Tooltip>
+            <Tooltip title="编辑"><IconButton size="small" onClick={onEdit}><EditRoundedIcon fontSize="small" /></IconButton></Tooltip>
+            <Tooltip title="删除"><IconButton size="small" onClick={onDelete}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton></Tooltip>
+          </Box>
+        )}
       </Box>
-      <Box sx={{ display: 'flex', gap: 2, mt: 0.75, fontSize: 12.5, color: 'text.secondary', flexWrap: 'wrap' }}>
-        <span>{g.tempC} °C</span>
-        <span>{g.powerW} W</span>
-        {owners.map((o) => <span key={o.id}>{o.name}:{STATE[o.state]?.label ?? o.state}</span>)}
+      <Box sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'monospace', mt: 0.5, ...ELLIPSIS }}>{n.baseUrl}</Box>
+      <Box sx={{ display: 'flex', gap: 2, mt: 1, fontSize: 13, flexWrap: 'wrap' }}>
+        {n.online ? (
+          <>
+            <span>卡 {n.running}/{n.instances}</span>
+            <span>任务 {n.queue}</span>
+            {n.version && <Box component="span" sx={{ color: 'text.secondary' }}>网关 {n.version}</Box>}
+          </>
+        ) : (
+          <Box component="span" sx={{ color: 'error.main', ...ELLIPSIS }}>{n.error || '离线'}</Box>
+        )}
       </Box>
-      <Meter label="利用率" value={g.utilPercent} max={100} unit="%" warnAt={1.01} />
-      <Meter label="显存" value={g.memUsedMiB} max={g.memTotalMiB} unit="MiB" />
+      {n.note && <Box sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...ELLIPSIS }}>{n.note}</Box>}
     </Card>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
-  return (
-    <Box sx={{ minWidth: 88 }}>
-      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{label}</Typography>
-      <Typography sx={{ fontSize: 22, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{value}</Typography>
-    </Box>
-  );
-}
-
-function LogsDialog({ inst, onClose }: { inst: gw.GatewayInstance | null; onClose: () => void }) {
-  const ref = React.useRef<HTMLPreElement>(null);
-  const q = useQuery({
-    queryKey: ['comfy-gateway', 'logs', inst?.id],
-    queryFn: () => gw.instanceLogs(inst!.id, 500),
-    enabled: !!inst,
-    refetchInterval: 3000,
-    retry: false,
-  });
-  const lines = q.data ?? [];
-  React.useEffect(() => {
-    const el = ref.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
-  return (
-    <Dialog open={!!inst} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>{inst?.name} 日志(最近 500 行,每 3 秒刷新)</DialogTitle>
-      <DialogContent dividers sx={{ p: 0 }}>
-        {q.error ? <Alert severity="error" sx={{ m: 2 }}>{errMsg(q.error)}</Alert> : (
-          <Box component="pre" ref={ref} sx={{
-            m: 0, p: 2, height: '65vh', overflow: 'auto', fontSize: 12, lineHeight: 1.5,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-            bgcolor: 'background.default',
-          }}>
-            {lines.length ? lines.join('\n') : (q.isLoading ? '加载中…' : '(暂无日志)')}
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions><Button onClick={onClose}>关闭</Button></DialogActions>
-    </Dialog>
-  );
-}
-
-export default function ComfyGatewayPage() {
-  const qc = useQueryClient();
-  const [logsOf, setLogsOf] = React.useState<gw.GatewayInstance | null>(null);
-  const [confirm, setConfirm] = React.useState<{ inst: gw.GatewayInstance; action: gw.InstanceAction } | null>(null);
+function NodeEditor({ value, onClose, onSaved }: { value: Editing; onClose: () => void; onSaved: (n: gw.GpuNode) => void }) {
+  const [v, setV] = React.useState<Editing>(value);
   const [busy, setBusy] = React.useState(false);
-  const [snack, setSnack] = React.useState<{ msg: string; sev: 'success' | 'error' } | null>(null);
+  const [probe, setProbe] = React.useState<{ ok: boolean; msg: string } | null>(null);
+  const [err, setErr] = React.useState('');
+  const set = (patch: Partial<Editing>) => setV((old) => ({ ...old, ...patch }));
 
-  const statusQ = useQuery({ queryKey: ['comfy-gateway', 'status'], queryFn: gw.gatewayStatus, refetchInterval: 3000, retry: false });
-  const promptsQ = useQuery({ queryKey: ['comfy-gateway', 'prompts'], queryFn: () => gw.gatewayPrompts(100), refetchInterval: 5000, retry: false });
-  const refresh = () => qc.invalidateQueries({ queryKey: ['comfy-gateway'] });
-
-  const s = statusQ.data;
-  const instances = s?.instances ?? [];
-  const prompts = promptsQ.data ?? [];
-
-  const runAction = async () => {
-    if (!confirm) return;
+  const test = async () => {
     setBusy(true);
+    setProbe(null);
     try {
-      await gw.instanceAction(confirm.inst.id, confirm.action);
-      setSnack({ msg: `${confirm.inst.name} 已${ACTION_LABEL[confirm.action]}`, sev: 'success' });
-      setConfirm(null);
-      refresh();
+      const r = await gw.probeNode({ baseUrl: v.baseUrl, token: v.token || undefined, id: v.id });
+      const n = r.node;
+      setProbe(n.online
+        ? { ok: true, msg: `连通,${r.latencyMs}ms;${n.gateway ? `网关 ${n.version},卡 ${n.running}/${n.instances} 在线` : '普通 ComfyUI(没有网关管理接口)'}` }
+        : { ok: false, msg: n.error || '连不上' });
     } catch (e) {
-      setSnack({ msg: errMsg(e), sev: 'error' });
+      setProbe({ ok: false, msg: errMsg(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      const body: gw.GpuNodeInput = { name: v.name, baseUrl: v.baseUrl, enabled: v.enabled, note: v.note };
+      if (v.token) body.token = v.token;
+      onSaved(v.id ? await gw.updateNode(v.id, body) : await gw.createNode(body));
+    } catch (e) {
+      setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
   };
 
   return (
+    <Dialog open onClose={() => !busy && onClose()} maxWidth="sm" fullWidth>
+      <DialogTitle>{v.id ? `编辑 ${value.name}` : '添加算力节点'}</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+        <TextField label="名称" value={v.name} onChange={(e) => set({ name: e.target.value })} placeholder="如 AutoDL 西部 双 5090 #1" fullWidth size="small" />
+        <TextField label="地址" value={v.baseUrl} onChange={(e) => set({ baseUrl: e.target.value })} fullWidth size="small"
+          placeholder="https://xxxx.westd.seetacloud.com:8443"
+          helperText="AutoDL 控制台 → 实例的「自定义服务」里 6006 端口的地址(网关监听 6006)" />
+        <TextField label="令牌" type="password" value={v.token} onChange={(e) => set({ token: e.target.value })} fullWidth size="small"
+          placeholder={v.tokenSet ? '已设置,留空不改' : '网关的 CGW_TOKEN'}
+          helperText="机器上 /root/comfy-gateway/gateway.env 里的 CGW_TOKEN;只存在服务端,保存后不再显示" />
+        <TextField label="备注" value={v.note} onChange={(e) => set({ note: e.target.value })} fullWidth size="small" placeholder="租期、价格、卡型…" />
+        <FormControlLabel control={<Switch checked={v.enabled} onChange={(e) => set({ enabled: e.target.checked })} />} label="启用(参与派单)" />
+        {probe && <Alert severity={probe.ok ? 'success' : 'error'}>{probe.msg}</Alert>}
+        {err && <Alert severity="error">{err}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button startIcon={<NetworkCheckRoundedIcon />} onClick={test} disabled={busy || !v.baseUrl.trim()}>测试连接</Button>
+        <Box sx={{ flex: 1 }} />
+        <Button onClick={onClose} disabled={busy}>取消</Button>
+        <Button variant="contained" onClick={save} disabled={busy || !v.name.trim() || !v.baseUrl.trim()}>保存</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+export default function ComfyGatewayPage() {
+  const qc = useQueryClient();
+  const nodesQ = useQuery({ queryKey: ['comfy-gateway', 'nodes'], queryFn: gw.listNodes, refetchInterval: 5000, retry: false });
+  const [picked, setPicked] = React.useState<number | null>(null);
+  const [editing, setEditing] = React.useState<Editing | null>(null);
+  const [deleting, setDeleting] = React.useState<gw.GpuNode | null>(null);
+  const [snack, setSnack] = React.useState<{ msg: string; sev: 'success' | 'error' } | null>(null);
+  const nodes = nodesQ.data ?? [];
+  const reload = () => qc.invalidateQueries({ queryKey: ['comfy-gateway', 'nodes'] });
+
+  // 没点过就默认第一个在线的网关节点;点过的节点被删了也回到默认
+  const fallback = nodes.find((n) => n.online && n.gateway) ?? nodes[0];
+  const current = nodes.find((n) => n.id === picked) ?? fallback;
+
+  const toggle = async (n: gw.GpuNode, enabled: boolean) => {
+    try {
+      await gw.updateNode(n.id, { enabled });
+      setSnack({ msg: `${n.name} 已${enabled ? '启用' : '停用'}`, sev: 'success' });
+      reload();
+    } catch (e) {
+      setSnack({ msg: errMsg(e), sev: 'error' });
+    }
+  };
+  const remove = async () => {
+    if (!deleting) return;
+    try {
+      await gw.deleteNode(deleting.id);
+      setSnack({ msg: `已删除 ${deleting.name}`, sev: 'success' });
+      setDeleting(null);
+      reload();
+    } catch (e) {
+      setSnack({ msg: errMsg(e), sev: 'error' });
+    }
+  };
+
+  return (
     <Container maxWidth="xl">
       <Box sx={{ py: { xs: 2, md: 3 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>算力节点</Typography>
-          {s && <Chip size="small" variant="outlined" label={`网关 ${s.version} · 已运行 ${since(s.startedAt)}`} />}
-          {s?.s3 && <Chip size="small" variant="outlined" color="success" label="任务结果上传 S3" />}
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            每台 GPU 机器一个节点;出图出片先按负载和模型挑机器,机器上的网关再挑卡
+          </Typography>
           <Box sx={{ flex: 1 }} />
-          <Tooltip title="刷新"><IconButton onClick={refresh}><RefreshRoundedIcon /></IconButton></Tooltip>
+          <Button variant="contained" startIcon={<AddRoundedIcon />}
+            onClick={() => setEditing({ name: '', baseUrl: '', token: '', enabled: true, note: '' })}>添加节点</Button>
         </Box>
-
-        {statusQ.error && (
-          <Alert severity={errStatus(statusQ.error) === 403 ? 'warning' : 'error'} sx={{ mb: 2 }}>
-            {errMsg(statusQ.error)}
+        {nodesQ.error && <Alert severity={errStatus(nodesQ.error) === 403 ? 'warning' : 'error'} sx={{ my: 2 }}>{errMsg(nodesQ.error)}</Alert>}
+        {nodesQ.isLoading && <LinearProgress sx={{ my: 2 }} />}
+        {nodes.some((n) => n.legacy) && (
+          <Alert severity="info" sx={{ my: 1.5 }}>
+            还没有启用的节点,正在用环境变量 COMFYUI_URL。添加并启用节点后改用这里的节点派单。
           </Alert>
         )}
-        {statusQ.isLoading && <LinearProgress sx={{ mb: 2 }} />}
 
-        {s && (
-          <>
-            <Card variant="outlined" sx={{ p: 2, mb: 2, display: 'flex', gap: { xs: 2, md: 4 }, flexWrap: 'wrap' }}>
-              <Stat label="在线实例" value={`${instances.filter((i) => i.state === 'running').length} / ${instances.length}`} />
-              <Stat label="正在运行" value={s.queue.running} />
-              <Stat label="排队中" value={s.queue.pending} />
-              <Stat label="网关排队" value={s.queue.gateway ?? 0} color={s.queue.gateway ? 'warning.main' : undefined} />
-              <Stat label="完成" value={s.prompts.success} color="success.main" />
-              <Stat label="出错" value={s.prompts.error} color={s.prompts.error ? 'error.main' : undefined} />
-              <Stat label="丢失" value={s.prompts.lost} color={s.prompts.lost ? 'warning.main' : undefined} />
-              <Stat label="换卡重派" value={s.prompts.retried ?? 0} />
-            </Card>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', my: 2 }}>
+          {nodes.map((n) => (
+            <NodeCard key={n.id} n={n} selected={n.id === current?.id} onSelect={() => setPicked(n.id)}
+              onEdit={() => setEditing({ id: n.id, name: n.name, baseUrl: n.baseUrl, token: '', enabled: n.enabled, note: n.note, tokenSet: n.tokenSet })}
+              onToggle={(v) => toggle(n, v)} onDelete={() => setDeleting(n)} />
+          ))}
+        </Box>
 
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-              {(s.gpus ?? []).map((g) => <GpuCard key={g.index} g={g} instances={instances} />)}
-              {!s.gpus?.length && <Alert severity="info" sx={{ flex: 1 }}>网关所在机器没有读到 nvidia-smi(只接入了外部实例?)</Alert>}
-            </Box>
-
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>ComfyUI 实例</Typography>
-            <Card variant="outlined" sx={{ mb: 3, overflowX: 'auto' }}>
-              <Table size="small" sx={{ minWidth: 900 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>实例</TableCell>
-                    <TableCell>状态</TableCell>
-                    <TableCell align="right">运行 / 排队</TableCell>
-                    <TableCell>已运行</TableCell>
-                    <TableCell align="right">重启</TableCell>
-                    <TableCell align="right">节点类型</TableCell>
-                    <TableCell>最近模型</TableCell>
-                    <TableCell align="right">操作</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {instances.map((i) => (
-                    <TableRow key={i.id} hover>
-                      <TableCell>
-                        <Box sx={{ fontWeight: 600 }}>{i.name}</Box>
-                        <Box sx={{ fontSize: 11.5, color: 'text.secondary', fontFamily: 'monospace' }}>
-                          {i.managed ? `GPU ${i.gpu} · ` : '外部 · '}{i.url}{i.pid ? ` · pid ${i.pid}` : ''}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip size="small" color={STATE[i.state]?.color ?? 'default'} label={STATE[i.state]?.label ?? i.state} />
-                        {i.lastError && (
-                          <Tooltip title={i.lastError}>
-                            <Box sx={{ fontSize: 11.5, color: 'error.main', maxWidth: 220, mt: 0.5, ...ELLIPSIS }} component="div">{i.lastError}</Box>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{i.queueRunning} / {i.queuePending}</TableCell>
-                      <TableCell>{i.state === 'running' ? since(i.readyAt) : '—'}</TableCell>
-                      <TableCell align="right">{i.restarts}</TableCell>
-                      <TableCell align="right">{i.nodeTypes ? i.nodeTypes.toLocaleString() : '—'}</TableCell>
-                      <TableCell sx={{ maxWidth: 260 }}>
-                        <Box sx={{ fontSize: 12, fontFamily: 'monospace', color: 'text.secondary', ...ELLIPSIS }}>
-                          {(i.recentModels ?? []).join('、') || '—'}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        <Tooltip title="日志"><IconButton size="small" onClick={() => setLogsOf(i)}><ArticleRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                        {i.managed && (
-                          <>
-                            <Tooltip title="重启"><IconButton size="small" onClick={() => setConfirm({ inst: i, action: 'restart' })}><RestartAltRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                            {i.state === 'stopped'
-                              ? <Tooltip title="启动"><IconButton size="small" color="success" onClick={() => setConfirm({ inst: i, action: 'start' })}><PlayArrowRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                              : <Tooltip title="停止"><IconButton size="small" color="error" onClick={() => setConfirm({ inst: i, action: 'stop' })}><StopRoundedIcon fontSize="small" /></IconButton></Tooltip>}
-                          </>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </>
-        )}
-
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>最近派单</Typography>
-        {promptsQ.error && !statusQ.error && <Alert severity="error" sx={{ mb: 2 }}>{errMsg(promptsQ.error)}</Alert>}
-        <Card variant="outlined" sx={{ overflowX: 'auto' }}>
-          <Table size="small" sx={{ minWidth: 880 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell>提交</TableCell>
-                <TableCell>任务</TableCell>
-                <TableCell>实例</TableCell>
-                <TableCell>状态</TableCell>
-                <TableCell>排队</TableCell>
-                <TableCell>运行</TableCell>
-                <TableCell align="right">派发</TableCell>
-                <TableCell>模型</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {prompts.length === 0 && (
-                <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>
-                  {promptsQ.isLoading ? '加载中…' : '网关启动以来还没有派过单'}
-                </TableCell></TableRow>
-              )}
-              {prompts.map((p) => (
-                <TableRow key={p.promptId} hover>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtTime(p.submittedAt)}</TableCell>
-                  <TableCell>
-                    <Tooltip title={`${p.promptId}${p.clientId ? `\nclient ${p.clientId}` : ''}`}>
-                      <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.promptId.slice(0, 8)} · {p.nodes} 节点{p.source === 'api' && <Chip size="small" variant="outlined" label="API" sx={{ ml: 0.75, height: 18, fontSize: 11 }} />}</Box>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>{p.instanceName || '—'}</TableCell>
-                  <TableCell>
-                    <Chip size="small" color={PROMPT[p.status]?.color ?? 'default'} label={PROMPT[p.status]?.label ?? p.status} />
-                    {p.error && (
-                      <Tooltip title={p.error}>
-                        <Box sx={{ fontSize: 11.5, color: 'error.main', maxWidth: 240, mt: 0.5, ...ELLIPSIS }} component="div">{p.error}</Box>
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{between(p.submittedAt, p.startedAt)}</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    {p.status === 'running' ? since(p.startedAt) : between(p.startedAt, p.finishedAt)}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title={p.attempts > 1 ? `换过卡:先后在实例 ${[...(p.tried ?? []), p.instance].join(' → ')}` : ''}>
-                      <Box component="span" sx={{ color: p.attempts > 1 ? 'warning.main' : 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                        {p.attempts || 0}{s ? ` / ${s.maxAttempts}` : ''}
-                      </Box>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={{ maxWidth: 280 }}>
-                    <Box sx={{ fontSize: 12, fontFamily: 'monospace', color: 'text.secondary', ...ELLIPSIS }}>{(p.models ?? []).join('、') || '—'}</Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        {current && (current.gateway || !current.online
+          ? <NodeDetail key={current.id} nodeId={current.id} />
+          : <Alert severity="info">「{current.name}」是普通 ComfyUI,可以派单,但没有网关的卡/实例/日志管理接口。</Alert>)}
       </Box>
 
-      <LogsDialog inst={logsOf} onClose={() => setLogsOf(null)} />
+      {editing && (
+        <NodeEditor value={editing} onClose={() => setEditing(null)}
+          onSaved={(n) => {
+            setEditing(null);
+            setPicked(n.id);
+            setSnack({ msg: `已保存 ${n.name}${n.online ? ',连通' : ',但现在连不上'}`, sev: n.online ? 'success' : 'error' });
+            reload();
+          }} />
+      )}
 
-      <Dialog open={!!confirm} onClose={() => !busy && setConfirm(null)}>
-        <DialogTitle>{confirm && `${ACTION_LABEL[confirm.action]} ${confirm.inst.name}?`}</DialogTitle>
+      <Dialog open={!!deleting} onClose={() => setDeleting(null)}>
+        <DialogTitle>删除节点 {deleting?.name}?</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: 14 }}>
-            {confirm?.action === 'stop' && '停止后这张卡不再接任务,正在跑的任务会中断;网关不会自动把它拉起来,直到手动启动。'}
-            {confirm?.action === 'restart' && '正在这张卡上跑的任务会中断(调用方会收到失败),重启后显存里的模型需要重新加载。'}
-            {confirm?.action === 'start' && '拉起这张卡上的 ComfyUI,通常 30 秒到 3 分钟后就绪。'}
-          </Typography>
+          <Typography sx={{ fontSize: 14 }}>只删 qingqiuyue 里的记录,不影响那台机器。上面还有没跑完的任务时删不掉,先停用、等任务跑完。</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirm(null)} disabled={busy}>取消</Button>
-          <Button variant="contained" color={confirm?.action === 'start' ? 'primary' : 'error'} onClick={runAction} disabled={busy}>
-            {confirm && ACTION_LABEL[confirm.action]}
-          </Button>
+          <Button onClick={() => setDeleting(null)}>取消</Button>
+          <Button variant="contained" color="error" onClick={remove}>删除</Button>
         </DialogActions>
       </Dialog>
 
@@ -363,5 +232,3 @@ export default function ComfyGatewayPage() {
     </Container>
   );
 }
-
-const ACTION_LABEL: Record<gw.InstanceAction, string> = { start: '启动', stop: '停止', restart: '重启' };
