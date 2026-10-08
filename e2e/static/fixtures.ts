@@ -195,4 +195,6 @@ export const SEARCH: MockRule[] = [
   { path: /^\/core\/user\/suggest$/, body: ok([]) },
   { path: /^\/content\/module\/content\/suggest$/, body: page$([]) },
   { path: /^\/content\/analytics\/hot$/, body: ok({ list: [] }) },
+  // 搜索页顶上的「歌单」一排(歌单广场按关键词)
+  { path: /^\/content\/my-list\/square$/, body: ok({ list: [], total: 0, page: 1, size: 12 }) },
 ];
