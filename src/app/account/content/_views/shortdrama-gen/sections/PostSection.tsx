@@ -4,7 +4,7 @@
  * 后期分区:出海语种 → 译配 → 配音 → 成片合成 → 分发文案。
  *
  * 所有产物按语种分桶(shot.translations / shot.audio / episode.finals / episode.distribution),
- * 页面上先选「看哪个语种」,下面的成片、台词表、文案都跟着切。源语种和目标语种走同一套界面。
+ * 页面上先选「看哪个语种」,下面的成片、文案都跟着切。台词在「分镜」里改,这里不再列。源语种和目标语种走同一套界面。
  */
 
 import { formatDuration } from '@/lib/utils/format';
@@ -31,7 +31,6 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
-import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { dramaAPI, exportSize, type FinalCut, type Lang, type PlatformCopy, type Shot, type Step } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty } from '../common';
@@ -341,33 +340,6 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
         </Typography>
       </Paper>
 
-      {/* 台词 */}
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-          台词 · {viewLang.name}
-        </Typography>
-        {spoken.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            这一集的镜头里没有台词。
-          </Typography>
-        ) : (
-          <Stack spacing={1}>
-            {spoken.map((s) => (
-              <LineRow
-                key={`${s.id}-${view}`}
-                shot={s}
-                lang={view}
-                isSource={view === src}
-                disabled={running}
-                canDub={canDub && viewLang.dubbing}
-                onSave={(text) => guard(() => dramaAPI.updateShot(s.id, view === src ? { dialogue: text } : { translations: { ...(s.translations ?? {}), [view]: text } }))}
-                onRedub={() => start.mutate({ step: 'dubbing', input: { episode_id: e.id, episode_no: e.no, lang: view, shot_ids: [s.id], force: true } })}
-              />
-            ))}
-          </Stack>
-        )}
-      </Paper>
-
       {/* 分发文案 */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -423,71 +395,3 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
   );
 }
 
-/** 一个镜头的台词:原文对照 + 可改的当前语种文本 + 配音试听。 */
-function LineRow({
-  shot,
-  lang,
-  isSource,
-  disabled,
-  canDub,
-  onSave,
-  onRedub,
-}: {
-  shot: Shot;
-  lang: string;
-  isSource: boolean;
-  disabled: boolean;
-  canDub: boolean;
-  onSave: (text: string) => void;
-  onRedub: () => void;
-}) {
-  const saved = isSource ? shot.dialogue : (shot.translations?.[lang] ?? '');
-  const [text, setText] = useState(saved);
-  useEffect(() => setText(saved), [saved]);
-  const audio = shot.audio?.[lang];
-  return (
-    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-      <Typography variant="subtitle2" sx={{ width: 36, flexShrink: 0, pt: 1, fontWeight: 700 }}>
-        #{shot.no}
-      </Typography>
-      <Box sx={{ flex: 1, minWidth: 200 }}>
-        {!isSource && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'pre-wrap' }}>
-            {shot.dialogue}
-          </Typography>
-        )}
-        <TextField
-          size="small"
-          fullWidth
-          multiline
-          placeholder={isSource ? '' : '还没有译文'}
-          value={text}
-          disabled={disabled}
-          onChange={(ev) => setText(ev.target.value)}
-          onBlur={() => text.trim() !== saved.trim() && onSave(text.trim())}
-        />
-      </Box>
-      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0, pt: 0.5 }}>
-        {audio?.url ? (
-          <>
-            <audio src={audio.url} controls preload="none" style={{ height: 32, width: 200 }} />
-            <Typography variant="caption" color="text.secondary">
-              {audio.duration.toFixed(1)}s
-            </Typography>
-          </>
-        ) : (
-          <Typography variant="caption" color="text.secondary" sx={{ width: 200 }}>
-            未配音
-          </Typography>
-        )}
-        <Tooltip title={canDub ? '重配这一句' : '这个语种不能配音'}>
-          <span>
-            <IconButton size="small" disabled={disabled || !canDub || !saved.trim()} onClick={onRedub} aria-label="重配这一句">
-              <ReplayRoundedIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Stack>
-    </Box>
-  );
-}
