@@ -39,6 +39,8 @@ import { SearchHeader } from './SearchHeader';
 import { SearchFilterBar } from './SearchFilterBar';
 import { AISuggestHint, DiscoverBanner, GuessTypeBanner } from './SearchBanners';
 import { PersonCard } from './PersonCard';
+import { SearchPlaylists } from './SearchPlaylists';
+import { getPublicLists } from '@/apis/my-list';
 import { ContentResult, CreatorResult, Section, TopicResult } from './SearchResultCards';
 import { AIEmptyState, EmptyState, LoadingSkeleton, NoResults } from './SearchEmptyStates';
 
@@ -203,6 +205,17 @@ function SearchPageContent() {
       isDiscoverPending(qr.state.data?.discover) && qr.state.dataUpdateCount < DISCOVER_MAX_POLLS ? DISCOVER_POLL_INTERVAL : false,
   });
 
+  // 歌单:搜曲风 / 主题词(民谣、摇滚、助眠…)时把能直接播的歌单放在最上面。只在不限类型或选了音乐时查。
+  const playlistScope = !fType || fType === 'MUSIC';
+  const playlistQuery = useQuery({
+    queryKey: ['search-playlists', query.trim()],
+    queryFn: () => getPublicLists({ type: 'playlist', keyword: query.trim(), size: 12 }),
+    enabled: !aiMode && playlistScope && query.trim().length > 0,
+    staleTime: 60 * 1000,
+  });
+  const playlists = playlistScope ? playlistQuery.data?.list ?? [] : [];
+  const playlistTotal = playlists.length ? Math.max(playlistQuery.data?.total ?? 0, playlists.length) : 0;
+
   // URL ?q= → query 同步(支持深链 / 浏览器后退)
   useEffect(() => {
     const urlQ = searchParams.get('q') ?? '';
@@ -278,7 +291,7 @@ function SearchPageContent() {
   const [sawDiscovering, setSawDiscovering] = useState('');
   if (discovering && sawDiscovering !== searchKey) setSawDiscovering(searchKey);
   const discoverJustDone = !discovering && discover?.status === 'done' && sawDiscovering === searchKey;
-  const total = contentTotal + creators.length + topics.length;
+  const total = contentTotal + creators.length + topics.length + playlistTotal;
   const loading = searchQuery.isPending;
 
   const pushQuery = useCallback(
@@ -543,6 +556,9 @@ function SearchPageContent() {
                     onOpen={() => navigateContent('PERSON', person.id)}
                     onPickType={(t) => setFType(fType === t ? '' : t)}
                   />
+                )}
+                {(tab === 'all' || tab === 'content') && playlists.length > 0 && (
+                  <SearchPlaylists lists={playlists} total={playlistTotal} />
                 )}
                 {(tab === 'all' || tab === 'content') && contents.length > 0 && (
                   <Section

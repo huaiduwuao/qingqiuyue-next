@@ -140,7 +140,12 @@ export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFam
                   </>,
                 )
               : paragraphs.length
-                ? paragraphs.map((p, i) => <p key={i}>{p}</p>)
+                ? paragraphs.map((p, i) => (
+                  // data-para:滚动模式按段落记 / 恢复阅读位置,和分页模式的 para 同一套编号
+                  <p key={i} data-para={i}>
+                    {p}
+                  </p>
+                ))
                 : notice(
                     <>
                       {/* 起点等正版站只收目录,正文在原站读 */}

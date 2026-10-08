@@ -58,6 +58,31 @@ describe('播放队列', () => {
     expect([...played].sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 
+  it('随机播放:下一首提前取好音源,播完同步切过去(不在 ended 里等网络)', async () => {
+    const play = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockImplementation(async () => {});
+    musicPlayer.setQueue([lazy('a'), lazy('b'), lazy('c'), lazy('d')], { startIndex: 0, shuffle: true });
+    await flush();
+    await flush();
+    const ready = useMusicPlayer.getState().queue.filter((t) => t.id !== 'a' && t.src);
+    expect(ready).toHaveLength(1);
+    const calls = play.mock.calls.length;
+    (play.mock.contexts.at(-1) as HTMLMediaElement).dispatchEvent(new Event('ended'));
+    // 同一个事件回调里就换好 src 并调 play
+    expect(currentTrack()?.id).toBe(ready[0].id);
+    expect(play.mock.calls.length).toBe(calls + 1);
+  });
+
+  it('play() 被系统拒绝时停下并提示点播放键继续', async () => {
+    vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockImplementation(async () => {
+      throw new DOMException('no gesture', 'NotAllowedError');
+    });
+    musicPlayer.setQueue([lazy('a'), lazy('b')]);
+    await flush();
+    await flush();
+    expect(useMusicPlayer.getState().playing).toBe(false);
+    expect(useMusicPlayer.getState().notice?.msg).toContain('点一下播放键继续');
+  });
+
   it('取不到音源的歌报错后自动跳下一首', async () => {
     vi.useFakeTimers();
     musicPlayer.setQueue([lazy('broken'), lazy('b')]);

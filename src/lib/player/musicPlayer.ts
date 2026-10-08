@@ -250,7 +250,71 @@ function load(index: number, autoplay: boolean, startAt = 0) {
   if (autoplay) {
     armStall(t.id);
     start();
+    planNext();
   }
+}
+
+/**
+ * 预先选好并取好音源的下一首。播完时同步切过去,不在 ended 里再等几次网络往返 ——
+ * 手机 WebView / 锁屏后台里,隔了一段网络请求才调的 play() 常被系统拒掉(NotAllowedError),
+ * 随机播放(下一首几乎总是还没解析的歌)就成了"放一首停一首"。
+ */
+let plannedNextId: string | null = null;
+let planSeq = 0;
+
+function planNext(tries = 0) {
+  const seq = ++planSeq;
+  plannedNextId = null;
+  const n = pickNext(false);
+  const t = n >= 0 ? get().queue[n] : null;
+  if (!t || t.id === currentTrack()?.id) return;
+  plannedNextId = t.id;
+  if (t.src) return;
+  resolveTrackById(t.id)
+    .then((info) => {
+      if (seq !== planSeq) return;
+      if (info?.src) {
+        mergeResolved(t.id, info);
+        return;
+      }
+      // 这首放不了:随机模式下算它这一轮放过了,另备一首;顺序模式轮到时由 skipBroken 跳过
+      if (get().shuffle && tries < 3) {
+        shufflePlayed.add(t.id);
+        planNext(tries + 1);
+      }
+    })
+    .catch(() => {
+      /* 轮到时再取一次 */
+    });
+}
+
+/** 随机模式下预备好的那首还在队列里就用它,否则现挑 */
+function nextIndex(wrap: boolean): number {
+  if (get().shuffle && plannedNextId) {
+    const { queue, index } = get();
+    const i = queue.findIndex((q) => q.id === plannedNextId);
+    if (i >= 0 && i !== index && !shufflePlayed.has(plannedNextId)) return i;
+  }
+  return pickNext(wrap);
+}
+
+/** 解析结果写回队列(只填空着的展示字段) */
+function mergeResolved(id: string, info: Awaited<ReturnType<typeof resolveTrackById>>) {
+  const { src, preview, ...meta } = info;
+  const queue = get().queue.map((q) =>
+    q.id === id
+      ? {
+          ...q,
+          src,
+          preview,
+          title: q.title || meta.title || '未知歌曲',
+          artist: q.artist || meta.artist,
+          album: q.album || meta.album,
+          cover: q.cover || meta.cover,
+        }
+      : q,
+  );
+  set({ queue });
 }
 
 /** 队列里只有 id 的歌:取音源、补全信息,再真正加载。期间用户切走了就作废。 */
@@ -267,21 +331,7 @@ async function resolveAndLoad(id: string, autoplay: boolean, startAt: number) {
     skipBroken(id, '这首歌暂无可播放音源(版权或平台限制)');
     return;
   }
-  const { src, preview, ...meta } = info;
-  const queue = get().queue.map((q) =>
-    q.id === id
-      ? {
-          ...q,
-          src,
-          preview,
-          title: q.title || meta.title || '未知歌曲',
-          artist: q.artist || meta.artist,
-          album: q.album || meta.album,
-          cover: q.cover || meta.cover,
-        }
-      : q,
-  );
-  set({ queue });
+  mergeResolved(id, info);
   refreshedId = id;
   load(get().index, autoplay, startAt);
 }
@@ -345,8 +395,11 @@ function start() {
   interruptedBy = null;
   pauseAudibleVideos();
   a.play().catch((e: DOMException) => {
-    // AbortError = 播放途中换了 src,正常;NotAllowedError = 没有用户手势
-    if (e?.name !== 'AbortError') set({ playing: false, buffering: false });
+    // AbortError = 播放途中换了 src,正常;NotAllowedError = 没有用户手势(手机后台 / 锁屏时自动切歌会碰上)
+    if (e?.name === 'AbortError') return;
+    clearTimeout(stallTimer);
+    set({ playing: false, buffering: false });
+    if (e?.name === 'NotAllowedError') notify('系统暂停了自动播放,点一下播放键继续');
   });
 }
 
@@ -357,7 +410,7 @@ function onEnded() {
     start();
     return;
   }
-  const n = pickNext(false);
+  const n = nextIndex(false);
   if (n >= 0) load(n, true);
   else set({ playing: false, currentTime: 0 });
 }
@@ -447,9 +500,12 @@ export const musicPlayer = {
 
   toggleShuffle() {
     shufflePlayed.clear();
+    plannedNextId = null;
+    planSeq++;
     const cur = currentTrack();
     if (cur) shufflePlayed.add(cur.id);
     set({ shuffle: !get().shuffle });
+    if (cur && audio?.src) planNext();
   },
 
   /** 队列里拖动排序 */
@@ -482,7 +538,7 @@ export const musicPlayer = {
   },
 
   next() {
-    const n = pickNext(true);
+    const n = nextIndex(true);
     if (n >= 0) load(n, true);
   },
 
@@ -561,6 +617,8 @@ export const musicPlayer = {
     loadedId = null;
     interruptedBy = null;
     shufflePlayed.clear();
+    plannedNextId = null;
+    planSeq++;
     set({ queue: [], index: -1, playing: false, currentTime: 0, duration: 0, error: null, notice: null, buffering: false, source: null });
     try {
       localStorage.removeItem(POS_KEY);

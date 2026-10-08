@@ -143,7 +143,7 @@ export default function MusicPlaylistShelf() {
   );
 }
 
-function PlaylistTile({ list, onOpen, onPlay }: { list: MyListItem; onOpen: () => void; onPlay: () => void }) {
+export function PlaylistTile({ list, onOpen, onPlay }: { list: MyListItem; onOpen: () => void; onPlay: () => void }) {
   const isLiked = list.id === 'liked';
   return (
     <Box

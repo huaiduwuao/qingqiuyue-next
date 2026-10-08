@@ -238,6 +238,28 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
 /** 进入书时等服务端进度最多这么久,超时先按本地进度走 */
 const REMOTE_PROGRESS_WAIT_MS = 2000;
 
+/** 滚动模式的"读到这里"基准线:视口顶部往下这么多(让开顶栏) */
+const SCROLL_READ_LINE = 72;
+
+/** 一章里跨过基准线的那一段 + 段内大致字数(按已滚过的高度比例折算) */
+function scrollPositionIn(section: HTMLElement): { chapterId: string; para: number; offset: number } | null {
+  const chapterId = section.id.replace(/^chapter-/, '');
+  const ps = section.querySelectorAll<HTMLElement>('p[data-para]');
+  if (!chapterId || ps.length === 0) return null;
+  // 段落自上而下排,二分找第一个底边还在基准线下面的
+  let lo = 0;
+  let hi = ps.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ps[mid].getBoundingClientRect().bottom > SCROLL_READ_LINE) hi = mid;
+    else lo = mid + 1;
+  }
+  const p = ps[lo];
+  const r = p.getBoundingClientRect();
+  const frac = r.top < SCROLL_READ_LINE && r.height > 0 ? Math.min(1, (SCROLL_READ_LINE - r.top) / r.height) : 0;
+  return { chapterId, para: Number(p.dataset.para) || 0, offset: Math.floor(frac * (p.textContent?.length ?? 0)) };
+}
+
 function NovelDetailContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -391,6 +413,8 @@ function NovelDetailContent() {
   // 偷偷 reset 到 0,那样用户带 ?chapter= 进入会被弹回首章。
   // 续读的段落位置:换了屏幕 / 字号(比如上次在电脑上读)页号就对不上,按段落找回那一页
   const [restoreAt, setRestoreAt] = useState<{ chapterId: string; para: number; offset: number } | null>(null);
+  // 滚动模式下读到的位置:视口顶部(SCROLL_READ_LINE)那一段 + 段内大致字数,和分页模式的 para/offset 同一套
+  const [scrollPos, setScrollPos] = useState<{ chapterId: string; para: number; offset: number } | null>(null);
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
     if (!chapterParam && !savedReady) return;
@@ -431,6 +455,7 @@ function NovelDetailContent() {
         setPage(0);
         setPanel(null);
         setShowInfo(false);
+        setRestoreAt(null);
         setUrlChapter(target.id, 0);
         if (id) saveProgress(id, { chapterId: target.id, page: 0 });
         window.scrollTo({ top: 0 });
@@ -489,10 +514,20 @@ function NovelDetailContent() {
       setProgress(max > 0 ? Math.min(100, (window.scrollY / max) * 100) : 0);
       const sections = document.querySelectorAll<HTMLElement>('[data-chapter-index]');
       let cur = -1;
-      sections.forEach((s) => {
-        if (cur < 0 || s.getBoundingClientRect().top <= window.innerHeight * 0.3) cur = Number(s.dataset.chapterIndex);
-      });
+      let curEl: HTMLElement | null = null;
+      for (const s of Array.from(sections)) {
+        if (cur < 0 || s.getBoundingClientRect().top <= window.innerHeight * 0.3) {
+          cur = Number(s.dataset.chapterIndex);
+          curEl = s;
+        }
+      }
       if (cur >= 0) setCurrent(cur);
+      const pos = curEl ? scrollPositionIn(curEl) : null;
+      if (pos) {
+        setScrollPos((prev) =>
+          prev && prev.chapterId === pos.chapterId && prev.para === pos.para && Math.abs(prev.offset - pos.offset) < 40 ? prev : pos,
+        );
+      }
       if (Math.abs(window.scrollY - lastY) > 24) {
         setMobileChrome(false);
         lastY = window.scrollY;
@@ -591,15 +626,53 @@ function NovelDetailContent() {
   });
 
   // 记进度:章 + 章内页 + 该页第一个字的段落位置(分页模式下排好版才有)
-  const posPara = paginated.position?.para;
-  const posOffset = paginated.position?.offset;
+  // 滚动模式续读:等那一章正文渲染出来,滚到上次那一段(分页模式由 usePaginatedReader 自己按 restoreAt 找页)。
+  // 恢复完成前不写进度 —— 否则章首那一帧的位置会先把存着的段落冲掉。
+  const restoreKey = restoreAt ? `${restoreAt.chapterId}|${restoreAt.para}|${restoreAt.offset}` : '';
+  const scrollRestoredRef = useRef('');
+  const [scrollRestoredKey, setScrollRestoredKey] = useState('');
+  useEffect(() => {
+    if (!restoreAt || prefs.mode !== 'scroll' || scrollRestoredRef.current === restoreKey) return;
+    const finish = () => {
+      scrollRestoredRef.current = restoreKey;
+      setScrollRestoredKey(restoreKey);
+    };
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const section = document.getElementById(`chapter-${restoreAt.chapterId}`);
+      const p = section?.querySelector<HTMLElement>(`p[data-para="${restoreAt.para}"]`);
+      if (!p) {
+        // 正文已出来但没有这一段(正文改过 / 付费锁住)或等太久:放弃恢复,停在章首
+        if ((section?.querySelector('p[data-para]') && !p) || Date.now() - started > 10_000) {
+          clearInterval(timer);
+          finish();
+        }
+        return;
+      }
+      clearInterval(timer);
+      const r = p.getBoundingClientRect();
+      const frac = Math.min(1, restoreAt.offset / Math.max(1, p.textContent?.length ?? 0));
+      finish();
+      window.scrollTo({ top: Math.max(0, window.scrollY + r.top + frac * r.height - SCROLL_READ_LINE) });
+    }, 100);
+    return () => clearInterval(timer);
+  }, [restoreAt, restoreKey, prefs.mode]);
+
+  const posPara = prefs.mode === 'scroll' ? (scrollPos?.chapterId === currentChapter?.id ? scrollPos?.para : undefined) : paginated.position?.para;
+  const posOffset = prefs.mode === 'scroll' ? (scrollPos?.chapterId === currentChapter?.id ? scrollPos?.offset : undefined) : paginated.position?.offset;
   useEffect(() => {
     if (!range || !currentChapter || !id) return;
     setUrlChapter(currentChapter.id, page);
-    // 分页模式下这一章还没排好(续读时页号可能还会被段落位置纠正):先不写,免得把存着的段落位置冲掉
-    if (prefs.mode !== 'scroll' && posPara == null) return;
+    if (prefs.mode === 'scroll') {
+      if (restoreKey && scrollRestoredKey !== restoreKey) return;
+    } else {
+      // 分页模式下这一章还没排好(续读时页号可能还会被段落位置纠正):先不写,免得把存着的段落位置冲掉
+      if (posPara == null) return;
+      // 分页模式已按 restoreAt 续上;之后切到滚动模式不要再跳回进书时的位置
+      scrollRestoredRef.current = restoreKey;
+    }
     saveProgress(id, { chapterId: currentChapter.id, page, para: posPara, offset: posOffset });
-  }, [range, currentChapter, id, page, posPara, posOffset, setUrlChapter, prefs.mode]);
+  }, [range, currentChapter, id, page, posPara, posOffset, setUrlChapter, prefs.mode, restoreKey, scrollRestoredKey]);
 
   if (!id) {
     return (
