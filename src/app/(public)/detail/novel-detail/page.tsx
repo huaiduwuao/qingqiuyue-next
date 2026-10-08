@@ -665,6 +665,9 @@ function NovelDetailContent() {
     setUrlChapter(currentChapter.id, page);
     if (prefs.mode === 'scroll') {
       if (restoreKey && scrollRestoredKey !== restoreKey) return;
+      // 刚恢复完 / 刚进来,滚动位置还没算出来:先别写,否则会用"没有段落"把存着的段落冲掉。
+      // 这一章没有正文段落(付费锁住 / 未收录)时照常只记章节。
+      if (posPara == null && document.querySelector(`[id="chapter-${currentChapter.id}"] p[data-para]`)) return;
     } else {
       // 分页模式下这一章还没排好(续读时页号可能还会被段落位置纠正):先不写,免得把存着的段落位置冲掉
       if (posPara == null) return;
