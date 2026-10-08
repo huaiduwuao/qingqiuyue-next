@@ -18,10 +18,10 @@ import Stepper from '@mui/material/Stepper';
 import Typography from '@mui/material/Typography';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import IconButton from '@mui/material/IconButton';
-import { STEP_LABELS, dramaAPI } from '@/apis/shortdrama';
+import { dramaAPI } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { EntityStatusChip, MediaThumb, TextEditDialog } from '../common';
-import { useAgents, useCapabilities, useInvalidate, useOverview, useStartTask } from '../useProject';
+import { useCapabilities, useInvalidate, useOverview, useStartTask } from '../useProject';
 
 const STAGES = [
   { id: 'intent', label: '意图' },
@@ -37,7 +37,6 @@ const STAGES = [
 export default function OverviewSection({ projectId, setSection, setFeedbackTarget }: SectionProps) {
   const ov = useOverview(projectId);
   const caps = useCapabilities();
-  const agents = useAgents();
   const start = useStartTask(projectId);
   const invalidate = useInvalidate(projectId);
   const [edit, setEdit] = useState<null | 'title' | 'logline' | 'synopsis' | 'intent'>(null);
@@ -179,46 +178,9 @@ export default function OverviewSection({ projectId, setSection, setFeedbackTarg
       </Box>
 
       <Box>
-        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
-          数字员工
-        </Typography>
-        <Grid container spacing={1.5}>
-          {(agents.data?.agents ?? []).map((a) => (
-            <Grid key={a.agentId} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Stack sx={{ alignItems: 'center' }} direction="row" spacing={1}>
-                    <Typography variant="subtitle2" sx={{ flex: 1 }}>
-                      {a.name}
-                    </Typography>
-                    {running?.agent === a.agentId && <Chip size="small" color="primary" label="工作中" />}
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                    {a.description}
-                  </Typography>
-                  <Stack sx={{ flexWrap: 'wrap' }} direction="row" spacing={0.5} useFlexGap>
-                    {a.steps.map((s) => (
-                      <Chip
-                        key={s}
-                        size="small"
-                        variant="outlined"
-                        label={STEP_LABELS[s] ?? s}
-                        clickable={s === 'screenwriter' || s === 'visual_design'}
-                        onClick={s === 'screenwriter' || s === 'visual_design' ? () => start.mutate({ step: s }) : undefined}
-                      />
-                    ))}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          按集运行的环节(分场剧本 / 分镜 / 出图 / 出视频)在「剧本」「分镜」「故事板」页签里按集发起;修改意见在右侧「AI 助手」里提交给反馈优化员工。
-          <Button size="small" sx={{ ml: 1 }} onClick={() => setFeedbackTarget({ type: 'project', id: projectId, label: '整个项目' })}>
-            对整体提意见
-          </Button>
-        </Typography>
+        <Button size="small" onClick={() => setFeedbackTarget({ type: 'project', id: projectId, label: '整个项目' })}>
+          对整体提意见
+        </Button>
       </Box>
 
       <TextEditDialog open={edit === 'title'} title="标题" value={p.title} multiline={false} onClose={() => setEdit(null)} onSave={save('title')} />

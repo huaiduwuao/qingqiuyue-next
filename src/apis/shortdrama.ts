@@ -677,7 +677,36 @@ export const AGENT_LABELS: Record<string, string> = {
   'drama-localizer': '译配', 'drama-editor': '后期合成', 'drama-publisher': '发行运营',
 };
 
-/** 分镜的显示编号:分了组的是「镜头-分镜」(3-2),旧数据是「镜头 N」 */
-export function shotLabel(s: Pick<Shot, 'no' | 'beat' | 'sub_no'>): string {
-  return s.beat ? `分镜 ${s.beat}-${s.sub_no || 1}` : `镜头 ${s.no}`;
+/** 成片分辨率「宽×高」,和后端 compose.exportSize 一致:短边 1080 / 720(settings.export_quality),长边按 16:9 */
+export function exportSize(aspect: string, quality: unknown): string {
+  const s = String(quality) === '720' ? 720 : 1080;
+  const l = (s * 16) / 9;
+  return aspect === '16:9' ? `${l}×${s}` : aspect === '1:1' ? `${s}×${s}` : `${s}×${l}`;
+}
+
+/**
+ * 分镜的显示编号,按播放顺序现排:第几个镜头-镜头里第几个分镜(3-2),旧数据(没分组)是「N」。
+ * 不用库里的 beat / sub_no:分镜师给的镜头号会乱序(第一个镜头叫 5),上移下移后也不再对得上位置。
+ */
+export function shotNumbers(shots: Pick<Shot, 'id' | 'beat'>[]): Map<number, string> {
+  const out = new Map<number, string>();
+  let g = 0;
+  let k = 0;
+  let prev = -1;
+  for (const s of shots) {
+    if (!s.beat || s.beat !== prev) {
+      g++;
+      k = 0;
+    }
+    k++;
+    prev = s.beat || -1;
+    out.set(s.id, s.beat ? `${g}-${k}` : `${g}`);
+  }
+  return out;
+}
+
+/** 分镜的显示名:「分镜 3-2」/ 旧数据「镜头 N」。shots 是这一集按顺序的全部分镜 */
+export function shotLabel(s: Pick<Shot, 'id' | 'no' | 'beat'>, shots: Pick<Shot, 'id' | 'beat'>[]): string {
+  const n = shotNumbers(shots).get(s.id);
+  return s.beat ? `分镜 ${n ?? s.no}` : `镜头 ${n ?? s.no}`;
 }

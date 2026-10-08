@@ -1,25 +1,20 @@
 'use client';
 
 /**
- * 右栏「全局设定」(剧本页):视频比例 + 风格参考。
+ * 右栏「全局设定」(剧本页):分辨率(建项目时定好,只读)+ 风格参考。
  * 换风格只影响之后生成的图和视频;已有画面要在故事板里重画才会跟着变。
  */
 
 import React, { useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
-import ButtonBase from '@mui/material/ButtonBase';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { dramaAPI, type DramaStyle } from '@/apis/shortdrama';
+import { dramaAPI, exportSize, type DramaStyle } from '@/apis/shortdrama';
 import StylePicker, { styleKey } from '../StylePicker';
 import { useInvalidate, useOverview, useStyles } from '../useProject';
 
-const ASPECTS: { v: string; label: string; w: number; h: number; size: [number, number] }[] = [
-  { v: '9:16', label: '9:16', w: 12, h: 20, size: [768, 1344] },
-  { v: '16:9', label: '16:9', w: 22, h: 12, size: [1344, 768] },
-  { v: '1:1', label: '1:1', w: 16, h: 16, size: [1024, 1024] },
-];
+const ASPECT_NAMES: Record<string, string> = { '9:16': '竖屏 9:16', '16:9': '横屏 16:9', '1:1': '方形 1:1' };
 
 export default function GlobalSettingsPanel({ projectId }: { projectId: number }) {
   const ov = useOverview(projectId);
@@ -57,25 +52,15 @@ export default function GlobalSettingsPanel({ projectId }: { projectId: number }
   return (
     <Stack spacing={2.5} sx={{ p: 1.75 }}>
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          视频比例
+        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+          分辨率
         </Typography>
-        <Stack direction="row" spacing={1}>
-          {ASPECTS.map((a) => {
-            const on = p.aspect === a.v;
-            return (
-              <ButtonBase
-                key={a.v}
-                disabled={busy || running}
-                onClick={() => !on && save({ aspect: a.v, width: a.size[0], height: a.size[1] }, `已改为 ${a.label}`)}
-                sx={{ flex: 1, flexDirection: 'column', gap: 0.5, py: 1, borderRadius: 1.5, border: 1, borderColor: on ? 'primary.main' : 'divider', bgcolor: on ? 'action.selected' : 'transparent' }}
-              >
-                <Box sx={{ width: a.w, height: a.h, border: 1.5, borderColor: on ? 'primary.main' : 'text.secondary', borderRadius: 0.5 }} />
-                <Typography variant="caption">{a.label}</Typography>
-              </ButtonBase>
-            );
-          })}
-        </Stack>
+        <Typography variant="body2">
+          {ASPECT_NAMES[p.aspect] ?? p.aspect} · 成片 {exportSize(p.aspect, p.settings?.export_quality)}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          建项目时已定好,画面和成片都按这个规格出。
+        </Typography>
       </Box>
 
       <Box>

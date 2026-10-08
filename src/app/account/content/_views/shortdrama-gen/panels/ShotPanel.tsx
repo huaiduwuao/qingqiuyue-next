@@ -33,10 +33,10 @@ export default function ShotPanel({ projectId, episodeId, selected }: { projectI
       </Typography>
     );
   }
-  return <Editor key={shot.id} projectId={projectId} episodeId={episodeId} shot={shot} />;
+  return <Editor key={shot.id} projectId={projectId} episodeId={episodeId} shot={shot} label={shotLabel(shot, ep.data?.shots ?? [])} />;
 }
 
-function Editor({ projectId, episodeId, shot }: { projectId: number; episodeId: number; shot: Shot }) {
+function Editor({ projectId, episodeId, shot, label }: { projectId: number; episodeId: number; shot: Shot; label: string }) {
   const ov = useOverview(projectId);
   const start = useStartTask(projectId);
   const invalidate = useInvalidate(projectId);
@@ -85,7 +85,7 @@ function Editor({ projectId, episodeId, shot }: { projectId: number; episodeId: 
     <Stack spacing={1.5} sx={{ p: 1.75 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
-          {shotLabel(shot)}
+          {label}
         </Typography>
         <Chip size="small" variant="outlined" label={SHOT_TYPES[shot.shot_type] ?? shot.shot_type} />
         <Chip size="small" variant="outlined" label={CAMERA_MOVES[shot.camera_move] ?? shot.camera_move} />

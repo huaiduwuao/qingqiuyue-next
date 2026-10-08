@@ -42,7 +42,7 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import { ANGLES, BEATS, CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, type Episode, type Overview, type QCIssue, type Shot } from '@/apis/shortdrama';
+import { ANGLES, BEATS, CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, type Episode, type Overview, type QCIssue, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty, EntityStatusChip, ShotStatusChip } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
@@ -335,7 +335,7 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
       ) : (
         <Stack spacing={1.5}>
           {groups.map((g, gi) => {
-            const label = g.beat ? `镜头${g.beat}` : `镜头${gi + 1}`;
+            const label = `镜头${gi + 1}`;
             const open = !collapsed[g.key];
             return (
               <Paper key={g.key} variant="outlined" sx={{ overflow: 'hidden' }}>
@@ -371,7 +371,7 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
                       <TableBody>
                         {g.shots.map((s, si) => {
                           const on = selected?.type === 'shot' && selected.id === s.id;
-                          const no = `${g.beat || gi + 1}-${s.sub_no || si + 1}`;
+                          const no = g.beat ? `${gi + 1}-${si + 1}` : `${gi + 1}`;
                           const flagged = s.status === 'qc_flagged' || s.status === 'failed';
                           return (
                             <TableRow
@@ -453,6 +453,7 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
       <ShotDialog
         open={!!editing || !!creating}
         shot={editing}
+        label={editing ? shotLabel(editing, all) : undefined}
         initial={creating}
         scenes={data.scenes}
         characters={data.characters}
@@ -507,6 +508,7 @@ function TensionCurve({ shots, payoffs }: { shots: Shot[]; payoffs: number[] }) 
 function ShotDialog({
   open,
   shot,
+  label,
   initial,
   scenes,
   characters,
@@ -515,6 +517,8 @@ function ShotDialog({
 }: {
   open: boolean;
   shot: Shot | null;
+  /** 显示名(分镜 3-2),按当前顺序现排 */
+  label?: string;
   /** 新建时的默认值(加在哪个镜头下、沿用上一分镜的场景和角色) */
   initial?: Partial<Shot> | null;
   scenes: { id: number; name: string }[];
@@ -530,7 +534,7 @@ function ShotDialog({
   const set = <K extends keyof Shot>(k: K, v: Shot[K]) => setF((x) => ({ ...x, [k]: v }));
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{shot ? `编辑分镜 ${shot.beat ? `${shot.beat}-${shot.sub_no}` : `#${shot.no}`}` : '添加分镜'}</DialogTitle>
+      <DialogTitle>{shot ? `编辑${label ?? '分镜'}` : '添加分镜'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

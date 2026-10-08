@@ -32,7 +32,7 @@ import Typography from '@mui/material/Typography';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
-import { dramaAPI, type FinalCut, type Lang, type PlatformCopy, type Shot, type Step } from '@/apis/shortdrama';
+import { dramaAPI, exportSize, type FinalCut, type Lang, type PlatformCopy, type Shot, type Step } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty } from '../common';
 import SocialPublishPanel from './SocialPublishPanel';
@@ -314,13 +314,8 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
             />
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>清晰度</InputLabel>
-              <Select label="清晰度" disabled={running} value={String(settings.export_quality ?? '1080')} onChange={(ev) => saveSettings({ export_quality: ev.target.value })}>
-                <MenuItem value="1080">1080p(各平台通用)</MenuItem>
-                <MenuItem value="720">720p(合成更快)</MenuItem>
-              </Select>
-            </FormControl>
+            {/* 分辨率建项目时就定了,这里只显示 */}
+            <TextField size="small" fullWidth label="分辨率" value={exportSize(ov.data.project.aspect, settings.export_quality)} slotProps={{ input: { readOnly: true } }} helperText="建项目时已定" />
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <FormControl fullWidth size="small">

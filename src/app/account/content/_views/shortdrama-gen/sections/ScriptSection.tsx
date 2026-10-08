@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -36,7 +35,7 @@ export default function ScriptSection({ projectId, episodeId, setEpisodeId, setS
     return (
       <Empty
         title="还没有剧本"
-        hint="编剧会从故事意图出发,产出角色、场景、道具、分集大纲和每集的分场剧本。"
+        hint="编剧会从故事意图出发,产出角色、场景、道具和分集剧本。"
         action={
           <Button variant="contained" disabled={running || start.isPending} onClick={() => start.mutate({ step: 'screenwriter' })}>
             运行剧本框架
@@ -137,68 +136,10 @@ export default function ScriptSection({ projectId, episodeId, setEpisodeId, setS
         )}
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Stack direction="row" sx={{ mb: 1, alignItems: 'center' }}>
-          <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 600 }}>
-            分场剧本
-          </Typography>
-          <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => setEdit('script_text')}>
-            编辑文本
-          </Button>
-        </Stack>
-        {e.script?.scenes?.length ? (
-          <Stack spacing={2}>
-            {e.script.scenes.map((sc, i) => (
-              <Box key={i}>
-                <Typography variant="subtitle2" color="primary">
-                  第 {i + 1} 场 · {sc.scene}
-                  {sc.time ? ` · ${sc.time}` : ''}
-                </Typography>
-                {sc.characters?.length ? (
-                  <Typography variant="caption" color="text.secondary">
-                    出场:{sc.characters.join('、')}
-                  </Typography>
-                ) : null}
-                {sc.action && (
-                  <Typography variant="body2" sx={{ fontStyle: 'italic', my: 0.5, whiteSpace: 'pre-wrap' }}>
-                    {sc.action}
-                  </Typography>
-                )}
-                {(sc.lines ?? []).map((ln, j) => (
-                  <Typography key={j} variant="body2" sx={{ pl: 1 }}>
-                    <Box component="span" sx={{ fontWeight: 600 }}>
-                      {ln.character}
-                    </Box>
-                    {ln.emotion ? <Box component="span" color="text.secondary">({ln.emotion})</Box> : null}:{ln.text}
-                  </Typography>
-                ))}
-              </Box>
-            ))}
-          </Stack>
-        ) : e.script_text ? (
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-            {e.script_text}
-          </Typography>
-        ) : (
-          <Alert severity="info">这一集还没有分场剧本。点「写剧本」让编剧来写,或「编辑文本」手动写。</Alert>
-        )}
-      </Paper>
-
       <TextEditDialog open={edit === 'title'} title="本集标题" value={e.title} multiline={false} onClose={() => setEdit(null)} onSave={save('title')} />
       <TextEditDialog open={edit === 'synopsis'} title="本集梗概" value={e.synopsis} onClose={() => setEdit(null)} onSave={save('synopsis')} />
       <TextEditDialog open={edit === 'hook'} title="开场钩子" value={e.hook} onClose={() => setEdit(null)} onSave={save('hook')} />
       <TextEditDialog open={edit === 'cliffhanger'} title="结尾悬念" value={e.cliffhanger} onClose={() => setEdit(null)} onSave={save('cliffhanger')} />
-      <TextEditDialog
-        open={edit === 'script_text'}
-        title="分场剧本(文本)"
-        value={e.script_text}
-        onClose={() => setEdit(null)}
-        onSave={async (v) => {
-          // 手改文本后结构化剧本作废,分镜会以文本为准
-          await dramaAPI.updateEpisode(e.id, { script_text: v, script: { scenes: [] } as Episode['script'] });
-          invalidate(e.id);
-        }}
-      />
     </Stack>
   );
 }

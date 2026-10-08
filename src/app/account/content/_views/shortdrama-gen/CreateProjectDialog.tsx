@@ -29,7 +29,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
-import { dramaAPI, estimateCost, type DramaStyle, type Project } from '@/apis/shortdrama';
+import { dramaAPI, estimateCost, exportSize, type DramaStyle, type Project } from '@/apis/shortdrama';
 import { formatDiamonds, getWalletBalance } from '@/apis/wallet';
 import StylePicker, { styleKey } from './StylePicker';
 import { useCapabilities, useStyles } from './useProject';
@@ -43,6 +43,8 @@ const range = ([a, b]: [number, number]) => (a === b ? `${a}` : `${a}~${b}`);
 
 export default function CreateProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Project) => void }) {
   const [form, setForm] = useState<Partial<Project>>({ intent: '', genre: '都市情感', episodes: 3, ep_seconds: 60, aspect: '9:16' });
+  // 成片清晰度建项目时就定下,之后不在工作台里改(改了已出的画面比例 / 成片规格就对不上)
+  const [quality, setQuality] = useState('1080');
   const [pickedKey, setPicked] = useState<string>('');
   const [autostart, setAutostart] = useState(true);
   const [err, setErr] = useState('');
@@ -60,7 +62,7 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: { open
   const short = est && balance != null && balance < est.image[0];
 
   const m = useMutation({
-    mutationFn: () => dramaAPI.createProject({ ...form, style: picked?.name, style_id: picked?.id || undefined }, autostart ? 'pipeline' : undefined),
+    mutationFn: () => dramaAPI.createProject({ ...form, settings: { export_quality: quality }, style: picked?.name, style_id: picked?.id || undefined }, autostart ? 'pipeline' : undefined),
     onSuccess: (res) => onCreated(res.project),
     onError: (e: Error) => setErr(e.message),
   });
@@ -103,12 +105,27 @@ export default function CreateProjectDialog({ open, onClose, onCreated }: { open
             </Stack>
           </Box>
 
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              分辨率
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                成片 {exportSize(form.aspect ?? '9:16', quality)},建好后不能再改
+              </Typography>
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+              <ToggleButtonGroup exclusive size="small" value={form.aspect} onChange={(_, v) => v && set('aspect', v)}>
+                <ToggleButton value="9:16">竖屏 9:16</ToggleButton>
+                <ToggleButton value="16:9">横屏 16:9</ToggleButton>
+                <ToggleButton value="1:1">方形 1:1</ToggleButton>
+              </ToggleButtonGroup>
+              <ToggleButtonGroup exclusive size="small" value={quality} onChange={(_, v) => v && setQuality(v)}>
+                <ToggleButton value="1080">1080p 高清</ToggleButton>
+                <ToggleButton value="720">720p 合成更快</ToggleButton>
+              </ToggleButtonGroup>
+            </Stack>
+          </Box>
+
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
-            <ToggleButtonGroup exclusive size="small" value={form.aspect} onChange={(_, v) => v && set('aspect', v)}>
-              <ToggleButton value="9:16">竖屏 9:16</ToggleButton>
-              <ToggleButton value="16:9">横屏 16:9</ToggleButton>
-              <ToggleButton value="1:1">方形 1:1</ToggleButton>
-            </ToggleButtonGroup>
             <TextField size="small" label="集数" type="number" sx={{ width: 100 }} value={form.episodes} onChange={(e) => set('episodes', Math.max(1, Math.min(30, Number(e.target.value) || 1)))} />
             <TextField size="small" select label="每集时长" sx={{ width: 130 }} value={form.ep_seconds} onChange={(e) => set('ep_seconds', Number(e.target.value))}>
               {EP_SECONDS.map((s) => (

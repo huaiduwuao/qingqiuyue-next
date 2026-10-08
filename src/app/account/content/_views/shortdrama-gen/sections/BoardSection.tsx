@@ -3,6 +3,7 @@
 /**
  * 故事板:一集的镜头按时间线排开。上面是大预览(有视频放视频、有配音放配音),下面是镜头胶片条,
  * 点镜头在右栏「绘图 / 视频」里单独重画或出片;▶ 按镜头时长连播,先看整集节奏再决定花钻出视频。
+ * 胶片条上滚鼠标滚轮是横向滚动。
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -36,11 +37,11 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
 
   const sel = selected?.type === 'shot' ? shots.find((s) => s.id === selected.id) : undefined;
   const shot = sel ?? shots[0];
-  const pick = (s: Shot) => select?.({ type: 'shot', id: s.id, label: `第 ${current?.no} 集 ${shotLabel(s)}` });
+  const pick = (s: Shot) => select?.({ type: 'shot', id: s.id, label: `第 ${current?.no} 集 ${shotLabel(s, shots)}` });
 
   // 进来先选中第一个镜头,右栏直接能编辑
   useEffect(() => {
-    if (!sel && shots.length) select?.({ type: 'shot', id: shots[0].id, label: `第 ${current?.no} 集 ${shotLabel(shots[0])}` });
+    if (!sel && shots.length) select?.({ type: 'shot', id: shots[0].id, label: `第 ${current?.no} 集 ${shotLabel(shots[0], shots)}` });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shots.length, current?.id]);
 
@@ -60,6 +61,23 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
   useEffect(() => {
     stripRef.current?.querySelector(`[data-shot="${shot?.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   }, [shot?.id]);
+
+  // 鼠标滚轮在胶片条上横向滚动(触控板的横向手势本来就能滚,不拦)。
+  // React 的 onWheel 是 passive 的,preventDefault 无效,只能自己挂监听。
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY) || el.scrollWidth <= el.clientWidth) return;
+      const max = el.scrollWidth - el.clientWidth;
+      // 已经滚到头还往外滚:放给页面竖向滚动
+      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [shots.length]);
 
   if (ov.isLoading) return <Skeleton variant="rounded" height={420} />;
   if (!current) {
@@ -172,7 +190,7 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
                 >
                   <Stack direction="row" sx={{ px: 0.75, py: 0.25, alignItems: 'center' }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, flex: 1 }}>
-                      {shotLabel(s)}
+                      {shotLabel(s, shots)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {s.duration_sec}s
