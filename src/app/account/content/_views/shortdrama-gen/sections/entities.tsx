@@ -14,9 +14,11 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import { dramaAPI, type Character, type Prop, type Scene } from '@/apis/shortdrama';
 import MenuItem from '@mui/material/MenuItem';
 import { useOverview } from '../useProject';
+import { UploadImageButton } from '../common';
 import { VoicePicker } from './VoicePicker';
 
 export type Kind = 'character' | 'scene' | 'prop';
@@ -45,6 +47,7 @@ export const FIELDS: Record<Kind, FieldDef[]> = {
     { key: 'voice_style', label: '声线' },
     { key: 'voice', label: '配音音色' }, // 用 VoicePicker 渲染(下拉 + 试听)
     { key: 'based_on_id', label: '同一张脸' }, // 下拉选另一个角色(分身、镜中人、不同年龄的自己)
+    { key: 'voice_ref_url', label: '配音参考音' }, // 试听 / 上传真人录音 / 清空后按音色自动重做
     { key: 'seed', label: '种子(数字,固定则更稳定)' },
   ],
   scene: [
@@ -99,7 +102,24 @@ export function EntityDialog({ kind, projectId, open, entity, onClose, onSave }:
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           {fields.map((f) => kind === 'character' && f.key === 'voice' ? (
             <VoicePicker key={f.key} value={String(form.voice ?? '')} gender={form.gender} name={String(form.name ?? '')}
-              onChange={(v) => setForm((x) => ({ ...x, voice: v }))} />
+              // 换了音色,按旧音色自动生成的参考音作废(上传的真人录音保留)
+              onChange={(v) => setForm((x) => ({ ...x, voice: v, ...(String(x.voice_ref_url ?? '').includes('/voice-ref/') ? { voice_ref_url: '' } : {}) }))} />
+          ) : kind === 'character' && f.key === 'voice_ref_url' ? (
+            <Stack key={f.key} spacing={0.5}>
+              <Typography variant="body2" color="text.secondary">{f.label}</Typography>
+              {form.voice_ref_url ? (
+                <audio controls preload="none" src={String(form.voice_ref_url)} style={{ width: '100%', height: 36 }} />
+              ) : (
+                <Typography variant="caption" color="text.secondary">还没有。第一次配音时会用上面的音色自动念一段(年长角色压低、放慢)</Typography>
+              )}
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <UploadImageButton label="上传真人录音" accept="audio/*" onUploaded={(url) => setForm((x) => ({ ...x, voice_ref_url: url }))} />
+                {!!form.voice_ref_url && (
+                  <Button size="small" color="warning" onClick={() => setForm((x) => ({ ...x, voice_ref_url: '' }))}>清空,按音色重做</Button>
+                )}
+              </Stack>
+              <Typography variant="caption" color="text.secondary">5~15 秒这个角色的干净人声。有情绪的配音会照它的音色念每句台词</Typography>
+            </Stack>
           ) : kind === 'character' && f.key === 'based_on_id' ? (
             <TextField
               key={f.key}

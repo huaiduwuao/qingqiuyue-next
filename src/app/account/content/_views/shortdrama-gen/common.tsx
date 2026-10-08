@@ -112,7 +112,7 @@ export function MediaThumb({
 }
 
 /** 上传参考图按钮(走 content-api /file/upload,返回 url)。 */
-export function UploadImageButton({ onUploaded, label = '上传参考图', disabled }: { onUploaded: (url: string) => void; label?: string; disabled?: boolean }) {
+export function UploadImageButton({ onUploaded, label = '上传参考图', disabled, accept = 'image/*' }: { onUploaded: (url: string) => void; label?: string; disabled?: boolean; accept?: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,7 +140,7 @@ export function UploadImageButton({ onUploaded, label = '上传参考图', disab
         <Button size="small" component="label" variant="text" disabled={disabled || busy} color={err ? 'error' : 'inherit'}>
           {busy ? <CircularProgress size={14} sx={{ mr: 1 }} /> : null}
           {err ? '上传失败' : label}
-          <input type="file" accept="image/*" hidden onChange={handle} />
+          <input type="file" accept={accept} hidden onChange={handle} />
         </Button>
       </span>
     </Tooltip>

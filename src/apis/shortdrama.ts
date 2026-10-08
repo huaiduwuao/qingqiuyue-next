@@ -216,6 +216,8 @@ export interface Character {
   voice?: string;
   /** 和哪个角色同一张脸(0 = 独立长相);定妆照用那个角色的定妆照改 */
   based_on_id?: number;
+  /** 配音参考音(有情绪的配音照它的音色念);空 = 第一次配音时按音色自动生成 */
+  voice_ref_url?: string;
   ref_image_url: string;
   seed: number;
   sort_order: number;
