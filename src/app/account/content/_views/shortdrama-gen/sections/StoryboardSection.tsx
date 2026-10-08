@@ -285,19 +285,27 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
             </Typography>
           </Box>
           <Stack sx={{ flexWrap: 'wrap' }} direction="row" spacing={0.5} useFlexGap>
-            <Tooltip title="分镜师按剧本逐段拆:每个镜头 1~4 个分镜,场景、景别、构图、运镜、光影、音效、对白都填齐,不合格自动退回重写">
+            <Tooltip title={running ? '有任务在进行中,跑完再重新分镜' : !e.script_text ? '这一集还没有剧本,先去「剧本」写剧本' : '分镜师按剧本逐段拆:每个镜头 1~4 个分镜,场景、景别、构图、运镜、光影、音效、对白都填齐,不合格自动退回重写'}>
               <span>
                 <Button size="small" variant="outlined" disabled={running || !e.script_text} onClick={() => (all.length === 0 || window.confirm('重新分镜会替换本集所有分镜(已出的画面也会清掉),继续?')) && runEp('storyboard')}>
                   {all.length ? '重新分镜' : '智能分镜'}
                 </Button>
               </span>
             </Tooltip>
-            <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('pacing')}>
-              节奏
-            </Button>
-            <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('qc')}>
-              质检
-            </Button>
+            <Tooltip title={running ? '有任务在进行中' : all.length === 0 ? '先分镜' : '按情绪张力调整每个分镜的时长和节奏'}>
+              <span>
+                <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('pacing')}>
+                  节奏
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={running ? '有任务在进行中' : all.length === 0 ? '先分镜' : '检查分镜和画面的问题,标注到对应分镜'}>
+              <span>
+                <Button size="small" variant="outlined" disabled={running || all.length === 0} onClick={() => runEp('qc')}>
+                  质检
+                </Button>
+              </span>
+            </Tooltip>
             <Button size="small" startIcon={<DownloadRoundedIcon />} disabled={all.length === 0} onClick={() => exportCSV(e, all, data)}>
               导出分镜表
             </Button>

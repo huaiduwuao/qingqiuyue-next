@@ -93,6 +93,8 @@ export interface SectionProps {
   episodeRail?: boolean;
   selected?: Selection;
   select?: (s: Selection) => void;
+  /** 打开右栏的编辑面板(选中镜头后改提示词等) */
+  openPanel?: () => void;
 }
 
 /** 助手面板里的快捷意见,点一下填进输入框 */
@@ -163,7 +165,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
 
   const p = overview.data?.project;
   const showRail = !narrow && EPISODE_STAGES.has(section) && episodes.length > 0;
-  const sectionProps: SectionProps = { projectId, setSection, setFeedbackTarget, episodeId, setEpisodeId, episodeRail: showRail, selected, select };
+  const sectionProps: SectionProps = { projectId, setSection, setFeedbackTarget, episodeId, setEpisodeId, episodeRail: showRail, selected, select, openPanel: () => { setPanelTab('context'); setPanelOpen(true); } };
 
   // 发布成标准作品(module_content SHORT_DRAMA):进"我的作品"与内容审核,和普通投稿同一条路。
   const queryClient = useQueryClient();
@@ -295,6 +297,19 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
           </Stack>
         </Box>
         {running && <LinearProgress variant={running.progress > 0 ? 'determinate' : 'indeterminate'} value={running.progress} sx={{ mb: 0.5, borderRadius: 1 }} />}
+        {running && (
+          <Alert
+            severity="info"
+            sx={{ mb: 1, py: 0 }}
+            action={
+              <Button size="small" color="inherit" onClick={() => { setPanelTab('assistant'); setPanelOpen(true); }}>
+                看进度
+              </Button>
+            }
+          >
+            正在「{running.title}」{running.progress > 0 ? ` ${running.progress}%` : ''}。一个项目同一时间只跑一个任务,其它生成按钮先置灰,跑完自动恢复;不想等可以点右上角 ■ 取消。
+          </Alert>
+        )}
         {publish.isError && (
           <Alert severity="error" sx={{ mb: 1 }} onClose={() => publish.reset()}>
             发布失败:{(publish.error as Error).message}

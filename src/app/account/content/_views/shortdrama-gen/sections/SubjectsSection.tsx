@@ -81,14 +81,24 @@ export default function SubjectsSection({ projectId, selected, select }: Section
             <Tab key={k} value={k} label={`${TITLES[k].title} ${lists[k].length}`} />
           ))}
         </Tabs>
-        <Tooltip title="让美术员工按剧本给还没有提示词的主体写图片提示词(不出图,不扣钻)">
+        <Tooltip title={running ? '有任务在进行中,跑完再补' : '按剧本给还没有提示词的主体写图片提示词(不出图,不扣钻)'}>
           <span>
             <Button size="small" startIcon={<AutoAwesomeRoundedIcon />} disabled={running} onClick={() => start.mutate({ step: 'visual_design', input: { generate_images: false } })}>
               补全提示词
             </Button>
           </span>
         </Tooltip>
-        <Tooltip title={cost.t2i ? `给还没有图的角色和场景出图,每张 ${cost.t2i} 钻` : '出图服务暂未开放,可以先上传图片'}>
+        <Tooltip
+          title={
+            !cost.t2i
+              ? '出图服务暂未开放,可以先上传图片'
+              : running
+                ? '有任务在进行中,跑完再生成'
+                : missingImages <= 0
+                  ? '主体图都已经有了。要重画哪一个,点它,在右侧「主体图」里改提示词后重画'
+                  : `给还没有图的角色和场景出图,每张 ${cost.t2i} 钻`
+          }
+        >
           <span>
             <Button size="small" variant="outlined" startIcon={<CollectionsRoundedIcon />} disabled={running || !cost.t2i || missingImages <= 0} onClick={() => start.mutate({ step: 'visual_design', input: { generate_images: true } })}>
               批量生成主体图{cost.t2i && missingImages > 0 ? ` · 约 ${missingImages * cost.t2i} 钻` : ''}

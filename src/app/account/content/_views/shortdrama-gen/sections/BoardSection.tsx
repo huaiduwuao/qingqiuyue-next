@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
@@ -19,12 +20,15 @@ import Typography from '@mui/material/Typography';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { shotLabel, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty, ShotStatusChip } from '../common';
 import { useEpisode, useOverview, useStartTask, useUnitCost } from '../useProject';
 
-export default function BoardSection({ projectId, episodeId, setEpisodeId, setSection, episodeRail, selected, select }: SectionProps) {
+export default function BoardSection({ projectId, episodeId, setEpisodeId, setSection, episodeRail, selected, select, openPanel }: SectionProps) {
   const ov = useOverview(projectId);
   const start = useStartTask(projectId);
   const cost = useUnitCost();
@@ -90,6 +94,10 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
   const videos = shots.filter((s) => s.video_url).length;
   const lang = typeof ov.data?.project.settings?.source_lang === 'string' && ov.data.project.settings.source_lang ? (ov.data.project.settings.source_lang as string) : 'zh';
   const epInput = { episode_id: current.id, episode_no: current.no };
+  const redo = (s: Shot, extra: Record<string, unknown>) => {
+    setPlaying(false);
+    start.mutate({ step: 'visual_gen', input: { ...epInput, shot_ids: [s.id], ...extra } });
+  };
 
   return (
     <Stack spacing={1.5} sx={{ height: { md: '100%' }, minHeight: 0 }}>
@@ -137,6 +145,36 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
             <Typography variant="body2" sx={{ px: 0.5 }} color={shot.dialogue ? 'text.primary' : 'text.secondary'}>
               {shot.dialogue ? `台词:${shot.dialogue}` : `画面:${shot.action}`}
             </Typography>
+          )}
+
+          {start.isError && (
+            <Alert severity="error" onClose={() => start.reset()}>
+              {(start.error as Error).message}
+            </Alert>
+          )}
+          {/* 这一镜:单独重画 / 重做视频 / 改提示词 */}
+          {shot && (
+            <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Typography variant="subtitle2">{shotLabel(shot, shots)}</Typography>
+              <Box sx={{ flex: 1 }} />
+              <Tooltip title={!cost.canImage ? '出图服务暂未开放' : running ? '有任务在进行中,跑完再重画' : `按当前提示词重画这一镜${cost.shot ? `,${cost.shot} 钻` : ''}(之后的视频要重做)`}>
+                <span>
+                  <Button size="small" variant="outlined" startIcon={<RefreshRoundedIcon />} disabled={running || start.isPending || !cost.canImage} onClick={() => redo(shot, { force: true })}>
+                    {shot.frame_url ? '重画这一镜' : '出这一镜的图'}
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip title={!cost.canVideo ? '图生视频服务暂未开放' : running ? '有任务在进行中' : `用这一镜的画面做首帧出视频${cost.i2v ? `,${cost.i2v} 钻` : ''}`}>
+                <span>
+                  <Button size="small" variant="outlined" startIcon={<MovieRoundedIcon />} disabled={running || start.isPending || !cost.canVideo} onClick={() => redo(shot, shot.video_url ? { redo_video: true } : { video: true })}>
+                    {shot.video_url ? '重做视频' : '生成视频'}
+                  </Button>
+                </span>
+              </Tooltip>
+              <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => { pick(shot); openPanel?.(); }}>
+                改提示词
+              </Button>
+            </Stack>
           )}
 
           {/* 工具条 */}
