@@ -23,7 +23,7 @@ import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import { shotLabel, type Shot } from '@/apis/shortdrama';
+import { shotLabel, shotVideo, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty, ShotStatusChip } from '../common';
 import { useEpisode, useOverview, useStartTask, useUnitCost } from '../useProject';
@@ -92,6 +92,7 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
   const ratio = aspect === '16:9' ? '16 / 9' : aspect === '1:1' ? '1 / 1' : '9 / 16';
   const framed = shots.filter((s) => s.frame_url).length;
   const videos = shots.filter((s) => s.video_url).length;
+  const lipsynced = shots.filter((s) => s.lipsync_video_url).length;
   const flagged = shots.filter((s) => s.status === 'qc_flagged').length;
   const lang = typeof ov.data?.project.settings?.source_lang === 'string' && ov.data.project.settings.source_lang ? (ov.data.project.settings.source_lang as string) : 'zh';
   const epInput = { episode_id: current.id, episode_no: current.no };
@@ -126,8 +127,8 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
           <Box sx={{ flex: 1, minHeight: { xs: 300, md: 260 }, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#111', borderRadius: 2, p: 1.5, position: 'relative' }}>
             {shot && (
               <Box sx={{ height: { xs: aspect === '16:9' ? 'auto' : 420, md: '100%' }, width: aspect === '16:9' ? '100%' : 'auto', maxHeight: 560, aspectRatio: ratio, borderRadius: 1, overflow: 'hidden', bgcolor: '#1c1c1c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {shot.video_url ? (
-                  <video key={shot.id} src={shot.video_url} autoPlay={playing} muted={playing && !!shot.audio?.[lang]?.url} controls={!playing} loop={!playing} playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                {shotVideo(shot) ? (
+                  <video key={`${shot.id}-${shotVideo(shot)}`} src={shotVideo(shot)} autoPlay={playing} muted={playing && !!shot.audio?.[lang]?.url} controls={!playing} loop={!playing} playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : shot.frame_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={shot.frame_url} alt={`镜头 ${shot.no}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -210,6 +211,13 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
                 </Button>
               </span>
             </Tooltip>
+            <Tooltip title={running ? '有任务在进行中' : '给有台词、说话人在画面里的镜头做口型(嘴跟着配音动);要先配音、先有视频。背影、远景、物件特写不做'}>
+              <span>
+                <Button size="small" disabled={running || videos === 0} onClick={() => start.mutate({ step: 'lipsync', input: epInput })}>
+                  口型同步{lipsynced ? ` · ${lipsynced} 镜` : ''}
+                </Button>
+              </span>
+            </Tooltip>
             <Tooltip title="给有台词的镜头配音(不扣钻)">
               <span>
                 <Button size="small" disabled={running} onClick={() => start.mutate({ step: 'dubbing', input: { ...epInput, lang } })}>
@@ -249,6 +257,11 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
                       <Typography variant="caption" color="warning.main">
                         待生成
                       </Typography>
+                    )}
+                    {s.lipsync_video_url && (
+                      <Box component="span" sx={{ position: 'absolute', left: 2, bottom: 2, px: 0.5, fontSize: 10, lineHeight: '16px', color: '#fff', bgcolor: 'rgba(0,0,0,.6)', borderRadius: 0.5 }}>
+                        口型
+                      </Box>
                     )}
                     {s.video_url && <PlayArrowRoundedIcon sx={{ position: 'absolute', right: 2, bottom: 2, fontSize: 16, color: '#fff', bgcolor: 'rgba(0,0,0,.5)', borderRadius: '50%' }} />}
                   </Box>

@@ -228,6 +228,13 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
               </Button>
             </span>
           </Tooltip>
+          <Tooltip title="让有台词、说话人在画面里的镜头嘴跟着配音动(先配音、先出视频;背影、远景、物件特写不做)">
+            <span>
+              <Button size="small" variant="outlined" disabled={running || dubbed.length === 0} onClick={() => run('lipsync')}>
+                口型同步
+              </Button>
+            </span>
+          </Tooltip>
           <Tooltip title={composeHint}>
             <span>
               <Button size="small" variant="contained" disabled={running || !canCompose || rendered.length === 0} onClick={() => run('compose', { lang: view })}>

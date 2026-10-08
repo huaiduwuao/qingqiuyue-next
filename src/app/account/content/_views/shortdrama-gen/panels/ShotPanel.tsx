@@ -18,7 +18,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
-import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, type Shot } from '@/apis/shortdrama';
+import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, shotVideo, type Shot } from '@/apis/shortdrama';
 import type { Selection } from '../Workbench';
 import { MediaThumb, UploadImageButton } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask, useUnitCost } from '../useProject';
@@ -99,7 +99,7 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
       </ToggleButtonGroup>
 
       <Box sx={{ display: 'flex', justifyContent: 'center', bgcolor: 'action.hover', borderRadius: 1.5, p: 1 }}>
-        <MediaThumb src={shot.frame_url} video={mode === 'video' ? shot.video_url : undefined} height={220} ratio={aspect} />
+        <MediaThumb src={shot.frame_url} video={mode === 'video' ? shotVideo(shot) : undefined} height={220} ratio={aspect} />
       </Box>
       {shot.gen_error && (
         <Typography variant="caption" color="error">

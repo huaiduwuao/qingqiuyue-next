@@ -25,6 +25,7 @@ export type Step =
   | 'qc'
   | 'localize'
   | 'dubbing'
+  | 'lipsync'
   | 'compose'
   | 'distribute'
   | 'feedback'
@@ -342,6 +343,8 @@ export interface Shot {
   negative_prompt: string;
   frame_url: string;
   video_url: string;
+  /** 嘴跟着配音动的视频(口型同步);有就优先播它 */
+  lipsync_video_url?: string;
   ref_image_url: string;
   seed: number;
   gen_job_id: number;
@@ -675,7 +678,7 @@ export const ANGLES: Record<string, string> = { eye_level: '平视', low: '仰�
 export const BEATS: Record<string, string> = { setup: '铺垫', rising: '上升', turn: '转折', payoff: '爽点', cliffhanger: '悬念', breather: '喘息' };
 export const STEP_LABELS: Record<Step, string> = {
   screenwriter: '剧本框架', script: '分场剧本', visual_design: '视觉设定', storyboard: '分镜', pacing: '节奏',
-  visual_gen: '出图/出片', qc: '质检', localize: '译配', dubbing: '配音', compose: '成片合成', distribute: '分发文案',
+  visual_gen: '出图/出片', qc: '质检', localize: '译配', dubbing: '配音', lipsync: '口型同步', compose: '成片合成', distribute: '分发文案',
   feedback: '反馈优化', pipeline: '一键生成',
 };
 export const AGENT_LABELS: Record<string, string> = {
@@ -683,6 +686,9 @@ export const AGENT_LABELS: Record<string, string> = {
   'drama-pacing': '节奏控制', 'drama-qc': '质检', 'drama-feedback': '反馈优化',
   'drama-localizer': '译配', 'drama-editor': '后期合成', 'drama-publisher': '发行运营',
 };
+
+/** 镜头预览该播的视频:有口型同步版播口型版,否则普通视频 */
+export const shotVideo = (s: Pick<Shot, 'video_url' | 'lipsync_video_url'>) => s.lipsync_video_url || s.video_url;
 
 /** 成片分辨率「宽×高」,和后端 compose.exportSize 一致:短边 1080 / 720(settings.export_quality),长边按 16:9 */
 export function exportSize(aspect: string, quality: unknown): string {
