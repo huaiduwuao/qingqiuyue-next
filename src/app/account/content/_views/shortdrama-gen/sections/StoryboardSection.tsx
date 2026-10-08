@@ -41,11 +41,13 @@ import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import RecordVoiceOverRoundedIcon from '@mui/icons-material/RecordVoiceOverRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { ANGLES, BEATS, CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, type Episode, type Overview, type QCIssue, type Shot } from '@/apis/shortdrama';
 import type { SectionProps } from '../Workbench';
 import { Empty, EntityStatusChip, ShotStatusChip } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
+import LinesDialog from './LinesDialog';
 
 /** 一组:同一个「镜头」下的分镜 */
 interface Group {
@@ -187,7 +189,7 @@ const COLS: { label: string; w: number }[] = [
   { label: '音效', w: 100 },
   { label: '对白', w: 210 },
   { label: '时长', w: 52 },
-  { label: '操作', w: 120 },
+  { label: '操作', w: 150 },
 ];
 
 export default function StoryboardSection({ projectId, episodeId, setEpisodeId, setSection, setFeedbackTarget, episodeRail, selected, select }: SectionProps) {
@@ -198,6 +200,8 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
   const current = episodes.find((e) => e.id === episodeId) ?? episodes[0];
   const ep = useEpisode(current?.id ?? 0);
   const [editing, setEditing] = useState<Shot | null>(null);
+  // 台词与配音弹窗:存 id,弹窗里的分镜跟着列表刷新(改完 / 重配完能看到新内容)
+  const [linesId, setLinesId] = useState(0);
   const [creating, setCreating] = useState<Partial<Shot> | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState('');
@@ -255,6 +259,7 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
   const total = all.reduce((a, s) => a + (s.duration_sec || 0), 0);
   const qcIssues: QCIssue[] = (e.qc?.issues as QCIssue[] | undefined) ?? [];
   const grouped = all.some((s) => s.beat);
+  const linesShot = all.find((s) => s.id === linesId) ?? null;
 
   return (
     <Stack spacing={2}>
@@ -419,6 +424,13 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
                                 <IconButton size="small" aria-label="编辑" onClick={() => setEditing(s)}>
                                   <EditRoundedIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
+                                {(s.dialogue ?? '').trim() && (
+                                  <Tooltip title="台词与配音:改译文、试听、单句重配">
+                                    <IconButton size="small" aria-label="台词与配音" color={Object.keys(s.audio ?? {}).length ? 'primary' : 'default'} onClick={() => setLinesId(s.id)}>
+                                      <RecordVoiceOverRoundedIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
                                 <IconButton size="small" aria-label="上移" disabled={s.no <= 1} onClick={() => move(s, -1)}>
                                   <ArrowUpwardRoundedIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
@@ -450,6 +462,13 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
         </Stack>
       )}
 
+      <LinesDialog
+        projectId={projectId}
+        episode={e}
+        shot={linesShot}
+        label={linesShot ? shotLabel(linesShot, all) : ''}
+        onClose={() => setLinesId(0)}
+      />
       <ShotDialog
         open={!!editing || !!creating}
         shot={editing}
