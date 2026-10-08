@@ -145,7 +145,7 @@ function Editor({ projectId, kind, it, running }: { projectId: number; kind: Kin
         </Alert>
       )}
 
-      <EntityDialog kind={kind} open={editing} entity={it} onClose={() => setEditing(false)} onSave={async (fields) => void (await guard(() => api.update(it.id, fields)))} />
+      <EntityDialog kind={kind} projectId={projectId} open={editing} entity={it} onClose={() => setEditing(false)} onSave={async (fields) => void (await guard(() => api.update(it.id, fields)))} />
     </Stack>
   );
 }

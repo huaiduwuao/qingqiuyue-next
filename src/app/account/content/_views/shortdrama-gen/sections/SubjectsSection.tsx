@@ -155,6 +155,7 @@ export default function SubjectsSection({ projectId, selected, select }: Section
 
       <EntityDialog
         kind={kind}
+        projectId={projectId}
         open={creating}
         entity={null}
         onClose={() => setCreating(false)}

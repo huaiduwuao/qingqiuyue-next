@@ -15,6 +15,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import { dramaAPI, type Character, type Prop, type Scene } from '@/apis/shortdrama';
+import MenuItem from '@mui/material/MenuItem';
+import { useOverview } from '../useProject';
 import { VoicePicker } from './VoicePicker';
 
 export type Kind = 'character' | 'scene' | 'prop';
@@ -42,6 +44,7 @@ export const FIELDS: Record<Kind, FieldDef[]> = {
     { key: 'negative_prompt', label: '负面词(英文)', multiline: true },
     { key: 'voice_style', label: '声线' },
     { key: 'voice', label: '配音音色' }, // 用 VoicePicker 渲染(下拉 + 试听)
+    { key: 'based_on_id', label: '同一张脸' }, // 下拉选另一个角色(分身、镜中人、不同年龄的自己)
     { key: 'seed', label: '种子(数字,固定则更稳定)' },
   ],
   scene: [
@@ -80,7 +83,9 @@ export function entityAPI(kind: Kind, projectId: number) {
   };
 }
 
-export function EntityDialog({ kind, open, entity, onClose, onSave }: { kind: Kind; open: boolean; entity: Entity | null; onClose: () => void; onSave: (f: Record<string, unknown>) => Promise<void> }) {
+export function EntityDialog({ kind, projectId, open, entity, onClose, onSave }: { kind: Kind; projectId: number; open: boolean; entity: Entity | null; onClose: () => void; onSave: (f: Record<string, unknown>) => Promise<void> }) {
+  const ov = useOverview(kind === 'character' ? projectId : 0);
+  const others = (ov.data?.characters ?? []).filter((c) => c.id !== entity?.id);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   React.useEffect(() => {
@@ -95,6 +100,20 @@ export function EntityDialog({ kind, open, entity, onClose, onSave }: { kind: Ki
           {fields.map((f) => kind === 'character' && f.key === 'voice' ? (
             <VoicePicker key={f.key} value={String(form.voice ?? '')} gender={form.gender} name={String(form.name ?? '')}
               onChange={(v) => setForm((x) => ({ ...x, voice: v }))} />
+          ) : kind === 'character' && f.key === 'based_on_id' ? (
+            <TextField
+              key={f.key}
+              select
+              size="small"
+              fullWidth
+              label={f.label}
+              value={Number(form.based_on_id ?? 0)}
+              onChange={(e) => setForm((x) => ({ ...x, based_on_id: Number(e.target.value) || 0 }))}
+              helperText="分身、镜中的自己、双胞胎、不同年龄的同一个人:选原角色,定妆照会用原角色的脸改出来"
+            >
+              <MenuItem value={0}>无(独立长相)</MenuItem>
+              {others.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+            </TextField>
           ) : (
             <TextField
               key={f.key}
@@ -131,6 +150,7 @@ export function EntityDialog({ kind, open, entity, onClose, onSave }: { kind: Ki
                 allowed[f.key] = form[f.key] ?? '';
               });
               if ('ref_image_url' in form) allowed.ref_image_url = form.ref_image_url;
+              if (kind === 'character') allowed.based_on_id = Number(form.based_on_id ?? 0) || 0;
               await onSave(allowed);
               onClose();
             } finally {
