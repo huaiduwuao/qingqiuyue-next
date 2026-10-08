@@ -178,6 +178,11 @@ export function useCurrentProjectId(): [number, (id: number) => void] {
  * 每次生成的钻石单价(各种类最便宜的已启用模板,和后端选模板一致);0 = 这种生成不可用。
  * shot 是镜头出图:有图生图模板时用定妆照做参考,否则文生图。
  */
+/** 有情绪的配音服务在不在线(GPU 机器上的 IndexTTS-2) */
+export function useTTSStatus(enabled = true) {
+  return useQuery({ queryKey: ['drama', 'tts-status'], queryFn: dramaAPI.ttsStatus, enabled, staleTime: 60_000, retry: false });
+}
+
 export function useUnitCost() {
   const caps = useCapabilities();
   const c = caps.data?.capabilities;

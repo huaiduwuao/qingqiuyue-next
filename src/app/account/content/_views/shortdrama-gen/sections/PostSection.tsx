@@ -35,7 +35,7 @@ import { dramaAPI, exportSize, type FinalCut, type Lang, type PlatformCopy, type
 import type { SectionProps } from '../Workbench';
 import { Empty } from '../common';
 import SocialPublishPanel from './SocialPublishPanel';
-import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask } from '../useProject';
+import { useCapabilities, useEpisode, useInvalidate, useOverview, useStartTask, useTTSStatus } from '../useProject';
 
 const FALLBACK_LANGS: Lang[] = [{ code: 'zh', name: '中文', en: 'Simplified Chinese', cjk: true, dubbing: false }];
 
@@ -68,6 +68,7 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
 
   const settings = useMemo(() => (ov.data?.project.settings ?? {}) as Record<string, unknown>, [ov.data]);
   const post = caps.data?.post;
+  const emoTTS = useTTSStatus();
   const langs = post?.languages?.length ? post.languages : FALLBACK_LANGS;
   const src = typeof settings.source_lang === 'string' && settings.source_lang ? settings.source_lang : 'zh';
   const targets = useMemo(() => (Array.isArray(settings.languages) ? (settings.languages as string[]) : []).filter((c) => c !== src), [settings, src]);
@@ -187,6 +188,11 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
         {post && (
           <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', mt: 1.5 }}>
             <Chip size="small" variant="outlined" color={post.tts ? (post.tts_online ? 'success' : 'warning') : 'default'} label={`配音:${post.tts ? (post.tts_online ? '可用' : '已配置,连不上') : '未配置'}`} />
+            {emoTTS.data && (
+              <Tooltip title="GPU 机器上的有情绪配音(按台词括号里的情绪念)。不在线时退回普通音色,听起来会平">
+                <Chip size="small" variant="outlined" color={emoTTS.data.available ? 'success' : 'warning'} label={`情绪配音:${emoTTS.data.available ? '在线' : '不在线,退回普通音色'}`} />
+              </Tooltip>
+            )}
             <Chip size="small" variant="outlined" color={post.ffmpeg ? 'success' : 'default'} label={`成片合成:${post.ffmpeg ? '可用' : '没有 ffmpeg'}`} />
             <Chip size="small" variant="outlined" color={post.fonts ? 'success' : 'default'} label={`烧录字幕:${post.fonts ? '可用' : '没有字体,只能外挂'}`} />
             <Chip size="small" variant="outlined" color={post.storage ? 'success' : 'default'} label={`存储:${post.storage ? '可用' : '未配置'}`} />
@@ -330,6 +336,32 @@ export default function PostSection({ projectId, episodeId, setEpisodeId, setSec
             </FormControl>
           </Grid>
         </Grid>
+        {!settings.bgm_url && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              第 {e.no} 集配乐
+            </Typography>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              {e.bgm_url ? (
+                <audio src={e.bgm_url} controls preload="none" style={{ height: 32, width: 260, maxWidth: '100%' }} />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  还没有。合成成片时按这一集的剧情情绪自动出一段配乐。
+                </Typography>
+              )}
+              <Tooltip title={!canCompose ? composeHint : '重新出一段配乐并重新合成这一集'}>
+                <span>
+                  <Button size="small" variant="outlined" disabled={running || !canCompose || rendered.length === 0} onClick={() => start.mutate({ step: 'compose', input: { episode_id: e.id, episode_no: e.no, lang: view, redo_bgm: true } })}>
+                    {e.bgm_url ? '重出配乐' : '出配乐并合成'}
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              上面填了背景音乐地址时用你的音乐,不再自动配乐。
+            </Typography>
+          </Box>
+        )}
         <FormControlLabel
           sx={{ mt: 0.5 }}
           control={<Switch checked={typeof settings.burn_subtitles === 'boolean' ? settings.burn_subtitles : true} disabled={running || !post?.fonts} onChange={(ev) => saveSettings({ burn_subtitles: ev.target.checked })} />}

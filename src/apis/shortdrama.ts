@@ -11,6 +11,7 @@
 
 import { API_PREFIX } from '@/lib/api/prefix';
 import { authFetch } from '@/lib/api/auth';
+import { aiClient } from '@/lib/api/client';
 
 const BASE = `${API_PREFIX}/api/agentmanager/shortdrama`;
 
@@ -219,6 +220,8 @@ export interface Character {
   /** 配音参考音(有情绪的配音照它的音色念);空 = 第一次配音时按音色自动生成 */
   voice_ref_url?: string;
   ref_image_url: string;
+  /** 头肩近照(由定妆照自动改出):特写/近景镜头和衍生角色拿它当身份参考 */
+  face_ref_url?: string;
   seed: number;
   sort_order: number;
   status: string;
@@ -289,6 +292,8 @@ export interface Episode {
   /** 后期产物,键是语种代码 */
   localized?: Record<string, { title?: string; synopsis?: string; hook?: string; cliffhanger?: string }> | null;
   finals?: Record<string, FinalCut> | null;
+  /** 这一集自动生成的配乐(项目没设背景音乐时按剧情情绪出一段,之后合成沿用) */
+  bgm_url?: string;
   distribution?: Record<string, Record<string, PlatformCopy>> | null;
 }
 
@@ -441,6 +446,8 @@ export const dramaAPI = {
   agents: () => call<{ agents: AgentSpec[]; llm_ready: boolean }>('/agents'),
   steps: () => call<{ steps: StepInfo[] }>('/steps'),
   capabilities: () => call<Capabilities>('/capabilities'),
+  /** 有情绪的配音服务(GPU 机器上的 IndexTTS-2)在不在线;不在线时配音退回普通音色 */
+  ttsStatus: async () => ((await aiClient('/generate/tts/status')) ?? { available: false }) as { available: boolean },
   /** 用某个音色念一句(默认一句自我介绍),返回可直接播放的音频链接;同音色同句子只合成一次 */
   voicePreview: (voice: string, text?: string) =>
     call<{ url?: string; error?: string }>(`/voices/preview?voice=${encodeURIComponent(voice)}${text ? `&text=${encodeURIComponent(text)}` : ''}`),

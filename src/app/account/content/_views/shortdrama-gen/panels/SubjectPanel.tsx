@@ -45,6 +45,7 @@ function Editor({ projectId, kind, it, running }: { projectId: number; kind: Kin
   const [err, setErr] = useState('');
   const api = entityAPI(kind, projectId);
   const meta = TITLES[kind];
+  const face = 'face_ref_url' in it ? it.face_ref_url : undefined;
   const dirty = prompt.trim() !== (it.visual_prompt ?? '').trim();
   const sub = 'role' in it ? [it.age, it.gender, ROLE_LABEL[it.role] ?? it.role].filter(Boolean).join(' · ') : 'time_of_day' in it ? [it.time_of_day, it.mood].filter(Boolean).join(' · ') : it.description;
 
@@ -77,9 +78,22 @@ function Editor({ projectId, kind, it, running }: { projectId: number; kind: Kin
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'center', bgcolor: 'action.hover', borderRadius: 1.5, p: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, bgcolor: 'action.hover', borderRadius: 1.5, p: 1 }}>
         <MediaThumb src={it.ref_image_url} height={kind === 'character' ? 260 : 170} ratio={kind === 'character' ? '3 / 4' : '16 / 10'} />
+        {face && (
+          <Box sx={{ textAlign: 'center' }}>
+            <MediaThumb src={face} height={120} ratio="1 / 1" />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, maxWidth: 120 }}>
+              头肩近照
+            </Typography>
+          </Box>
+        )}
       </Box>
+      {face && (
+        <Typography variant="caption" color="text.secondary">
+          头肩近照由定妆照自动改出,特写和近景镜头拿它认人;定妆照换了会自动重出。
+        </Typography>
+      )}
 
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 0.5 }}>

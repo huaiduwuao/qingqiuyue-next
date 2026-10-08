@@ -281,6 +281,7 @@ export default function StoryboardSection({ projectId, episodeId, setEpisodeId, 
             <Typography variant="caption" color="text.secondary">
               {grouped ? `${groups.length} 个镜头 · ` : ''}
               {all.length} 个分镜 · {Math.round(total)}s · 已出图 {all.filter((s) => s.frame_url).length}
+              {all.some((s) => s.status === 'qc_flagged') ? ` · 待重画 ${all.filter((s) => s.status === 'qc_flagged').length}` : ''}
               {typeof e.qc?.score === 'number' && e.qc.score > 0 ? ` · 质检 ${e.qc.score} 分` : ''}
             </Typography>
           </Box>

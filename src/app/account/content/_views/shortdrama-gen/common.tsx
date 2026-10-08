@@ -35,7 +35,7 @@ export function ShotStatusChip({ status }: { status: ShotStatus }) {
     generating: { label: '出图中', color: 'primary' },
     done: { label: '已出图', color: 'success' },
     failed: { label: '失败', color: 'error' },
-    qc_flagged: { label: '质检标记', color: 'warning' },
+    qc_flagged: { label: '待重画', color: 'warning' },
     approved: { label: '已通过', color: 'info' },
   };
   const m = map[status] ?? { label: status, color: 'default' as const };

@@ -92,6 +92,7 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
   const ratio = aspect === '16:9' ? '16 / 9' : aspect === '1:1' ? '1 / 1' : '9 / 16';
   const framed = shots.filter((s) => s.frame_url).length;
   const videos = shots.filter((s) => s.video_url).length;
+  const flagged = shots.filter((s) => s.status === 'qc_flagged').length;
   const lang = typeof ov.data?.project.settings?.source_lang === 'string' && ov.data.project.settings.source_lang ? (ov.data.project.settings.source_lang as string) : 'zh';
   const epInput = { episode_id: current.id, episode_no: current.no };
   const redo = (s: Shot, extra: Record<string, unknown>) => {
@@ -152,6 +153,11 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
               {(start.error as Error).message}
             </Alert>
           )}
+          {shot && shot.status === 'qc_flagged' && (shot.qc_issues ?? []).length > 0 && (
+            <Alert severity="warning" sx={{ py: 0 }}>
+              这一镜重画几次仍没过质检,先用了问题最少的一张:{shot.qc_issues.map((it) => it.message).join(';')}。可以改提示词后点「重画这一镜」。
+            </Alert>
+          )}
           {/* 这一镜:单独重画 / 重做视频 / 改提示词 */}
           {shot && (
             <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -182,6 +188,7 @@ export default function BoardSection({ projectId, episodeId, setEpisodeId, setSe
             <Typography variant="subtitle2">全部分镜</Typography>
             <Typography variant="caption" color="text.secondary">
               共 {shots.length} 镜 · 画面 {framed}/{shots.length} · 视频 {videos}/{shots.length}
+              {flagged > 0 ? ` · 待重画 ${flagged}` : ''}
             </Typography>
             <Tooltip title={playing ? '暂停' : '按镜头时长连播'}>
               <IconButton color="primary" onClick={() => setPlaying((v) => !v)} sx={{ border: 1, borderColor: 'primary.main', width: 34, height: 34 }}>
