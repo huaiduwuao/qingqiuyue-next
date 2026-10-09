@@ -43,7 +43,7 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
 // 兜底版本号:页面打开后会读本站镜像的最新正式版覆盖它(见 useReleaseInfo),读不到才显示这个。
-const VERSION = '1.1.28';
+const VERSION = '1.1.29';
 
 // 安装包由 CI 发布到 GitHub Release(固定文件名,见 .github/workflows/build.yml 的 release job),
 // 服务器再转存到本站 qq-media/app/latest/(spider-api internal/appmirror)—— 国内打不开 GitHub,
