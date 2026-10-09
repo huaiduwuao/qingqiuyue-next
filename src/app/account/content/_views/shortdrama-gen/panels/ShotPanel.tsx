@@ -18,7 +18,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
-import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, dramaAPI, shotLabel, shotVideo, type Shot } from '@/apis/shortdrama';
+import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, blockingText, dramaAPI, shotLabel, shotVideo, type Shot } from '@/apis/shortdrama';
 import type { Selection } from '../Workbench';
 import { MediaThumb, UploadImageButton } from '../common';
 import { useEpisode, useInvalidate, useOverview, useStartTask, useUnitCost } from '../useProject';
@@ -44,6 +44,7 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
   const [mode, setMode] = useState<'image' | 'video'>(shot.frame_url && !shot.video_url ? 'video' : 'image');
   const [imgPrompt, setImgPrompt] = useState(shot.image_prompt ?? '');
   const [vidPrompt, setVidPrompt] = useState(shot.video_prompt ?? '');
+  const [endPrompt, setEndPrompt] = useState(shot.end_prompt ?? '');
   const [err, setErr] = useState('');
   const running = !!ov.data?.running;
   const aspect = ov.data?.project.aspect === '16:9' ? '16 / 9' : ov.data?.project.aspect === '1:1' ? '1 / 1' : '9 / 16';
@@ -71,6 +72,8 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
   };
   const imgDirty = imgPrompt.trim() !== (shot.image_prompt ?? '').trim();
   const vidDirty = vidPrompt.trim() !== (shot.video_prompt ?? '').trim();
+  const endDirty = endPrompt.trim() !== (shot.end_prompt ?? '').trim();
+  const blocking = (shot.blocking ?? []).filter((b) => b.character);
   const busy = running || start.isPending;
 
   const price = (n: number) =>
@@ -141,6 +144,31 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
               </Typography>
             </Box>
           )}
+          {blocking.length > 0 && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                站位
+              </Typography>
+              <Stack spacing={0.5}>
+                {blocking.map((b) => (
+                  <Typography key={b.character} variant="body2" sx={{ fontSize: 13 }}>
+                    <Box component="span" sx={{ fontWeight: 600, mr: 1 }}>
+                      {b.character}
+                    </Box>
+                    {blockingText(b) || '—'}
+                    {b.outfit && (
+                      <Box component="span" sx={{ color: 'text.secondary', ml: 1 }}>
+                        {b.outfit}
+                      </Box>
+                    )}
+                  </Typography>
+                ))}
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                出图和质检都按站位来;同一场戏里衣着自动保持一致。
+              </Typography>
+            </Box>
+          )}
           <Button variant="contained" sx={{ borderRadius: 5 }} disabled={busy || !cost.canImage} onClick={() => go({ force: true }, imgDirty ? { image_prompt: imgPrompt.trim() } : undefined)}>
             {shot.frame_url ? '重新绘图' : '图片生成'}
             {price(cost.shot)}
@@ -171,11 +199,41 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
               用这一镜的画面做首帧,时长 {shot.duration_sec} 秒。
             </Typography>
           </Box>
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              结尾画面
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              maxRows={8}
+              size="small"
+              placeholder="有走进来、转身、擦肩而过这类动作时,写这一镜结束那一刻的画面;动作只在原地发生就留空"
+              value={endPrompt}
+              onChange={(e) => setEndPrompt(e.target.value)}
+              onBlur={() => endDirty && save({ end_prompt: endPrompt.trim() })}
+              slotProps={{ input: { sx: { fontSize: 13 } } }}
+            />
+            {shot.end_frame_url && endPrompt.trim() && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', bgcolor: 'action.hover', borderRadius: 1.5, p: 1, mt: 1 }}>
+                <MediaThumb src={shot.end_frame_url} height={140} ratio={aspect} />
+              </Box>
+            )}
+            <Typography variant="caption" color="text.secondary">
+              写了结尾画面:先出结尾那一帧,再用开头、结尾两张画面补出中间的动作。
+            </Typography>
+          </Box>
           <Button
             variant="contained"
             sx={{ borderRadius: 5 }}
             disabled={busy || !cost.canVideo}
-            onClick={() => go(shot.video_url ? { redo_video: true } : { video: true }, vidDirty ? { video_prompt: vidPrompt.trim() } : undefined)}
+            onClick={() =>
+              go(
+                shot.video_url ? { redo_video: true } : { video: true },
+                vidDirty || endDirty ? { ...(vidDirty && { video_prompt: vidPrompt.trim() }), ...(endDirty && { end_prompt: endPrompt.trim() }) } : undefined,
+              )
+            }
           >
             {shot.video_url ? '重新生成视频' : shot.frame_url ? '生成视频' : '出图并生成视频'}
             {price(cost.i2v + (shot.frame_url ? 0 : cost.shot))}

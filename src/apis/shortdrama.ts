@@ -345,6 +345,13 @@ export interface Shot {
   video_url: string;
   /** 嘴跟着配音动的视频(口型同步);有就优先播它 */
   lipsync_video_url?: string;
+  /** 站位快照:这一镜开头每个角色在画面哪里、朝哪、穿什么、拿什么 */
+  blocking?: ShotBlocking[] | null;
+  /** 结尾画面(英文):有起止动作的镜头先出开头、结尾两张画面,再用首尾帧补中间 */
+  end_prompt?: string;
+  end_frame_url?: string;
+  /** 按画面生成的音效,合成时垫在对白下面 */
+  sfx_url?: string;
   ref_image_url: string;
   seed: number;
   gen_job_id: number;
@@ -358,6 +365,28 @@ export interface Shot {
   translations?: Record<string, string> | null;
   audio?: Record<string, ShotAudio> | null;
 }
+
+export interface ShotBlocking {
+  character: string;
+  /** left / center / right(按画面看) */
+  position?: string;
+  /** foreground / midground / background */
+  depth?: string;
+  /** camera / left / right / away */
+  facing?: string;
+  outfit?: string;
+  holding?: string;
+}
+
+export const BLOCKING_POSITIONS: Record<string, string> = { left: '画面左侧', center: '画面中间', right: '画面右侧' };
+export const BLOCKING_DEPTHS: Record<string, string> = { foreground: '前景', midground: '', background: '远处' };
+export const BLOCKING_FACINGS: Record<string, string> = { camera: '面朝镜头', left: '朝画面左', right: '朝画面右', away: '背对镜头' };
+
+/** 站位的中文一句话:「画面右侧 · 朝画面左 · 拿着 mop」 */
+export const blockingText = (b: ShotBlocking) =>
+  [BLOCKING_POSITIONS[b.position ?? ''], BLOCKING_DEPTHS[b.depth ?? ''], BLOCKING_FACINGS[b.facing ?? ''], b.holding ? `拿着 ${b.holding}` : '']
+    .filter(Boolean)
+    .join(' · ');
 
 export interface TaskLog {
   ts: string;
