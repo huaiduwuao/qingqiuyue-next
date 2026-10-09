@@ -39,6 +39,7 @@ import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
 import ClientVersionCard from '@/components/client/ClientVersionCard';
+import NotifyTokenPanel from '@/components/account/NotifyTokenPanel';
 import type { CurrentUser } from '@/beans/account';
 import { useMutation } from '@tanstack/react-query';
 import { updateUser } from '@/apis/account';
@@ -248,6 +249,8 @@ export default function AccountSettingsPage() {
 
             <TabPanel value={tab} index={3}>
               <NotificationSettingsPanel onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')} />
+              <Divider sx={{ my: 3 }} />
+              <NotifyTokenPanel onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')} />
             </TabPanel>
           </CardContent>
         </Card>
