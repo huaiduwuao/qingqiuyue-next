@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import Popper from '@mui/material/Popper';
 import type { ContentTypeItem, FacetItem } from '@/apis/home-discover';
 import { SearchModeSwitch } from './SearchBanners';
 
@@ -59,9 +60,6 @@ export const SearchFilterBar = React.memo(function SearchFilterBar({
   return (
     <Box
       sx={{
-        position: 'sticky',
-        top: 'calc(68px + var(--sat, 0px))',
-        zIndex: 9,
         display: 'flex',
         alignItems: 'center',
         gap: 1,
@@ -178,8 +176,9 @@ export function FilterField({ value, onChange, placeholder, inputMode, onFocus, 
 }) {
   const [focused, setFocused] = useState(false);
   const show = focused && (suggestions?.length ?? 0) > 0;
+  const anchorRef = useRef<HTMLDivElement | null>(null);
   return (
-    <Box sx={{ position: 'relative', flexShrink: 0 }}>
+    <Box ref={anchorRef} sx={{ position: 'relative', flexShrink: 0 }}>
       <TextField
         size="small"
         value={value}
@@ -202,13 +201,10 @@ export function FilterField({ value, onChange, placeholder, inputMode, onFocus, 
           '& .Mui-focused fieldset': { borderColor: 'var(--brand-color, #FE2C55)' },
         }}
       />
-      {show && (
+      {/* 候选列表走 Popper(挂到 body):筛选条是横向滚动容器,里面 absolute 的下拉会被裁掉 */}
+      <Popper open={show} anchorEl={anchorRef.current} placement="bottom-start" sx={{ zIndex: 1300 }}>
         <Box
           sx={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            zIndex: 20,
             mt: 0.5,
             minWidth: 180,
             maxHeight: 220,
@@ -247,7 +243,7 @@ export function FilterField({ value, onChange, placeholder, inputMode, onFocus, 
             </Box>
           ))}
         </Box>
-      )}
+      </Popper>
     </Box>
   );
 }

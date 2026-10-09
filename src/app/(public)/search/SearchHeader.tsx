@@ -34,9 +34,6 @@ export const SearchHeader = React.memo(function SearchHeader({
     <Box
       component="header"
       sx={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
         display: 'flex',
         alignItems: 'center',
         gap: { xs: 1, md: 1.5 },

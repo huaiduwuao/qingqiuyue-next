@@ -404,10 +404,14 @@ function SearchPageContent() {
         minHeight: '100dvh',
         bgcolor: 'var(--bg-body, #0a0a0f)',
         color: 'var(--text-primary, rgba(255,255,255,0.92))',
-        overflowX: 'hidden',
+        // clip 而不是 hidden:hidden 会把 overflow-y 隐式变成 auto,这个 Box 成了不滚动的滚动容器,
+        // 里面的 sticky 顶栏会跟着页面一起滚走(globals.css 里 body 有同样的说明)。
+        overflowX: 'clip',
         position: 'relative',
       }}
     >
+      {/* 顶栏 + 筛选条放进同一个 sticky 容器一起吸顶,不再按顶栏高度(刘海屏上会变)去算筛选条的 top */}
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 100 }}>
       {/* 顶部固定栏:返回 + 大搜索框 + 搜索按钮 + 清空 */}
       <SearchHeader
         query={query}
@@ -440,6 +444,7 @@ function SearchPageContent() {
         fUsable={fUsable}
         setFUsable={setFUsable}
       />
+      </Box>
 
       <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
         {aiMode ? (

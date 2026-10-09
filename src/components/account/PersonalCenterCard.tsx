@@ -33,8 +33,9 @@ import { coverBackground } from '@/lib/media';
 import { PlayTag } from '@/components/common/PlayTag';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import { WALLET_HREF } from '@/apis/wallet';
+import { homeClient } from '@/lib/api/client';
 
-// PROFILE 不再硬编码,昵称/统计从 currentUser 取(后端 /api/core/user/current)
+// PROFILE 不再硬编码:昵称从 currentUser 取(/api/core/user/current),关注/粉丝从 /home/me/profile 取
 // 我的喜欢预览完全由 /api/core/account/likes/preview 拉取,不再用任何静态 fallback。
 interface Section {
   key: string;
@@ -112,8 +113,18 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     staleTime: 30 * 1000,
     enabled: !!currentUser?.id,
   });
+  // 关注/粉丝数:/user/current 不带这两个字段(以前读它恒为 0,机器人关注了也显示 0),
+  // 改读「我的」页同一份 /home/me/profile,queryKey 相同共享缓存。
+  const { data: meProfile } = useQuery({
+    queryKey: ['home', 'me', 'profile'],
+    queryFn: () => homeClient.get<{ stats?: { following?: number; followers?: number } }>('/me/profile').then((r) => r),
+    staleTime: 30 * 1000,
+    enabled: !!currentUser?.id,
+  });
   /** 卡片头部展示用到的用户字段(不同登录方式下名字字段不一) */
-  const userView = currentUser as { nickname?: string; username?: string; name?: string; following?: number; followers?: number } | null | undefined;
+  const userView = currentUser as { nickname?: string; username?: string; name?: string } | null | undefined;
+  const followingCount = meProfile?.stats?.following ?? 0;
+  const followersCount = meProfile?.stats?.followers ?? 0;
   const LIKES_PREVIEW: Array<{ id: string | number; title?: string; cover?: string; type?: string }> = (likesResp?.list ?? []).map((l) => ({
     id: l.id, title: l.title, cover: coverBackground(l.cover, gradient2('#C8A882', '#8B6F47')), type: l.type,
   }));
@@ -276,7 +287,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               color: 'text.secondary',
             }}
           >
-            <Box component="span">关注 {userView?.following ?? 0}</Box>
+            <Box component="span">关注 {followingCount}</Box>
             <Box
               component="span"
               sx={{
@@ -286,7 +297,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                 bgcolor: 'text.disabled',
               }}
             />
-            <Box component="span">粉丝 {userView?.followers ?? 0}</Box>
+            <Box component="span">粉丝 {followersCount}</Box>
           </Box>
         </Box>
       </Box>
