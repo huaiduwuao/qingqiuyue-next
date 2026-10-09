@@ -16,6 +16,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import { CAMERA_MOVES, COMPOSITIONS, SHOT_TYPES, blockingText, dramaAPI, shotLabel, shotVideo, type Shot } from '@/apis/shortdrama';
@@ -94,6 +95,11 @@ function Editor({ projectId, episodeId, shot, label }: { projectId: number; epis
         <Chip size="small" variant="outlined" label={CAMERA_MOVES[shot.camera_move] ?? shot.camera_move} />
         {shot.composition && COMPOSITIONS[shot.composition] && <Chip size="small" variant="outlined" label={COMPOSITIONS[shot.composition]} />}
         <Chip size="small" variant="outlined" label={`${shot.duration_sec}s`} />
+        {shot.av_key && shot.video_url && (
+          <Tooltip title="这一镜的视频由 MiniMax H3 音画同出:口型和环境声是一起生成的">
+            <Chip size="small" color="secondary" variant="outlined" label="MiniMax H3" />
+          </Tooltip>
+        )}
       </Stack>
 
       <ToggleButtonGroup exclusive fullWidth size="small" value={mode} onChange={(_, v) => v && setMode(v)}>

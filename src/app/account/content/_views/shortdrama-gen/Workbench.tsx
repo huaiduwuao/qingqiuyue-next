@@ -352,6 +352,10 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
               {section === 'post' && <PostSection {...sectionProps} />}
             </>
           )}
+          {/* MiniMax H3 社区许可要求产品界面标出模型名;成片画面另有「AI生成」角标 */}
+          <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 3, textAlign: 'center' }}>
+            内容由 AI 生成 · 音画同出视频由 MiniMax H3 生成
+          </Typography>
         </Box>
 
         {panelOpen && (

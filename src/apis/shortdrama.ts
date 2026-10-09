@@ -352,6 +352,8 @@ export interface Shot {
   end_frame_url?: string;
   /** 按画面生成的音效,合成时垫在对白下面 */
   sfx_url?: string;
+  /** 非空 = 视频是 MiniMax H3 音画同出的,自带口型和环境声 */
+  av_key?: string;
   ref_image_url: string;
   seed: number;
   gen_job_id: number;
